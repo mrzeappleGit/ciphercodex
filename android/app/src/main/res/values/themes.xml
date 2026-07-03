@@ -1,0 +1,9 @@
+<resources>
+    <!-- Window-level theme only: Compose owns everything inside. Void background
+         so the first frame before composition matches the Cipher chrome. -->
+    <style name="Theme.CipherCodex" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/cipher_void</item>
+        <item name="android:statusBarColor">@color/cipher_void</item>
+        <item name="android:navigationBarColor">@color/cipher_void</item>
+    </style>
+</resources>

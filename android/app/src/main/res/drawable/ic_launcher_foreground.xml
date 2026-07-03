@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- CipherCodex mark from ciphercodex-icon.svg, scaled into the adaptive-icon
+     safe zone (66dp circle in a 108dp viewport). The SVG's per-bar vertical
+     gradient is approximated as a cyan-to-magenta step sequence down the stack,
+     which reads better at launcher sizes anyway. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.8"
+        android:scaleY="0.8"
+        android:pivotX="0"
+        android:pivotY="0"
+        android:translateX="30"
+        android:translateY="30">
+        <!-- Angular octagon frame -->
+        <path
+            android:pathData="M12,1 L48,1 L59,12 L59,48 L48,59 L12,59 L1,48 L1,12 Z"
+            android:fillColor="#0A0A0F"
+            android:strokeWidth="2">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="0" android:startY="0"
+                    android:endX="60" android:endY="60"
+                    android:startColor="#00E5FF"
+                    android:endColor="#FF2A93" />
+            </aapt:attr>
+        </path>
+        <!-- Text-line bars, cyan to magenta down the stack -->
+        <path android:pathData="M16,14 h28 a2,2 0 0 1 0,4 h-28 a2,2 0 0 1 0,-4 z" android:fillColor="#00E5FF" />
+        <path android:pathData="M16,21 h20 a2,2 0 0 1 0,4 h-20 a2,2 0 0 1 0,-4 z" android:fillColor="#40B6E4" />
+        <path android:pathData="M16,28 h26 a2,2 0 0 1 0,4 h-26 a2,2 0 0 1 0,-4 z" android:fillColor="#8088C9" />
+        <path android:pathData="M16,35 h14 a2,2 0 0 1 0,4 h-14 a2,2 0 0 1 0,-4 z" android:fillColor="#BF59AE" />
+        <path android:pathData="M16,42 h22 a2,2 0 0 1 0,4 h-22 a2,2 0 0 1 0,-4 z" android:fillColor="#FF2A93" />
+    </group>
+</vector>
