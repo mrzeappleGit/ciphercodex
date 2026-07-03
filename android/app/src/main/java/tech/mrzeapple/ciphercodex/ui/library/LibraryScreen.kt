@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,7 +67,11 @@ import tech.mrzeapple.ciphercodex.ui.theme.CipherVoid
 private val EPUB_MIME_TYPES = arrayOf("application/epub+zip", "application/octet-stream")
 
 @Composable
-fun LibraryScreen(onOpenBook: (Long) -> Unit, onOpenSettings: () -> Unit) {
+fun LibraryScreen(
+    onOpenBook: (Long) -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenStats: () -> Unit,
+) {
     val vm: LibraryViewModel = viewModel()
     val books by vm.books.collectAsState()
     val importState by vm.importState.collectAsState()
@@ -90,6 +95,14 @@ fun LibraryScreen(onOpenBook: (Long) -> Unit, onOpenSettings: () -> Unit) {
         CipherHeader(
             title = "CIPHERCODEX",
             trailing = {
+                Text(
+                    text = "STATS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CipherMuted,
+                    modifier = Modifier
+                        .clickable(onClick = onOpenStats)
+                        .padding(8.dp),
+                )
                 IconButton(onClick = onOpenSettings) {
                     Icon(
                         imageVector = Icons.Default.Settings,

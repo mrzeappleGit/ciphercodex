@@ -23,6 +23,19 @@ data class BookEntity(
     val lastOpenedAt: Long?,
 )
 
+/** One contiguous stretch of active reading of one book. Sessions shorter
+ *  than 15s with no page turns are discarded, not stored. */
+@Entity(tableName = "reading_sessions")
+data class ReadingSessionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bookId: Long,
+    val startedAt: Long,
+    val endedAt: Long,
+    val pagesTurned: Int,
+    val startPercentage: Float,
+    val endPercentage: Float,
+)
+
 @Entity(tableName = "progress")
 data class ProgressEntity(
     @PrimaryKey val bookId: Long,

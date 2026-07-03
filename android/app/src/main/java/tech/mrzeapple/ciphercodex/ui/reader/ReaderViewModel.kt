@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.data.db.BookEntity
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
+import tech.mrzeapple.ciphercodex.data.stats.SessionRecorder
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
 import tech.mrzeapple.ciphercodex.epub.Block
 import tech.mrzeapple.ciphercodex.epub.Epub
@@ -66,6 +67,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
 
     private var book: BookEntity? = null
     private var doc: EpubDocument? = null
+    private val recorder = SessionRecorder(app.database.statsDao(), bookId)
 
     private data class PageCacheKey(
         val spineIndex: Int,
@@ -112,6 +114,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
                     _percentage.value = saved.percentage
                 }
                 _uiState.value = ReaderUiState.Ready(title = b.title, spineCount = d.spineCount)
+                recorder.onSessionStart(_percentage.value)
                 val pull = try {
                     syncManager.pullOnOpen(b)
                 } catch (e: Exception) {
@@ -173,6 +176,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
     fun onPageShown(spineIndex: Int, page: Page, chapterCharCount: Int) {
         val pct = wholeBookPercentage(spineIndex, page.startChar, chapterCharCount)
         _percentage.value = pct
+        recorder.onPageShown(pct)
         pendingSave = PendingSave(spineIndex, page.startChar, pct)
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
@@ -209,13 +213,23 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         saveJob?.cancel()
         val p = takePendingSave()
         val b = book ?: return
+        val pct = _percentage.value
         viewModelScope.launch(NonCancellable + Dispatchers.IO) {
             if (p != null) repository.saveProgress(bookId, p.spineIndex, p.charOffset, p.percentage)
+            recorder.flush(pct)
             try {
                 syncManager.pushProgress(b)
             } catch (_: Exception) {
                 // fire-and-forget: a failed push stays dirty and retries later
             }
+        }
+    }
+
+    /** ON_RESUME: restart the reading session the ON_PAUSE flush closed.
+     *  No-op while a session is already active or before the book is ready. */
+    fun onResumed() {
+        if (_uiState.value is ReaderUiState.Ready) {
+            recorder.onSessionStart(_percentage.value)
         }
     }
 
@@ -290,10 +304,12 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         val b = book
         val d = doc
         doc = null
+        val pct = _percentage.value
         // viewModelScope is already cancelled here; NonCancellable re-parents
         // the coroutine so the final flush + push still run.
         viewModelScope.launch(NonCancellable + Dispatchers.IO) {
             if (p != null) repository.saveProgress(bookId, p.spineIndex, p.charOffset, p.percentage)
+            recorder.flush(pct)
             if (b != null) {
                 try {
                     syncManager.pushProgress(b)

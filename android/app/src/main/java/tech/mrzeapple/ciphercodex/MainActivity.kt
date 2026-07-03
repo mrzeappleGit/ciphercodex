@@ -14,6 +14,7 @@ import tech.mrzeapple.ciphercodex.ui.library.LibraryScreen
 import tech.mrzeapple.ciphercodex.ui.nav.Routes
 import tech.mrzeapple.ciphercodex.ui.reader.ReaderScreen
 import tech.mrzeapple.ciphercodex.ui.settings.SettingsScreen
+import tech.mrzeapple.ciphercodex.ui.stats.StatsScreen
 import tech.mrzeapple.ciphercodex.ui.theme.CipherCodexTheme
 
 class MainActivity : ComponentActivity() {
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
                         LibraryScreen(
                             onOpenBook = { bookId -> nav.navigate(Routes.reader(bookId)) },
                             onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                            onOpenStats = { nav.navigate(Routes.STATS) },
                         )
                     }
                     composable(
@@ -44,6 +46,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable(Routes.SETTINGS) {
                         SettingsScreen(onBack = { nav.popBackStack() })
+                    }
+                    composable(Routes.STATS) {
+                        StatsScreen(onBack = { nav.popBackStack() })
                     }
                 }
             }

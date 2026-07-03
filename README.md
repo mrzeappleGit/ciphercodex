@@ -19,6 +19,10 @@ The Cipher system (see `ciphercodex-design-brief.md`): void black `#0A0A0F`, cya
 - **Position**: the Android app pushes `ciphercodex:s=<spineIndex>;o=<charOffset>` plus a 0–1 percentage; the X4 pushes KOReader-style xpaths plus percentage. Each side decodes the other's chapter index and falls back to percentage — and any real KOReader device still syncs at percentage precision.
 - **Policy**: pull on book open (with a jump/stay prompt when another device is ahead), push on close/pause.
 
+## Reading stats
+
+Both devices track reading sessions locally (15-second minimum, 10-minute idle guard). The app's STATS screen shows time today / this week / all-time, streaks with a 15-week heatmap, a 14-day bar chart, pace, estimated time left in the current book, and per-book totals. The X4 shows a lean equivalent under Settings → Reading Stats (day-based stats activate once the device clock is set by a sync). Stats are per-device; the kosync protocol only carries position.
+
 ## Android app
 
 ```

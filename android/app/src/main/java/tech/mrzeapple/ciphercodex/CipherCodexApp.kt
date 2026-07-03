@@ -17,5 +17,5 @@ class CipherCodexApp : Application() {
     val prefs: UserPrefs by lazy { UserPrefs(this) }
     val kosync: KosyncApi by lazy { KosyncClient() }
     val syncManager: SyncManager by lazy { KosyncSyncManager(prefs, database.bookDao(), kosync) }
-    val repository: LibraryRepository by lazy { BookRepository(this, database.bookDao()) }
+    val repository: LibraryRepository by lazy { BookRepository(this, database.bookDao(), database.statsDao()) }
 }

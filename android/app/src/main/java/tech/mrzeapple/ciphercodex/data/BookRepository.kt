@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.data.db.BookDao
 import tech.mrzeapple.ciphercodex.data.db.BookEntity
 import tech.mrzeapple.ciphercodex.data.db.ProgressEntity
+import tech.mrzeapple.ciphercodex.data.db.StatsDao
 import tech.mrzeapple.ciphercodex.epub.Epub
 import tech.mrzeapple.ciphercodex.epub.EpubParseException
 import tech.mrzeapple.ciphercodex.sync.Digests
@@ -18,6 +19,7 @@ import java.io.File
 class BookRepository(
     private val context: Context,
     private val dao: BookDao,
+    private val statsDao: StatsDao,
 ) : LibraryRepository {
 
     private fun booksDir(): File = File(context.filesDir, "books").apply { mkdirs() }
@@ -95,6 +97,7 @@ class BookRepository(
         withContext(Dispatchers.IO) {
             val book = dao.bookById(bookId) ?: return@withContext
             dao.deleteProgressFor(bookId)
+            statsDao.deleteSessionsFor(bookId)
             dao.delete(book)
             File(book.filePath).delete()
             book.coverPath?.let { File(it).delete() }
