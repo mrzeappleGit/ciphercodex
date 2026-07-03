@@ -1,2 +1,4 @@
 # The X4 firmware fork is its own repository (mrzeappleGit/ciphercodex-os)
 x4-os/
+# Release signing material — never commit; backed up via Nextcloud sync
+keystore/

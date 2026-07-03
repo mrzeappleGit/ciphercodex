@@ -18,6 +18,24 @@ android {
         versionName = "0.2.0"
     }
 
+    signingConfigs {
+        create("release") {
+            // CI injects the keystore via env; local builds read ../keystore/
+            // (gitignored). With neither present the release build is unsigned.
+            val ks = System.getenv("KEYSTORE_FILE")?.let { File(it) }
+                ?: File(rootDir.parentFile, "keystore/ciphercodex-release.jks")
+            if (ks.exists()) {
+                val password = System.getenv("KEYSTORE_PASSWORD")
+                    ?: File(rootDir.parentFile, "keystore/.storepass")
+                        .takeIf { it.exists() }?.readText()?.trim()
+                storeFile = ks
+                storePassword = password
+                keyAlias = System.getenv("KEY_ALIAS") ?: "ciphercodex"
+                keyPassword = password
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -26,6 +44,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
         }
     }
     compileOptions {

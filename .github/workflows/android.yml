@@ -20,25 +20,44 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build APK and run unit tests
+      # Forks and PRs from outside have no access to the signing secrets;
+      # the gradle config falls back to an unsigned release build there.
+      - name: Restore signing keystore
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build and test
         working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug testDebugUnitTest
+          ./gradlew assembleDebug assembleRelease testDebugUnitTest
 
       - uses: actions/upload-artifact@v4
         with:
           name: ciphercodex-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
-      # Tagging vX.Y.Z publishes the APK on a GitHub release. Debug-keyed:
-      # fine for sideloading; a Play-store build needs a signing keystore.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ciphercodex-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+
+      # Tagging vX.Y.Z publishes the signed release APK on a GitHub release.
       - name: Attach APK to release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk "ciphercodex-${GITHUB_REF_NAME}-debug.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "ciphercodex-${GITHUB_REF_NAME}.apk"
           gh release create "${GITHUB_REF_NAME}" --title "CipherCodex ${GITHUB_REF_NAME}" --generate-notes \
-            "ciphercodex-${GITHUB_REF_NAME}-debug.apk" \
-            || gh release upload "${GITHUB_REF_NAME}" "ciphercodex-${GITHUB_REF_NAME}-debug.apk" --clobber
+            "ciphercodex-${GITHUB_REF_NAME}.apk" \
+            || gh release upload "${GITHUB_REF_NAME}" "ciphercodex-${GITHUB_REF_NAME}.apk" --clobber
