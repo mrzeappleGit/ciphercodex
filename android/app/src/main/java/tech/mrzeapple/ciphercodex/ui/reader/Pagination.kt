@@ -25,14 +25,25 @@ data class Page(
     val startChar: Int,
     val endChar: Int,
     val topPx: Float,
+    /** Pixel height of this page's own lines (last line bottom - topPx). The
+     *  renderer must clip to THIS, not the page box: a page cut early by a
+     *  following image still has later lines that fit the box vertically. */
+    val contentHeightPx: Float,
+    /** Non-null for a full-page image (covers, illustrations): render the zip
+     *  entry's bitmap instead of the text run. */
+    val imagePath: String? = null,
 )
 
 /** Chapter text built once from its blocks. Char offsets in [blockRanges]
- *  (and in [Page]) index into [text]. */
+ *  (and in [Page]) index into [text]. Images occupy one U+FFFC char each, in
+ *  their own paragraph, listed in [images] as charIndex -> zip path. */
 data class ChapterText(
     val text: AnnotatedString,
     val blockRanges: List<IntRange>,
+    val images: List<Pair<Int, String>>,
 )
+
+private const val IMAGE_CHAR = '￼'
 
 data class PaginatedChapter(
     val spineIndex: Int,
@@ -64,6 +75,7 @@ private const val RULE_TEXT = "* * *"
  *  the preceding paragraph's range so it never forms a stray paragraph). */
 fun buildChapterText(chapter: EpubChapter): ChapterText {
     val ranges = ArrayList<IntRange>(chapter.blocks.size)
+    val images = ArrayList<Pair<Int, String>>()
     val text = buildAnnotatedString {
         chapter.blocks.forEachIndexed { index, block ->
             val start = length
@@ -88,12 +100,22 @@ fun buildChapterText(chapter: EpubChapter): ChapterText {
                         append(RULE_TEXT)
                         if (separate) append('\n')
                     }
+                is Block.Image -> {
+                    // One object-replacement char in its own paragraph: it gets
+                    // its own layout line, which paginate() turns into a
+                    // standalone image page, and offsets stay page-mappable.
+                    images += length to block.zipPath
+                    withStyle(ParagraphStyle(textAlign = TextAlign.Center)) {
+                        append(IMAGE_CHAR)
+                        if (separate) append('\n')
+                    }
+                }
             }
             val contentEnd = if (separate) length - 1 else length
             ranges += start until contentEnd
         }
     }
-    return ChapterText(text, ranges)
+    return ChapterText(text, ranges, images)
 }
 
 /** Measures the whole chapter once at [widthPx] with unconstrained height and
@@ -114,7 +136,7 @@ fun paginate(
             spineIndex = chapter.spineIndex,
             text = text,
             blockRanges = built.blockRanges,
-            pages = listOf(Page(startChar = 0, endChar = text.length, topPx = 0f)),
+            pages = listOf(Page(startChar = 0, endChar = text.length, topPx = 0f, contentHeightPx = 0f)),
         )
     }
 
@@ -126,23 +148,45 @@ fun paginate(
         constraints = Constraints(maxWidth = safeWidth),
     )
 
+    // Lines holding an image's U+FFFC char become standalone image pages.
+    val imageLines = HashMap<Int, String>(built.images.size)
+    for ((charIndex, path) in built.images) {
+        imageLines[layout.getLineForOffset(charIndex)] = path
+    }
+
     val pages = ArrayList<Page>()
     var line = 0
     while (line < layout.lineCount) {
         val top = layout.getLineTop(line)
-        var last = line
-        while (last + 1 < layout.lineCount && layout.getLineBottom(last + 1) - top <= safeHeight) {
-            last++
+        val imagePath = imageLines[line]
+        if (imagePath != null) {
+            pages += Page(
+                startChar = layout.getLineStart(line),
+                endChar = layout.getLineEnd(line),
+                topPx = top,
+                contentHeightPx = layout.getLineBottom(line) - top,
+                imagePath = imagePath,
+            )
+            line++
+        } else {
+            var last = line
+            while (last + 1 < layout.lineCount &&
+                last + 1 !in imageLines &&
+                layout.getLineBottom(last + 1) - top <= safeHeight
+            ) {
+                last++
+            }
+            pages += Page(
+                startChar = layout.getLineStart(line),
+                endChar = layout.getLineEnd(last),
+                topPx = top,
+                contentHeightPx = layout.getLineBottom(last) - top,
+            )
+            line = last + 1
         }
-        pages += Page(
-            startChar = layout.getLineStart(line),
-            endChar = layout.getLineEnd(last),
-            topPx = top,
-        )
-        line = last + 1
     }
     if (pages.isEmpty()) {
-        pages += Page(startChar = 0, endChar = text.length, topPx = 0f)
+        pages += Page(startChar = 0, endChar = text.length, topPx = 0f, contentHeightPx = 0f)
     }
     return PaginatedChapter(
         spineIndex = chapter.spineIndex,

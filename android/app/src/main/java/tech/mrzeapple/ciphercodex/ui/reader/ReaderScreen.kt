@@ -1,6 +1,7 @@
 package tech.mrzeapple.ciphercodex.ui.reader
 
 import android.app.Activity
+import android.graphics.BitmapFactory
 import android.provider.Settings as SystemSettings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -12,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -54,7 +56,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -63,6 +69,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -355,22 +362,35 @@ private fun ReaderContent(
                     Box(Modifier.fillMaxSize())
                 } else {
                     val page = spec.paginated.pages[spec.pageIndex]
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .clipToBounds(),
-                    ) {
-                        // Same text, same style, same width as the measure pass;
-                        // unbounded height so it reflows identically, shifted up
-                        // to this page's first line and clipped to the page box.
-                        Text(
-                            text = spec.paginated.text,
-                            style = spec.style,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .wrapContentHeight(align = Alignment.Top, unbounded = true)
-                                .offset { IntOffset(0, -page.topPx.roundToInt()) },
-                        )
+                    if (page.imagePath != null) {
+                        ImagePage(vm = vm, path = page.imagePath, ink = ink)
+                    } else {
+                        // Clip to the page's OWN content height, not the box: a
+                        // page cut early (by a following image) still has later
+                        // lines that would fit the box vertically.
+                        val contentHeight =
+                            with(LocalDensity.current) { page.contentHeightPx.toDp() }
+                        Box(Modifier.fillMaxSize()) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(contentHeight)
+                                    .align(Alignment.TopStart)
+                                    .clipToBounds(),
+                            ) {
+                                // Same text, same style, same width as the measure
+                                // pass; unbounded height so it reflows identically,
+                                // shifted up to this page's first line.
+                                Text(
+                                    text = spec.paginated.text,
+                                    style = spec.style,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .wrapContentHeight(align = Alignment.Top, unbounded = true)
+                                        .offset { IntOffset(0, -page.topPx.roundToInt()) },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -497,6 +517,59 @@ private fun BoxScope.SyncPromptPanel(
                 CipherButton("JUMP", onClick = onJump)
                 CipherButton("STAY", onClick = onStay, accent = CipherMuted)
             }
+        }
+    }
+}
+
+private sealed interface ImageLoad {
+    data object Loading : ImageLoad
+    data class Done(val bitmap: ImageBitmap) : ImageLoad
+    data object Failed : ImageLoad
+}
+
+/** Full-page in-flow image (cover pages, illustrations), decoded off the main
+ *  thread with subsampling near the page size, fit-centered. */
+@Composable
+private fun ImagePage(vm: ReaderViewModel, path: String, ink: Color) {
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val targetW = constraints.maxWidth.coerceAtLeast(1)
+        val targetH = constraints.maxHeight.coerceAtLeast(1)
+        val load by produceState<ImageLoad>(ImageLoad.Loading, path) {
+            value = withContext(Dispatchers.IO) {
+                val bytes = vm.imageBytes(path) ?: return@withContext ImageLoad.Failed
+                try {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext ImageLoad.Failed
+                    var sample = 1
+                    while (bounds.outWidth / (sample * 2) >= targetW &&
+                        bounds.outHeight / (sample * 2) >= targetH
+                    ) {
+                        sample *= 2
+                    }
+                    val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                        ?.let { ImageLoad.Done(it.asImageBitmap()) }
+                        ?: ImageLoad.Failed
+                } catch (e: Exception) {
+                    ImageLoad.Failed
+                } catch (e: OutOfMemoryError) {
+                    ImageLoad.Failed
+                }
+            }
+        }
+        when (val state = load) {
+            ImageLoad.Loading -> Unit
+            is ImageLoad.Done -> Image(
+                bitmap = state.bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+            ImageLoad.Failed -> Text(
+                text = "[ image unavailable ]",
+                style = ReadingBodyStyle.copy(fontSize = 14.sp, color = ink.copy(alpha = 0.6f)),
+            )
         }
     }
 }

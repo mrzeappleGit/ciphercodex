@@ -369,7 +369,13 @@ private class ZipEpubDocument(
             if (closed) throw EpubParseException("document is closed")
             cache[spineIndex]?.let { return it }
             val path = spinePaths[spineIndex]
-            val chapter = EpubChapter(spineIndex, XhtmlMapper.parse(archive.bytes(path), path))
+            val baseDir = path.dirName()
+            val chapter = EpubChapter(
+                spineIndex,
+                XhtmlMapper.parse(archive.bytes(path), path) { href ->
+                    resolvePath(baseDir, href).takeIf { archive.entry(it) != null }
+                },
+            )
             cache[spineIndex] = chapter
             return chapter
         }
@@ -377,10 +383,14 @@ private class ZipEpubDocument(
 
     override fun coverImageBytes(): ByteArray? {
         if (coverPath == null) return null
+        return imageBytes(coverPath)
+    }
+
+    override fun imageBytes(zipPath: String): ByteArray? {
         synchronized(lock) {
             if (closed) return null
             return try {
-                archive.bytes(coverPath)
+                archive.bytes(zipPath)
             } catch (e: Exception) {
                 null
             }

@@ -142,18 +142,23 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
     ): PaginatedChapter {
         val key = PageCacheKey(spineIndex, widthPx, heightPx, fontScale, sysFontScale, sysDensity)
         synchronized(pageCache) { pageCache[key]?.let { return it } }
+        // Any failure paginates as a visible placeholder page: a silent failure
+        // here is an unrecoverable blank reader, the worst possible outcome.
         val chapter = try {
             checkNotNull(doc) { "document not open" }.chapter(spineIndex)
         } catch (e: EpubParseException) {
-            // Malformed chapter XHTML: paginate a visible placeholder page so
-            // the spine item stays navigable instead of silently dead-ending
-            // forward navigation. (A closed/missing doc still throws above.)
-            EpubChapter(
-                spineIndex,
-                listOf(Block.Paragraph(AnnotatedString("[ CHAPTER UNREADABLE — MALFORMED CONTENT ]"))),
+            placeholderChapter(spineIndex, "[ CHAPTER UNREADABLE — MALFORMED CONTENT ]")
+        } catch (e: Exception) {
+            placeholderChapter(spineIndex, "[ CHAPTER FAILED TO LOAD — ${e.javaClass.simpleName} ]")
+        }
+        val result = try {
+            paginate(chapter, measurer, style, widthPx, heightPx)
+        } catch (e: Exception) {
+            paginate(
+                placeholderChapter(spineIndex, "[ PAGE LAYOUT FAILED — ${e.javaClass.simpleName} ]"),
+                measurer, style, widthPx, heightPx,
             )
         }
-        val result = paginate(chapter, measurer, style, widthPx, heightPx)
         synchronized(pageCache) {
             if (pageCache.size >= PAGE_CACHE_LIMIT) {
                 pageCache.keys.firstOrNull()?.let { pageCache.remove(it) }
@@ -162,6 +167,17 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         }
         return result
     }
+
+    private fun placeholderChapter(spineIndex: Int, message: String) =
+        EpubChapter(spineIndex, listOf(Block.Paragraph(AnnotatedString(message))))
+
+    /** Raw bytes of an in-flow image (Page.imagePath); null when unavailable. */
+    fun imageBytes(zipPath: String): ByteArray? =
+        try {
+            doc?.imageBytes(zipPath)
+        } catch (e: Exception) {
+            null
+        }
 
     fun moveTo(spineIndex: Int, charOffset: Int) {
         val d = doc ?: return

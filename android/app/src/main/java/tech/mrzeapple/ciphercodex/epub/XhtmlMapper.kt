@@ -15,10 +15,16 @@ import kotlin.math.min
 /** Maps one spine XHTML document into the reader's flow [Block]s. */
 internal object XhtmlMapper {
 
-    /** @throws EpubParseException wrapping any parser failure, tagged with [entryName]. */
-    fun parse(bytes: ByteArray, entryName: String): List<Block> {
+    /** [resolveImage] maps an img/image href to a normalized zip entry path,
+     *  or null to drop the image (unresolvable/missing).
+     *  @throws EpubParseException wrapping any parser failure, tagged with [entryName]. */
+    fun parse(
+        bytes: ByteArray,
+        entryName: String,
+        resolveImage: (String) -> String? = { null },
+    ): List<Block> {
         try {
-            return readBlocks(newEpubXmlParser(bytes))
+            return readBlocks(newEpubXmlParser(bytes), resolveImage)
         } catch (e: EpubParseException) {
             throw e
         } catch (e: Exception) {
@@ -26,7 +32,7 @@ internal object XhtmlMapper {
         }
     }
 
-    private fun readBlocks(parser: XmlPullParser): List<Block> {
+    private fun readBlocks(parser: XmlPullParser, resolveImage: (String) -> String?): List<Block> {
         val blocks = mutableListOf<Block>()
         val acc = InlineAccumulator()
         val headingLevels = ArrayDeque<Int>()
@@ -56,6 +62,17 @@ internal object XhtmlMapper {
                             name == "hr" -> {
                                 flushBlock()
                                 blocks += Block.Rule
+                            }
+                            name == "img" || name == "image" -> {
+                                // <img src> and the SVG-cover pattern <image href/xlink:href>.
+                                val href = parser.getAttributeValue(null, "src")
+                                    ?: parser.getAttributeValue(null, "href")
+                                    ?: parser.getAttributeValue(XlinkNamespace, "href")
+                                val path = href?.let(resolveImage)
+                                if (path != null) {
+                                    flushBlock()
+                                    blocks += Block.Image(path)
+                                }
                             }
                             name == "br" -> acc.lineBreak()
                             else -> InlineStyles[name]?.let(acc::pushSpan)
@@ -112,6 +129,8 @@ internal fun newEpubXmlParser(bytes: ByteArray): XmlPullParser {
 }
 
 private val XmlPredefinedEntities = setOf("amp", "lt", "gt", "quot", "apos")
+
+private const val XlinkNamespace = "http://www.w3.org/1999/xlink"
 
 private val SkippedTags = setOf("script", "style", "head")
 
