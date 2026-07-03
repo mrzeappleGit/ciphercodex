@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
@@ -77,8 +78,8 @@ fun LibraryScreen(
     val importState by vm.importState.collectAsState()
 
     val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri -> if (uri != null) vm.importEpub(uri) }
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris -> if (uris.isNotEmpty()) vm.importEpubs(uris) }
     val launchImport = { importLauncher.launch(EPUB_MIME_TYPES) }
     val importing = importState is ImportUiState.Working
 
@@ -132,6 +133,8 @@ fun LibraryScreen(
                     .fillMaxWidth(),
             )
         } else {
+            val lastRead = books.first().takeIf { it.book.lastOpenedAt != null }
+            val gridBooks = if (lastRead != null) books.drop(1) else books
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 120.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -141,7 +144,16 @@ fun LibraryScreen(
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
-                items(books, key = { it.book.id }) { entry ->
+                if (lastRead != null) {
+                    item(key = lastRead.book.id, span = { GridItemSpan(maxLineSpan) }) {
+                        ContinueReadingHero(
+                            entry = lastRead,
+                            onOpen = { onOpenBook(lastRead.book.id) },
+                            onLongPress = { deleteTarget = lastRead },
+                        )
+                    }
+                }
+                items(gridBooks, key = { it.book.id }) { entry ->
                     BookCard(
                         entry = entry,
                         onOpen = { onOpenBook(entry.book.id) },
@@ -186,9 +198,60 @@ fun LibraryScreen(
 private fun ImportStatus(state: ImportUiState, modifier: Modifier = Modifier) {
     when (state) {
         ImportUiState.Idle -> Spacer(modifier)
-        ImportUiState.Working -> CipherCaption("IMPORTING...", modifier)
+        is ImportUiState.Working -> CipherCaption(
+            if (state.total == 1) "IMPORTING..." else "IMPORTING ${state.current}/${state.total}...",
+            modifier,
+        )
         is ImportUiState.Done -> CipherCaption(state.message.uppercase(), modifier, color = CipherCyan)
         is ImportUiState.Error -> CipherCaption(state.message.uppercase(), modifier, color = CipherMagenta)
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ContinueReadingHero(
+    entry: BookWithProgress,
+    onOpen: () -> Unit,
+    onLongPress: () -> Unit,
+) {
+    CipherPanel {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(onClick = onOpen, onLongClick = onLongPress),
+        ) {
+            Box(Modifier.width(110.dp)) {
+                BookCover(coverPath = entry.book.coverPath, title = entry.book.title)
+            }
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(12.dp),
+            ) {
+                CipherCaption("CONTINUE READING", color = CipherCyan)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = entry.book.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(4.dp))
+                CipherCaption((entry.book.author ?: "UNKNOWN AUTHOR").uppercase())
+                Spacer(Modifier.height(8.dp))
+                CipherProgressBar(entry.percentage ?: 0f)
+                entry.percentage?.let { pct ->
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        CipherCaption("${(pct * 100).roundToInt()}%")
+                    }
+                }
+            }
+        }
     }
 }
 

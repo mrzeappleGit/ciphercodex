@@ -13,11 +13,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.data.BookWithProgress
-import tech.mrzeapple.ciphercodex.data.ImportResult
 
 sealed interface ImportUiState {
     data object Idle : ImportUiState
-    data object Working : ImportUiState
+    /** [current] is the 1-based index of the file being imported. */
+    data class Working(val current: Int, val total: Int) : ImportUiState
     data class Done(val message: String) : ImportUiState
     data class Error(val message: String) : ImportUiState
 }
@@ -35,16 +35,19 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private var resetJob: Job? = null
 
-    fun importEpub(uri: Uri) {
+    fun importEpubs(uris: List<Uri>) {
+        if (uris.isEmpty()) return
         if (_importState.value is ImportUiState.Working) return
         resetJob?.cancel()
-        _importState.value = ImportUiState.Working
+        _importState.value = ImportUiState.Working(current = 1, total = uris.size)
         viewModelScope.launch {
-            _importState.value = when (val result = repository.importEpub(uri)) {
-                is ImportResult.Imported -> ImportUiState.Done("IMPORTED")
-                is ImportResult.Duplicate -> ImportUiState.Done("ALREADY IN LIBRARY")
-                is ImportResult.Failed -> ImportUiState.Error(result.message)
+            // Sequential on purpose: the repository sweeps stale import temps
+            // at each import start, which is only safe with no live sibling.
+            val results = uris.mapIndexed { index, uri ->
+                _importState.value = ImportUiState.Working(current = index + 1, total = uris.size)
+                repository.importEpub(uri)
             }
+            _importState.value = summarizeImports(results)
             resetJob = launch {
                 delay(RESET_DELAY_MS)
                 _importState.value = ImportUiState.Idle
