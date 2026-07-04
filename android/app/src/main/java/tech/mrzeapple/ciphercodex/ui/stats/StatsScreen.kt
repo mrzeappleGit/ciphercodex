@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -47,7 +47,7 @@ import tech.mrzeapple.ciphercodex.ui.theme.CipherStatic
 import kotlin.math.roundToInt
 
 @Composable
-fun StatsScreen(onBack: () -> Unit) {
+fun StatsScreen(onBack: (() -> Unit)? = null) {
     val vm: StatsViewModel = viewModel()
     val state by vm.state.collectAsState()
 
@@ -55,20 +55,22 @@ fun StatsScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding(),
+            .statusBarsPadding(),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 4.dp, top = 8.dp, end = 16.dp),
+                .padding(start = if (onBack != null) 4.dp else 16.dp, top = 8.dp, end = 16.dp),
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = CipherCyan,
-                )
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = CipherCyan,
+                    )
+                }
             }
             CipherHeader(title = "STATS", modifier = Modifier.weight(1f))
         }

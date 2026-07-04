@@ -7,11 +7,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -22,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
@@ -169,6 +176,55 @@ fun CipherProgressBar(
                 .height(3.dp)
                 .background(CipherGradient),
         )
+    }
+}
+
+/** Bottom tab bar: icon + mono label per tab, cyan when active and muted
+ *  otherwise, over the static surface with a gradient top hairline. */
+@Composable
+fun CipherBottomNav(
+    tabs: List<Pair<ImageVector, String>>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(CipherStatic),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(CipherGradient),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            tabs.forEachIndexed { i, (icon, label) ->
+                val active = i == selected
+                val tint = if (active) CipherCyan else CipherMuted
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(CipherShapeSmall)
+                        .clickable { onSelect(i) }
+                        .padding(vertical = 6.dp),
+                ) {
+                    Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.height(5.dp))
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = tint)
+                }
+            }
+        }
+        // Extend the bar's surface under the system navigation bar.
+        Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
     }
 }
 

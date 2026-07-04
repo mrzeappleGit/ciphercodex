@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -68,7 +69,7 @@ private const val FONT_MIN = 0.75f
 private const val FONT_MAX = 1.75f
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: (() -> Unit)? = null) {
     val vm: SettingsViewModel = viewModel()
     val settings by vm.settings.collectAsState()
     val connection by vm.connection.collectAsState()
@@ -82,20 +83,22 @@ fun SettingsScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
+            .statusBarsPadding(),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 4.dp, top = 8.dp, end = 16.dp),
+                .padding(start = if (onBack != null) 4.dp else 16.dp, top = 8.dp, end = 16.dp),
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = CipherCyan,
-                )
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = CipherCyan,
+                    )
+                }
             }
             CipherHeader(title = "SYSTEM", modifier = Modifier.weight(1f))
         }
@@ -505,7 +508,7 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.3.6", color = CipherCyan)
+                CipherCaption("v0.4.0", color = CipherCyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(

@@ -64,6 +64,14 @@ interface BookDao {
     @Query("SELECT * FROM highlights WHERE bookId = :bookId ORDER BY spineIndex, startChar")
     fun observeHighlights(bookId: Long): Flow<List<HighlightEntity>>
 
+    /** All highlights across the library, newest first, joined with their book's
+     *  title/author for the top-level KEPT screen. */
+    @Query(
+        "SELECT h.*, b.title AS bookTitle, b.author AS bookAuthor FROM highlights h " +
+            "JOIN books b ON b.id = h.bookId ORDER BY h.createdAt DESC",
+    )
+    fun observeAllHighlights(): Flow<List<HighlightWithBook>>
+
     @Insert
     suspend fun insertHighlight(highlight: HighlightEntity): Long
 

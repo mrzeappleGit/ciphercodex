@@ -1,5 +1,6 @@
 package tech.mrzeapple.ciphercodex.data.db
 
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -68,6 +69,13 @@ data class HighlightEntity(
     val endChar: Int,
     val text: String,
     val createdAt: Long,
+)
+
+/** A highlight joined with its book's title/author, for the KEPT screen. */
+data class HighlightWithBook(
+    @Embedded val highlight: HighlightEntity,
+    val bookTitle: String,
+    val bookAuthor: String?,
 )
 
 /** A user-created shelf. Books join via [BookCollectionCrossRef] (many-to-many). */

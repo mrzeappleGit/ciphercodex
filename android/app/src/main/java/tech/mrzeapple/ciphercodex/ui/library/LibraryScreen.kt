@@ -23,7 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -79,8 +79,6 @@ private val EPUB_MIME_TYPES = arrayOf("application/epub+zip", "application/octet
 @Composable
 fun LibraryScreen(
     onOpenBook: (Long) -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenStats: () -> Unit,
     onOpenOpds: () -> Unit,
 ) {
     val vm: LibraryViewModel = viewModel()
@@ -107,7 +105,7 @@ fun LibraryScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding()
+            .statusBarsPadding()
             .padding(horizontal = 16.dp),
     ) {
         Spacer(Modifier.height(12.dp))
@@ -122,21 +120,6 @@ fun LibraryScreen(
                         .clickable(onClick = onOpenOpds)
                         .padding(8.dp),
                 )
-                Text(
-                    text = "STATS",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = CipherMuted,
-                    modifier = Modifier
-                        .clickable(onClick = onOpenStats)
-                        .padding(8.dp),
-                )
-                IconButton(onClick = onOpenSettings) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = CipherMuted,
-                    )
-                }
             },
         )
         Spacer(Modifier.height(12.dp))

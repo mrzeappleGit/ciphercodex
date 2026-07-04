@@ -21,12 +21,10 @@ import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import tech.mrzeapple.ciphercodex.data.ImportResult
-import tech.mrzeapple.ciphercodex.ui.library.LibraryScreen
+import tech.mrzeapple.ciphercodex.ui.MainScaffold
 import tech.mrzeapple.ciphercodex.ui.nav.Routes
 import tech.mrzeapple.ciphercodex.ui.opds.OpdsScreen
 import tech.mrzeapple.ciphercodex.ui.reader.ReaderScreen
-import tech.mrzeapple.ciphercodex.ui.settings.SettingsScreen
-import tech.mrzeapple.ciphercodex.ui.stats.StatsScreen
 import tech.mrzeapple.ciphercodex.ui.theme.CipherCodexTheme
 
 class MainActivity : ComponentActivity() {
@@ -56,12 +54,10 @@ class MainActivity : ComponentActivity() {
                     pendingOpen.value = null
                     nav.navigate(Routes.reader(bookId)) { launchSingleTop = true }
                 }
-                NavHost(navController = nav, startDestination = Routes.LIBRARY) {
-                    composable(Routes.LIBRARY) {
-                        LibraryScreen(
+                NavHost(navController = nav, startDestination = Routes.MAIN) {
+                    composable(Routes.MAIN) {
+                        MainScaffold(
                             onOpenBook = { bookId -> nav.navigate(Routes.reader(bookId)) },
-                            onOpenSettings = { nav.navigate(Routes.SETTINGS) },
-                            onOpenStats = { nav.navigate(Routes.STATS) },
                             onOpenOpds = { nav.navigate(Routes.OPDS) },
                         )
                     }
@@ -74,12 +70,6 @@ class MainActivity : ComponentActivity() {
                     ) { backStack ->
                         val bookId = backStack.arguments?.getLong("bookId") ?: return@composable
                         ReaderScreen(bookId = bookId, onBack = { nav.popBackStack() })
-                    }
-                    composable(Routes.SETTINGS) {
-                        SettingsScreen(onBack = { nav.popBackStack() })
-                    }
-                    composable(Routes.STATS) {
-                        StatsScreen(onBack = { nav.popBackStack() })
                     }
                 }
             }

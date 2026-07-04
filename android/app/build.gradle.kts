@@ -14,8 +14,8 @@ android {
         applicationId = "tech.mrzeapple.ciphercodex"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.3.6"
+        versionCode = 12
+        versionName = "0.4.0"
     }
 
     signingConfigs {
