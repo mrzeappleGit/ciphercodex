@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -39,8 +40,16 @@ data class Settings(
     val readerMargin: ReaderMargin,
     val justify: Boolean,
     val readingFont: ReadingFontChoice,
+    /** When true the reader forces [brightness]; otherwise the system controls it. */
+    val brightnessOverride: Boolean,
+    /** Reader screen brightness 0.01f..1f, applied only when [brightnessOverride]. */
+    val brightness: Float,
+    /** Warm overlay strength 0f (off)..1f. */
+    val warmth: Float,
     /** Hold the screen awake while reading. */
     val keepScreenOn: Boolean,
+    /** Daily reading target in minutes; 0 = no goal. */
+    val dailyGoalMinutes: Int,
     val librarySort: LibrarySort,
 )
 
@@ -61,7 +70,11 @@ class UserPrefs(private val context: Context) {
         val readerMargin = stringPreferencesKey("reader_margin")
         val justify = booleanPreferencesKey("justify")
         val readingFont = stringPreferencesKey("reading_font")
+        val brightnessOverride = booleanPreferencesKey("brightness_override")
+        val brightness = floatPreferencesKey("brightness")
+        val warmth = floatPreferencesKey("warmth")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
+        val dailyGoalMinutes = intPreferencesKey("daily_goal_minutes")
         val librarySort = stringPreferencesKey("library_sort")
     }
 
@@ -82,7 +95,11 @@ class UserPrefs(private val context: Context) {
             justify = p[Keys.justify] ?: false,
             readingFont = ReadingFontChoice.entries.firstOrNull { it.name == p[Keys.readingFont] }
                 ?: ReadingFontChoice.LITERATA,
+            brightnessOverride = p[Keys.brightnessOverride] ?: false,
+            brightness = p[Keys.brightness] ?: 0.5f,
+            warmth = p[Keys.warmth] ?: 0f,
             keepScreenOn = p[Keys.keepScreenOn] ?: true,
+            dailyGoalMinutes = p[Keys.dailyGoalMinutes] ?: 0,
             librarySort = LibrarySort.entries.firstOrNull { it.name == p[Keys.librarySort] }
                 ?: LibrarySort.RECENT,
         )
@@ -110,7 +127,11 @@ class UserPrefs(private val context: Context) {
     suspend fun setReaderMargin(value: ReaderMargin) = context.dataStore.edit { it[Keys.readerMargin] = value.name }
     suspend fun setJustify(value: Boolean) = context.dataStore.edit { it[Keys.justify] = value }
     suspend fun setReadingFont(value: ReadingFontChoice) = context.dataStore.edit { it[Keys.readingFont] = value.name }
+    suspend fun setBrightnessOverride(value: Boolean) = context.dataStore.edit { it[Keys.brightnessOverride] = value }
+    suspend fun setBrightness(value: Float) = context.dataStore.edit { it[Keys.brightness] = value.coerceIn(0.01f, 1f) }
+    suspend fun setWarmth(value: Float) = context.dataStore.edit { it[Keys.warmth] = value.coerceIn(0f, 1f) }
     suspend fun setKeepScreenOn(value: Boolean) = context.dataStore.edit { it[Keys.keepScreenOn] = value }
+    suspend fun setDailyGoalMinutes(value: Int) = context.dataStore.edit { it[Keys.dailyGoalMinutes] = value.coerceIn(0, 600) }
     suspend fun setLibrarySort(value: LibrarySort) = context.dataStore.edit { it[Keys.librarySort] = value.name }
 
     companion object {

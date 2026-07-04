@@ -25,6 +25,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -126,7 +128,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onReaderMargin = vm::setReaderMargin,
                 onJustify = vm::setJustify,
                 onReadingFont = vm::setReadingFont,
+                onBrightnessOverride = vm::setBrightnessOverride,
+                onBrightness = vm::setBrightness,
+                onWarmth = vm::setWarmth,
                 onKeepScreenOn = vm::setKeepScreenOn,
+                onDailyGoal = vm::setDailyGoalMinutes,
             )
             AboutPanel(deviceId = settings.deviceId)
         }
@@ -234,7 +240,11 @@ private fun ReadingPanel(
     onReaderMargin: (ReaderMargin) -> Unit,
     onJustify: (Boolean) -> Unit,
     onReadingFont: (ReadingFontChoice) -> Unit,
+    onBrightnessOverride: (Boolean) -> Unit,
+    onBrightness: (Float) -> Unit,
+    onWarmth: (Float) -> Unit,
     onKeepScreenOn: (Boolean) -> Unit,
+    onDailyGoal: (Int) -> Unit,
 ) {
     CipherPanel(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -287,8 +297,55 @@ private fun ReadingPanel(
                 }
             }
             SwitchRow("JUSTIFY TEXT", "ALIGN BOTH EDGES", settings.justify, onJustify)
+            SwitchRow(
+                "ADJUST BRIGHTNESS", "OVERRIDE SYSTEM WHILE READING",
+                settings.brightnessOverride, onBrightnessOverride,
+            )
+            if (settings.brightnessOverride) {
+                SliderRow("BRIGHTNESS", settings.brightness, 0.01f..1f, onBrightness)
+            }
+            SliderRow("WARMTH", settings.warmth, 0f..1f, onWarmth)
             SwitchRow("KEEP SCREEN ON", "STAY AWAKE WHILE READING", settings.keepScreenOn, onKeepScreenOn)
+            StepperRow(
+                label = "DAILY GOAL",
+                value = if (settings.dailyGoalMinutes > 0) "${settings.dailyGoalMinutes}M" else "OFF",
+                onMinus = { onDailyGoal(settings.dailyGoalMinutes - 5) },
+                minusEnabled = settings.dailyGoalMinutes > 0,
+                onPlus = { onDailyGoal(settings.dailyGoalMinutes + 5) },
+                plusEnabled = settings.dailyGoalMinutes < 600,
+            )
         }
+    }
+}
+
+@Composable
+private fun SliderRow(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onChange: (Float) -> Unit,
+) {
+    val pct = ((value - range.start) / (range.endInclusive - range.start) * 100).roundToInt()
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            CipherCaption("$pct%")
+        }
+        Slider(
+            value = value,
+            onValueChange = onChange,
+            valueRange = range,
+            colors = SliderDefaults.colors(
+                thumbColor = CipherCyan,
+                activeTrackColor = CipherCyan,
+                inactiveTrackColor = CipherStatic,
+            ),
+        )
     }
 }
 
@@ -423,7 +480,7 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.3.1", color = CipherCyan)
+                CipherCaption("v0.3.2", color = CipherCyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(

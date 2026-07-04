@@ -2,6 +2,7 @@ package tech.mrzeapple.ciphercodex.ui.reader
 
 import android.app.Activity
 import android.graphics.BitmapFactory
+import android.view.WindowManager
 import android.provider.Settings as SystemSettings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -138,6 +139,10 @@ private fun nextReadingTheme(current: ReadingTheme): ReadingTheme {
     return values[(current.ordinal + 1) % values.size]
 }
 
+// Amber wash for the warm-light overlay; strength scales with the warmth pref.
+private val WarmthColor = Color(0xFFFF7A1A)
+private const val WARMTH_MAX_ALPHA = 0.45f
+
 @Composable
 fun ReaderScreen(bookId: Long, onBack: () -> Unit) {
     val vm: ReaderViewModel = viewModel(key = "reader-$bookId") {
@@ -231,6 +236,20 @@ private fun ReaderContent(
     DisposableEffect(settings.keepScreenOn) {
         view.keepScreenOn = settings.keepScreenOn
         onDispose { view.keepScreenOn = false }
+    }
+
+    // Override screen brightness while reading (prefs-gated); restored to the
+    // system value (BRIGHTNESS_OVERRIDE_NONE) on leave.
+    DisposableEffect(settings.brightnessOverride, settings.brightness) {
+        val window = (view.context as Activity).window
+        fun apply(value: Float) {
+            window.attributes = window.attributes.apply { screenBrightness = value }
+        }
+        apply(
+            if (settings.brightnessOverride) settings.brightness.coerceIn(0.01f, 1f)
+            else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE,
+        )
+        onDispose { apply(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE) }
     }
 
     val position by vm.position.collectAsState()
@@ -452,6 +471,16 @@ private fun ReaderContent(
                     }
                 }
             }
+        }
+
+        // Warm-light wash over the page (no pointer input, so it never blocks
+        // page-turn gestures); drawn under the chrome so chrome stays untinted.
+        if (settings.warmth > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(WarmthColor.copy(alpha = settings.warmth * WARMTH_MAX_ALPHA)),
+            )
         }
 
         if (chromeVisible) {

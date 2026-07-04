@@ -7,7 +7,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.data.db.BookEntity
@@ -46,6 +48,8 @@ data class StatsUiState(
     /** Monday-aligned continuous range covering ~15 weeks up to today. */
     val heatmap: List<DayStat> = emptyList(),
     val perBook: List<BookStat> = emptyList(),
+    /** Daily reading target in minutes; 0 = no goal set. */
+    val dailyGoalMinutes: Int = 0,
 )
 
 class StatsViewModel(application: Application) : AndroidViewModel(application) {
@@ -53,13 +57,15 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as CipherCodexApp
     private val statsDao = app.database.statsDao()
     private val bookDao = app.database.bookDao()
+    private val prefs = app.prefs
 
     val state: StateFlow<StatsUiState> = combine(
         statsDao.observeAllSessions(),
         bookDao.observeBooks(),
         bookDao.observeAllProgress(),
-    ) { sessions, books, progress ->
-        derive(sessions, books, progress)
+        prefs.settings.map { it.dailyGoalMinutes }.distinctUntilChanged(),
+    ) { sessions, books, progress, goal ->
+        derive(sessions, books, progress).copy(dailyGoalMinutes = goal)
     }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())

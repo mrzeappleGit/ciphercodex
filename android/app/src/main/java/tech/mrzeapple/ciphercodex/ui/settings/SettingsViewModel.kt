@@ -116,8 +116,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefs.setReadingFont(value) }
     }
 
+    fun setBrightnessOverride(value: Boolean) {
+        viewModelScope.launch { prefs.setBrightnessOverride(value) }
+    }
+
+    fun setBrightness(value: Float) {
+        viewModelScope.launch { prefs.setBrightness(value) }
+    }
+
+    fun setWarmth(value: Float) {
+        viewModelScope.launch { prefs.setWarmth(value) }
+    }
+
     fun setKeepScreenOn(value: Boolean) {
         viewModelScope.launch { prefs.setKeepScreenOn(value) }
+    }
+
+    fun setDailyGoalMinutes(value: Int) {
+        viewModelScope.launch { prefs.setDailyGoalMinutes(value) }
     }
 
     fun testConnection(register: Boolean) {
@@ -162,7 +178,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             readerMargin = ReaderMargin.MEDIUM,
             justify = false,
             readingFont = ReadingFontChoice.LITERATA,
+            brightnessOverride = false,
+            brightness = 0.5f,
+            warmth = 0f,
             keepScreenOn = true,
+            dailyGoalMinutes = 0,
             librarySort = LibrarySort.RECENT,
         )
     }
