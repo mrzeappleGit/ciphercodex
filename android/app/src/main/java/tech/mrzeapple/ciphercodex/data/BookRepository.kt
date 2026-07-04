@@ -138,6 +138,7 @@ class BookRepository(
             dao.deleteProgressFor(bookId)
             dao.deleteBookmarksFor(bookId)
             dao.deleteHighlightsFor(bookId)
+            dao.deleteBookCollectionsFor(bookId)
             statsDao.deleteSessionsFor(bookId)
             dao.delete(book)
             File(book.filePath).delete()

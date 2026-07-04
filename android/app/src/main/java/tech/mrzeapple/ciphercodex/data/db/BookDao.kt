@@ -3,6 +3,7 @@ package tech.mrzeapple.ciphercodex.data.db
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import androidx.room.Upsert
@@ -71,4 +72,28 @@ interface BookDao {
 
     @Query("DELETE FROM highlights WHERE bookId = :bookId")
     suspend fun deleteHighlightsFor(bookId: Long)
+
+    @Query("SELECT * FROM collections ORDER BY name COLLATE NOCASE")
+    fun observeCollections(): Flow<List<CollectionEntity>>
+
+    @Insert
+    suspend fun insertCollection(collection: CollectionEntity): Long
+
+    @Query("DELETE FROM collections WHERE id = :id")
+    suspend fun deleteCollection(id: Long)
+
+    @Query("SELECT * FROM book_collections")
+    fun observeBookCollections(): Flow<List<BookCollectionCrossRef>>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addBookToCollection(ref: BookCollectionCrossRef)
+
+    @Query("DELETE FROM book_collections WHERE collectionId = :collectionId AND bookId = :bookId")
+    suspend fun removeBookFromCollection(collectionId: Long, bookId: Long)
+
+    @Query("DELETE FROM book_collections WHERE collectionId = :collectionId")
+    suspend fun deleteCollectionMembers(collectionId: Long)
+
+    @Query("DELETE FROM book_collections WHERE bookId = :bookId")
+    suspend fun deleteBookCollectionsFor(bookId: Long)
 }

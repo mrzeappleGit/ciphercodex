@@ -70,6 +70,24 @@ data class HighlightEntity(
     val createdAt: Long,
 )
 
+/** A user-created shelf. Books join via [BookCollectionCrossRef] (many-to-many). */
+@Entity(tableName = "collections")
+data class CollectionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val createdAt: Long,
+)
+
+@Entity(
+    tableName = "book_collections",
+    primaryKeys = ["collectionId", "bookId"],
+    indices = [Index(value = ["bookId"])],
+)
+data class BookCollectionCrossRef(
+    val collectionId: Long,
+    val bookId: Long,
+)
+
 @Entity(tableName = "progress")
 data class ProgressEntity(
     @PrimaryKey val bookId: Long,

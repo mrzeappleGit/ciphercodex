@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -16,6 +17,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.data.BookWithProgress
+import tech.mrzeapple.ciphercodex.data.db.BookCollectionCrossRef
+import tech.mrzeapple.ciphercodex.data.db.CollectionEntity
 import tech.mrzeapple.ciphercodex.data.prefs.LibrarySort
 
 sealed interface ImportUiState {
@@ -36,12 +39,24 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val app = application as CipherCodexApp
     private val repository = app.repository
     private val prefs = app.prefs
+    private val dao = app.database.bookDao()
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
 
     private val _filter = MutableStateFlow(LibraryFilter.ALL)
     val filter: StateFlow<LibraryFilter> = _filter
+
+    val collections: StateFlow<List<CollectionEntity>> =
+        dao.observeCollections()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val bookCollections: StateFlow<List<BookCollectionCrossRef>> =
+        dao.observeBookCollections()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _selectedCollection = MutableStateFlow<Long?>(null)
+    val selectedCollection: StateFlow<Long?> = _selectedCollection.asStateFlow()
 
     val sort: StateFlow<LibrarySort> =
         prefs.settings.map { it.librarySort }.distinctUntilChanged()
@@ -50,9 +65,21 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     /** Library rows after search + reading-state filter + chosen sort. The
      *  repository already emits RECENT order, so that sort is a passthrough. */
     val books: StateFlow<List<BookWithProgress>> =
-        combine(repository.observeLibrary(), _query, _filter, sort) { all, query, filter, sort ->
-            val matched = all.filter { matchesQuery(it, query) && matchesFilter(it, filter) }
-            sortBooks(matched, sort)
+        combine(
+            repository.observeLibrary(),
+            _query,
+            _filter,
+            sort,
+            // Book ids in the selected shelf, or null when no shelf is selected.
+            combine(_selectedCollection, bookCollections) { selected, refs ->
+                selected?.let { id -> refs.filter { it.collectionId == id }.mapTo(HashSet()) { it.bookId } }
+            },
+        ) { all, query, filter, sort, inCollection ->
+            all.asSequence()
+                .filter { matchesQuery(it, query) && matchesFilter(it, filter) }
+                .filter { inCollection == null || it.book.id in inCollection }
+                .toList()
+                .let { sortBooks(it, sort) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** True when the library holds no books at all (vs. an empty search/filter
@@ -71,6 +98,34 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun setSort(value: LibrarySort) {
         viewModelScope.launch { prefs.setLibrarySort(value) }
+    }
+
+    fun setCollectionFilter(collectionId: Long?) {
+        _selectedCollection.value = collectionId
+    }
+
+    fun createCollection(name: String, addBookId: Long? = null) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val id = dao.insertCollection(CollectionEntity(name = trimmed, createdAt = System.currentTimeMillis()))
+            if (addBookId != null) dao.addBookToCollection(BookCollectionCrossRef(id, addBookId))
+        }
+    }
+
+    fun deleteCollection(collectionId: Long) {
+        viewModelScope.launch {
+            dao.deleteCollectionMembers(collectionId)
+            dao.deleteCollection(collectionId)
+        }
+        if (_selectedCollection.value == collectionId) _selectedCollection.value = null
+    }
+
+    fun setBookInCollection(bookId: Long, collectionId: Long, inShelf: Boolean) {
+        viewModelScope.launch {
+            if (inShelf) dao.addBookToCollection(BookCollectionCrossRef(collectionId, bookId))
+            else dao.removeBookFromCollection(collectionId, bookId)
+        }
     }
 
     private fun matchesQuery(entry: BookWithProgress, query: String): Boolean {

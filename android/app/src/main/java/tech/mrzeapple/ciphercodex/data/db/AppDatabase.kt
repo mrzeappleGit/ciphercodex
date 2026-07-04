@@ -11,8 +11,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         BookEntity::class, ProgressEntity::class, ReadingSessionEntity::class,
         BookmarkEntity::class, HighlightEntity::class,
+        CollectionEntity::class, BookCollectionCrossRef::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -70,9 +71,28 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `collections` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`name` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `book_collections` (" +
+                        "`collectionId` INTEGER NOT NULL, `bookId` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`collectionId`, `bookId`))"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_book_collections_bookId` " +
+                        "ON `book_collections` (`bookId`)"
+                )
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "ciphercodex.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
     }
 }

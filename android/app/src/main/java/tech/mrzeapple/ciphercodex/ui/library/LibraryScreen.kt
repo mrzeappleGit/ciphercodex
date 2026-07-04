@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +58,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.data.BookWithProgress
+import tech.mrzeapple.ciphercodex.data.db.CollectionEntity
 import tech.mrzeapple.ciphercodex.data.prefs.LibrarySort
 import tech.mrzeapple.ciphercodex.ui.components.CipherButton
 import tech.mrzeapple.ciphercodex.ui.components.CipherCaption
@@ -88,6 +90,9 @@ fun LibraryScreen(
     val filter by vm.filter.collectAsState()
     val sort by vm.sort.collectAsState()
     val libraryEmpty by vm.isLibraryEmpty.collectAsState()
+    val collections by vm.collections.collectAsState()
+    val bookCollections by vm.bookCollections.collectAsState()
+    val selectedCollection by vm.selectedCollection.collectAsState()
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
@@ -95,7 +100,8 @@ fun LibraryScreen(
     val launchImport = { importLauncher.launch(EPUB_MIME_TYPES) }
     val importing = importState is ImportUiState.Working
 
-    var deleteTarget by remember { mutableStateOf<BookWithProgress?>(null) }
+    var bookMenu by remember { mutableStateOf<BookWithProgress?>(null) }
+    var shelfToDelete by remember { mutableStateOf<CollectionEntity?>(null) }
 
     Column(
         modifier = Modifier
@@ -175,12 +181,33 @@ fun LibraryScreen(
                     LibraryChip(text = f.name, active = filter == f, onClick = { vm.setFilter(f) })
                 }
             }
+            if (collections.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    LibraryChip("ALL SHELVES", selectedCollection == null) { vm.setCollectionFilter(null) }
+                    collections.forEach { c ->
+                        LibraryChip(
+                            text = c.name.uppercase(),
+                            active = selectedCollection == c.id,
+                            onLongClick = { shelfToDelete = c },
+                        ) { vm.setCollectionFilter(c.id) }
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
             if (books.isEmpty()) {
                 // Only a genuine search/filter shows "NO MATCHES"; with no query
                 // and no filter an empty list is just the first-frame race
                 // between the books and isLibraryEmpty flows.
-                val searching = query.isNotBlank() || filter != LibraryFilter.ALL
+                val searching = query.isNotBlank() ||
+                    filter != LibraryFilter.ALL ||
+                    selectedCollection != null
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -194,7 +221,8 @@ fun LibraryScreen(
                 // browsing view; searching/filtering/re-sorting hides it.
                 val defaultView = query.isBlank() &&
                     filter == LibraryFilter.ALL &&
-                    sort == LibrarySort.RECENT
+                    sort == LibrarySort.RECENT &&
+                    selectedCollection == null
                 val lastRead =
                     if (defaultView) books.first().takeIf { it.book.lastOpenedAt != null } else null
                 val gridBooks = if (lastRead != null) books.drop(1) else books
@@ -212,7 +240,7 @@ fun LibraryScreen(
                             ContinueReadingHero(
                                 entry = lastRead,
                                 onOpen = { onOpenBook(lastRead.book.id) },
-                                onLongPress = { deleteTarget = lastRead },
+                                onLongPress = { bookMenu = lastRead },
                             )
                         }
                     }
@@ -220,7 +248,7 @@ fun LibraryScreen(
                         BookCard(
                             entry = entry,
                             onOpen = { onOpenBook(entry.book.id) },
-                            onLongPress = { deleteTarget = entry },
+                            onLongPress = { bookMenu = entry },
                         )
                     }
                 }
@@ -228,34 +256,118 @@ fun LibraryScreen(
         }
     }
 
-    deleteTarget?.let { target ->
+    bookMenu?.let { target ->
+        val memberOf = bookCollections
+            .filter { it.bookId == target.book.id }
+            .mapTo(HashSet()) { it.collectionId }
+        BookActionsDialog(
+            target = target,
+            collections = collections,
+            memberOf = memberOf,
+            onToggleShelf = { collectionId, inShelf ->
+                vm.setBookInCollection(target.book.id, collectionId, inShelf)
+            },
+            onCreateShelf = { name -> vm.createCollection(name, addBookId = target.book.id) },
+            onDelete = {
+                vm.delete(target.book.id)
+                bookMenu = null
+            },
+            onDismiss = { bookMenu = null },
+        )
+    }
+
+    shelfToDelete?.let { shelf ->
         AlertDialog(
-            onDismissRequest = { deleteTarget = null },
+            onDismissRequest = { shelfToDelete = null },
             containerColor = CipherStatic,
             shape = CipherShape,
             title = {
                 Text(
-                    text = "DELETE \"${target.book.title.uppercase()}\"?",
+                    text = "DELETE SHELF \"${shelf.name.uppercase()}\"?",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             },
-            text = { CipherCaption("REMOVES THE FILE AND READING PROGRESS") },
+            text = { CipherCaption("THE BOOKS STAY IN YOUR LIBRARY") },
             confirmButton = {
                 CipherButton(
                     text = "DELETE",
                     accent = CipherMagenta,
                     onClick = {
-                        vm.delete(target.book.id)
-                        deleteTarget = null
+                        vm.deleteCollection(shelf.id)
+                        shelfToDelete = null
                     },
                 )
             },
             dismissButton = {
-                CipherButton("KEEP", onClick = { deleteTarget = null })
+                CipherButton("KEEP", onClick = { shelfToDelete = null })
             },
         )
     }
+}
+
+@Composable
+private fun BookActionsDialog(
+    target: BookWithProgress,
+    collections: List<CollectionEntity>,
+    memberOf: Set<Long>,
+    onToggleShelf: (Long, Boolean) -> Unit,
+    onCreateShelf: (String) -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var newShelf by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CipherStatic,
+        shape = CipherShape,
+        title = {
+            Text(
+                text = target.book.title.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        text = {
+            Column {
+                CipherCaption("SHELVES")
+                Spacer(Modifier.height(8.dp))
+                if (collections.isEmpty()) {
+                    CipherCaption("NO SHELVES YET")
+                } else {
+                    collections.forEach { c ->
+                        val inShelf = c.id in memberOf
+                        LibraryChip(c.name.uppercase(), active = inShelf) {
+                            onToggleShelf(c.id, !inShelf)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CipherTextField(
+                        value = newShelf,
+                        onValueChange = { newShelf = it },
+                        label = "NEW SHELF",
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    CipherButton("ADD", onClick = {
+                        onCreateShelf(newShelf)
+                        newShelf = ""
+                    })
+                }
+            }
+        },
+        confirmButton = {
+            CipherButton("DELETE", accent = CipherMagenta, onClick = onDelete)
+        },
+        dismissButton = {
+            CipherButton("CLOSE", onClick = onDismiss)
+        },
+    )
 }
 
 @Composable
@@ -271,15 +383,22 @@ private fun ImportStatus(state: ImportUiState, modifier: Modifier = Modifier) {
     }
 }
 
-/** Compact toggle chip for the sort cycle and reading-state filters. */
+/** Compact toggle chip for the sort cycle and reading-state filters.
+ *  [onLongClick] is used by shelf chips to offer deletion. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun LibraryChip(text: String, active: Boolean, onClick: () -> Unit) {
+private fun LibraryChip(
+    text: String,
+    active: Boolean,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val color = if (active) CipherCyan else CipherMuted
     Box(
         modifier = Modifier
             .clip(CipherShapeSmall)
             .border(1.dp, color, CipherShapeSmall)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
