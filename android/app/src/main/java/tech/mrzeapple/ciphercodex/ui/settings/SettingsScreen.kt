@@ -7,12 +7,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -32,6 +37,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import tech.mrzeapple.ciphercodex.data.prefs.ReaderMargin
+import tech.mrzeapple.ciphercodex.data.prefs.ReadingFontChoice
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
 import tech.mrzeapple.ciphercodex.ui.components.CipherButton
@@ -44,8 +51,12 @@ import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
 import tech.mrzeapple.ciphercodex.ui.theme.CipherStatic
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackBackground
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingNightBackground
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingNightText
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingPaperBackground
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingPaperText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingSepiaBackground
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingSepiaText
 import kotlin.math.roundToInt
@@ -108,11 +119,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onRegister = { vm.testConnection(register = true) },
             )
             ReadingPanel(
-                theme = settings.readingTheme,
-                fontScale = settings.fontScale,
-                keepScreenOn = settings.keepScreenOn,
+                settings = settings,
                 onTheme = vm::setReadingTheme,
                 onAdjustFontScale = vm::adjustFontScale,
+                onAdjustLineSpacing = vm::adjustLineSpacing,
+                onReaderMargin = vm::setReaderMargin,
+                onJustify = vm::setJustify,
+                onReadingFont = vm::setReadingFont,
                 onKeepScreenOn = vm::setKeepScreenOn,
             )
             AboutPanel(deviceId = settings.deviceId)
@@ -208,13 +221,19 @@ private fun SyncPanel(
     }
 }
 
+private const val LINE_STEP = 0.1f
+private const val LINE_MIN = 0.8f
+private const val LINE_MAX = 1.8f
+
 @Composable
 private fun ReadingPanel(
-    theme: ReadingTheme,
-    fontScale: Float,
-    keepScreenOn: Boolean,
+    settings: Settings,
     onTheme: (ReadingTheme) -> Unit,
     onAdjustFontScale: (Float) -> Unit,
+    onAdjustLineSpacing: (Float) -> Unit,
+    onReaderMargin: (ReaderMargin) -> Unit,
+    onJustify: (Boolean) -> Unit,
+    onReadingFont: (ReadingFontChoice) -> Unit,
     onKeepScreenOn: (Boolean) -> Unit,
 ) {
     CipherPanel(modifier = Modifier.fillMaxWidth()) {
@@ -230,61 +249,125 @@ private fun ReadingPanel(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ThemeSwatch(
-                    label = "NIGHT",
-                    background = ReadingNightBackground,
-                    textColor = ReadingNightText,
-                    selected = theme == ReadingTheme.NIGHT,
-                    onClick = { onTheme(ReadingTheme.NIGHT) },
-                    modifier = Modifier.weight(1f),
-                )
-                ThemeSwatch(
-                    label = "SEPIA",
-                    background = ReadingSepiaBackground,
-                    textColor = ReadingSepiaText,
-                    selected = theme == ReadingTheme.SEPIA,
-                    onClick = { onTheme(ReadingTheme.SEPIA) },
-                    modifier = Modifier.weight(1f),
-                )
+                ThemeSwatch("NIGHT", ReadingNightBackground, ReadingNightText,
+                    settings.readingTheme == ReadingTheme.NIGHT, { onTheme(ReadingTheme.NIGHT) }, Modifier.weight(1f))
+                ThemeSwatch("SEPIA", ReadingSepiaBackground, ReadingSepiaText,
+                    settings.readingTheme == ReadingTheme.SEPIA, { onTheme(ReadingTheme.SEPIA) }, Modifier.weight(1f))
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CipherButton(
-                    text = "A-",
-                    onClick = { onAdjustFontScale(-FONT_STEP) },
-                    enabled = fontScale > FONT_MIN,
-                )
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    CipherCaption("${(fontScale * 100).roundToInt()}%")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ThemeSwatch("BLACK", ReadingBlackBackground, ReadingBlackText,
+                    settings.readingTheme == ReadingTheme.BLACK, { onTheme(ReadingTheme.BLACK) }, Modifier.weight(1f))
+                ThemeSwatch("PAPER", ReadingPaperBackground, ReadingPaperText,
+                    settings.readingTheme == ReadingTheme.PAPER, { onTheme(ReadingTheme.PAPER) }, Modifier.weight(1f))
+            }
+            StepperRow(
+                label = "SIZE",
+                value = "${(settings.fontScale * 100).roundToInt()}%",
+                onMinus = { onAdjustFontScale(-FONT_STEP) },
+                minusEnabled = settings.fontScale > FONT_MIN,
+                onPlus = { onAdjustFontScale(FONT_STEP) },
+                plusEnabled = settings.fontScale < FONT_MAX,
+            )
+            StepperRow(
+                label = "LINE SPACING",
+                value = "${(settings.lineSpacing * 100).roundToInt()}%",
+                onMinus = { onAdjustLineSpacing(-LINE_STEP) },
+                minusEnabled = settings.lineSpacing > LINE_MIN,
+                onPlus = { onAdjustLineSpacing(LINE_STEP) },
+                plusEnabled = settings.lineSpacing < LINE_MAX,
+            )
+            LabeledChips("MARGIN") {
+                ReaderMargin.entries.forEach { m ->
+                    SettingChip(m.name, settings.readerMargin == m) { onReaderMargin(m) }
                 }
-                CipherButton(
-                    text = "A+",
-                    onClick = { onAdjustFontScale(FONT_STEP) },
-                    enabled = fontScale < FONT_MAX,
-                )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "KEEP SCREEN ON",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    CipherCaption("STAY AWAKE WHILE READING")
+            LabeledChips("FONT") {
+                ReadingFontChoice.entries.forEach { f ->
+                    SettingChip(f.name, settings.readingFont == f) { onReadingFont(f) }
                 }
-                Switch(
-                    checked = keepScreenOn,
-                    onCheckedChange = onKeepScreenOn,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = CipherCyan,
-                        checkedTrackColor = CipherStatic,
-                        checkedBorderColor = CipherCyan,
-                        uncheckedThumbColor = CipherMuted,
-                        uncheckedTrackColor = CipherStatic,
-                        uncheckedBorderColor = CipherMuted,
-                    ),
-                )
             }
+            SwitchRow("JUSTIFY TEXT", "ALIGN BOTH EDGES", settings.justify, onJustify)
+            SwitchRow("KEEP SCREEN ON", "STAY AWAKE WHILE READING", settings.keepScreenOn, onKeepScreenOn)
         }
+    }
+}
+
+@Composable
+private fun StepperRow(
+    label: String,
+    value: String,
+    onMinus: () -> Unit,
+    minusEnabled: Boolean,
+    onPlus: () -> Unit,
+    plusEnabled: Boolean,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        CipherButton("-", onClick = onMinus, enabled = minusEnabled)
+        Box(Modifier.width(64.dp), contentAlignment = Alignment.Center) {
+            CipherCaption(value)
+        }
+        CipherButton("+", onClick = onPlus, enabled = plusEnabled)
+    }
+}
+
+@Composable
+private fun LabeledChips(label: String, chips: @Composable RowScope.() -> Unit) {
+    Column {
+        CipherCaption(label)
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            content = chips,
+        )
+    }
+}
+
+@Composable
+private fun SettingChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    val color = if (selected) CipherCyan else CipherMuted
+    Box(
+        modifier = Modifier
+            .clip(CipherShapeSmall)
+            .border(1.dp, color, CipherShapeSmall)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(text = text, style = MaterialTheme.typography.labelSmall, color = color)
+    }
+}
+
+@Composable
+private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            CipherCaption(subtitle)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = CipherCyan,
+                checkedTrackColor = CipherStatic,
+                checkedBorderColor = CipherCyan,
+                uncheckedThumbColor = CipherMuted,
+                uncheckedTrackColor = CipherStatic,
+                uncheckedBorderColor = CipherMuted,
+            ),
+        )
     }
 }
 
@@ -340,7 +423,7 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.3.0", color = CipherCyan)
+                CipherCaption("v0.3.1", color = CipherCyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(

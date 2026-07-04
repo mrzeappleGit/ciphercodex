@@ -83,6 +83,11 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         val widthPx: Int,
         val heightPx: Int,
         val fontScale: Float,
+        // Line spacing, font family and justification all change the measured
+        // layout, so each is part of the page-cut identity.
+        val lineSpacing: Float,
+        val fontFamily: String,
+        val justify: Boolean,
         // System font scale / display density are part of the layout identity:
         // this ViewModel outlives config changes, so a system font-size change
         // must not serve page cuts measured under the old Density.
@@ -145,12 +150,18 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         widthPx: Int,
         heightPx: Int,
         fontScale: Float,
+        lineSpacing: Float,
+        fontFamily: String,
+        justify: Boolean,
         sysFontScale: Float,
         sysDensity: Float,
         measurer: TextMeasurer,
         style: TextStyle,
     ): PaginatedChapter {
-        val key = PageCacheKey(spineIndex, widthPx, heightPx, fontScale, sysFontScale, sysDensity)
+        val key = PageCacheKey(
+            spineIndex, widthPx, heightPx, fontScale, lineSpacing, fontFamily, justify,
+            sysFontScale, sysDensity,
+        )
         synchronized(pageCache) { pageCache[key]?.let { return it } }
         // Any failure paginates as a visible placeholder page: a silent failure
         // here is an unrecoverable blank reader, the worst possible outcome.
@@ -162,11 +173,11 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
             placeholderChapter(spineIndex, "[ CHAPTER FAILED TO LOAD — ${e.javaClass.simpleName} ]")
         }
         val result = try {
-            paginate(chapter, measurer, style, widthPx, heightPx)
+            paginate(chapter, measurer, style, widthPx, heightPx, justify)
         } catch (e: Exception) {
             paginate(
                 placeholderChapter(spineIndex, "[ PAGE LAYOUT FAILED — ${e.javaClass.simpleName} ]"),
-                measurer, style, widthPx, heightPx,
+                measurer, style, widthPx, heightPx, justify,
             )
         }
         synchronized(pageCache) {

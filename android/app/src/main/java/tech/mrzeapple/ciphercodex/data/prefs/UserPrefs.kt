@@ -11,10 +11,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
-enum class ReadingTheme { NIGHT, SEPIA }
+enum class ReadingTheme { NIGHT, SEPIA, BLACK, PAPER }
 
 /** Library ordering. RECENT is the historical default (recently opened, then added). */
 enum class LibrarySort { RECENT, TITLE, AUTHOR, ADDED, PROGRESS }
+
+/** Horizontal page margin in dp. MEDIUM (24) is the historical default. */
+enum class ReaderMargin(val dp: Int) { NARROW(14), MEDIUM(24), WIDE(40) }
+
+/** Reading typeface. LITERATA is the bundled reading serif (historical default);
+ *  the rest resolve to platform families (no bundled assets needed). */
+enum class ReadingFontChoice { LITERATA, SERIF, SANS, MONO }
 
 data class Settings(
     val syncEnabled: Boolean,
@@ -27,6 +34,11 @@ data class Settings(
     val readingTheme: ReadingTheme,
     /** Multiplier on ReadingBodyStyle's base size, 0.75f..1.75f. */
     val fontScale: Float,
+    /** Multiplier on the base line height, 0.8f..1.8f. */
+    val lineSpacing: Float,
+    val readerMargin: ReaderMargin,
+    val justify: Boolean,
+    val readingFont: ReadingFontChoice,
     /** Hold the screen awake while reading. */
     val keepScreenOn: Boolean,
     val librarySort: LibrarySort,
@@ -45,6 +57,10 @@ class UserPrefs(private val context: Context) {
         val deviceId = stringPreferencesKey("device_id")
         val readingTheme = stringPreferencesKey("reading_theme")
         val fontScale = floatPreferencesKey("font_scale")
+        val lineSpacing = floatPreferencesKey("line_spacing")
+        val readerMargin = stringPreferencesKey("reader_margin")
+        val justify = booleanPreferencesKey("justify")
+        val readingFont = stringPreferencesKey("reading_font")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
         val librarySort = stringPreferencesKey("library_sort")
     }
@@ -57,11 +73,15 @@ class UserPrefs(private val context: Context) {
             userKey = p[Keys.userKey] ?: "",
             deviceName = p[Keys.deviceName] ?: "CipherCodex-Android",
             deviceId = p[Keys.deviceId] ?: "",
-            readingTheme = when (p[Keys.readingTheme]) {
-                ReadingTheme.SEPIA.name -> ReadingTheme.SEPIA
-                else -> ReadingTheme.NIGHT
-            },
+            readingTheme = ReadingTheme.entries.firstOrNull { it.name == p[Keys.readingTheme] }
+                ?: ReadingTheme.NIGHT,
             fontScale = p[Keys.fontScale] ?: 1.0f,
+            lineSpacing = p[Keys.lineSpacing] ?: 1.0f,
+            readerMargin = ReaderMargin.entries.firstOrNull { it.name == p[Keys.readerMargin] }
+                ?: ReaderMargin.MEDIUM,
+            justify = p[Keys.justify] ?: false,
+            readingFont = ReadingFontChoice.entries.firstOrNull { it.name == p[Keys.readingFont] }
+                ?: ReadingFontChoice.LITERATA,
             keepScreenOn = p[Keys.keepScreenOn] ?: true,
             librarySort = LibrarySort.entries.firstOrNull { it.name == p[Keys.librarySort] }
                 ?: LibrarySort.RECENT,
@@ -86,6 +106,10 @@ class UserPrefs(private val context: Context) {
     suspend fun setDeviceName(value: String) = context.dataStore.edit { it[Keys.deviceName] = value.trim() }
     suspend fun setReadingTheme(value: ReadingTheme) = context.dataStore.edit { it[Keys.readingTheme] = value.name }
     suspend fun setFontScale(value: Float) = context.dataStore.edit { it[Keys.fontScale] = value.coerceIn(0.75f, 1.75f) }
+    suspend fun setLineSpacing(value: Float) = context.dataStore.edit { it[Keys.lineSpacing] = value.coerceIn(0.8f, 1.8f) }
+    suspend fun setReaderMargin(value: ReaderMargin) = context.dataStore.edit { it[Keys.readerMargin] = value.name }
+    suspend fun setJustify(value: Boolean) = context.dataStore.edit { it[Keys.justify] = value }
+    suspend fun setReadingFont(value: ReadingFontChoice) = context.dataStore.edit { it[Keys.readingFont] = value.name }
     suspend fun setKeepScreenOn(value: Boolean) = context.dataStore.edit { it[Keys.keepScreenOn] = value }
     suspend fun setLibrarySort(value: LibrarySort) = context.dataStore.edit { it[Keys.librarySort] = value.name }
 

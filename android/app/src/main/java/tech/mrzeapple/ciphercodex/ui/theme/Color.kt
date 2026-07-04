@@ -18,3 +18,8 @@ val ReadingNightBackground = Color(0xFF121212)
 val ReadingNightText = Color(0xFFE6E1D8)
 val ReadingSepiaBackground = Color(0xFFF4ECD8)
 val ReadingSepiaText = Color(0xFF2B2116)
+// AMOLED true-black and a bright paper-white, the two most-requested extras.
+val ReadingBlackBackground = Color(0xFF000000)
+val ReadingBlackText = Color(0xFFCFC9BE)
+val ReadingPaperBackground = Color(0xFFFAF9F5)
+val ReadingPaperText = Color(0xFF1A1712)

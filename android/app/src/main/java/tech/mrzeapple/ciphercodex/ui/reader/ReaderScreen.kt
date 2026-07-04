@@ -97,11 +97,16 @@ import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
 import tech.mrzeapple.ciphercodex.ui.theme.CipherPhosphor
 import tech.mrzeapple.ciphercodex.ui.theme.CipherVoid
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackBackground
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingBodyStyle
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingNightBackground
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingNightText
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingPaperBackground
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingPaperText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingSepiaBackground
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingSepiaText
+import tech.mrzeapple.ciphercodex.ui.theme.readingFontFamily
 import kotlin.math.roundToInt
 
 /** The page currently on screen, pinned to the pagination + style that
@@ -118,12 +123,20 @@ private data class PaginationResult(
     val widthPx: Int,
     val heightPx: Int,
     val fontScale: Float,
+    val lineSpacing: Float,
+    val fontFamily: String,
+    val justify: Boolean,
     val sysFontScale: Float,
     val sysDensity: Float,
     val chapter: PaginatedChapter,
 )
 
 private enum class NavTab { CHAPTERS, BOOKMARKS }
+
+private fun nextReadingTheme(current: ReadingTheme): ReadingTheme {
+    val values = ReadingTheme.entries
+    return values[(current.ordinal + 1) % values.size]
+}
 
 @Composable
 fun ReaderScreen(bookId: Long, onBack: () -> Unit) {
@@ -191,19 +204,23 @@ private fun ReaderContent(
     reducedMotion: Boolean,
     onLeave: () -> Unit,
 ) {
-    val night = settings.readingTheme == ReadingTheme.NIGHT
-    val background = if (night) ReadingNightBackground else ReadingSepiaBackground
-    val ink = if (night) ReadingNightText else ReadingSepiaText
-
-    // Sepia's light page needs dark system-bar icons; everywhere else the app
-    // is forced-dark with light icons (set in MainActivity), so restore that
-    // default when leaving the reader.
+    val theme = settings.readingTheme
+    val (background, ink) = when (theme) {
+        ReadingTheme.NIGHT -> ReadingNightBackground to ReadingNightText
+        ReadingTheme.SEPIA -> ReadingSepiaBackground to ReadingSepiaText
+        ReadingTheme.BLACK -> ReadingBlackBackground to ReadingBlackText
+        ReadingTheme.PAPER -> ReadingPaperBackground to ReadingPaperText
+    }
+    // Light reading surfaces (Sepia, Paper) need dark system-bar icons; the
+    // dark ones (Night, Black) keep the app's default light icons, restored on
+    // leave (MainActivity forces the app chrome dark).
+    val lightTheme = theme == ReadingTheme.SEPIA || theme == ReadingTheme.PAPER
     val view = LocalView.current
-    DisposableEffect(night) {
+    DisposableEffect(lightTheme) {
         val window = (view.context as Activity).window
         val insets = WindowCompat.getInsetsController(window, view)
-        insets.isAppearanceLightStatusBars = !night
-        insets.isAppearanceLightNavigationBars = !night
+        insets.isAppearanceLightStatusBars = lightTheme
+        insets.isAppearanceLightNavigationBars = lightTheme
         onDispose {
             insets.isAppearanceLightStatusBars = false
             insets.isAppearanceLightNavigationBars = false
@@ -292,11 +309,14 @@ private fun ReaderContent(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 24.dp, vertical = 32.dp),
+                .padding(horizontal = settings.readerMargin.dp.dp, vertical = 32.dp),
         ) {
             val widthPx = constraints.maxWidth
             val heightPx = constraints.maxHeight
             val fontScale = settings.fontScale
+            val lineSpacing = settings.lineSpacing
+            val fontFamilyName = settings.readingFont.name
+            val justify = settings.justify
             // The ViewModel's page cache outlives config changes; the system
             // font scale (and density) must invalidate it or cached page cuts
             // no longer match how the text renders.
@@ -305,17 +325,19 @@ private fun ReaderContent(
             val sysDensity = density.density
             val spineIndex = position.spineIndex
             val measurer = rememberTextMeasurer()
-            val pageStyle = remember(ink, fontScale) {
+            val pageStyle = remember(ink, fontScale, lineSpacing, settings.readingFont) {
                 ReadingBodyStyle.copy(
                     color = ink,
+                    fontFamily = readingFontFamily(settings.readingFont),
                     fontSize = ReadingBodyStyle.fontSize * fontScale,
-                    lineHeight = ReadingBodyStyle.lineHeight * fontScale,
+                    lineHeight = ReadingBodyStyle.lineHeight * fontScale * lineSpacing,
                 )
             }
 
             val result by produceState<PaginationResult?>(
                 initialValue = null,
-                spineIndex, widthPx, heightPx, fontScale, sysFontScale, sysDensity,
+                spineIndex, widthPx, heightPx, fontScale, lineSpacing, fontFamilyName, justify,
+                sysFontScale, sysDensity,
             ) {
                 value = try {
                     withContext(Dispatchers.Default) {
@@ -323,11 +345,14 @@ private fun ReaderContent(
                             widthPx = widthPx,
                             heightPx = heightPx,
                             fontScale = fontScale,
+                            lineSpacing = lineSpacing,
+                            fontFamily = fontFamilyName,
+                            justify = justify,
                             sysFontScale = sysFontScale,
                             sysDensity = sysDensity,
                             chapter = vm.paginated(
-                                spineIndex, widthPx, heightPx, fontScale,
-                                sysFontScale, sysDensity, measurer, pageStyle,
+                                spineIndex, widthPx, heightPx, fontScale, lineSpacing,
+                                fontFamilyName, justify, sysFontScale, sysDensity, measurer, pageStyle,
                             ),
                         )
                     }
@@ -347,6 +372,9 @@ private fun ReaderContent(
                     fresh.widthPx == widthPx &&
                     fresh.heightPx == heightPx &&
                     fresh.fontScale == fontScale &&
+                    fresh.lineSpacing == lineSpacing &&
+                    fresh.fontFamily == fontFamilyName &&
+                    fresh.justify == justify &&
                     fresh.sysFontScale == sysFontScale &&
                     fresh.sysDensity == sysDensity &&
                     fresh.chapter.spineIndex == position.spineIndex
@@ -431,12 +459,10 @@ private fun ReaderContent(
                 title = state.title,
                 chapterLabel = "CH ${position.spineIndex + 1}/${state.spineCount}",
                 percentage = percentage,
-                night = night,
+                theme = theme,
                 fontScale = settings.fontScale,
                 onBack = onLeave,
-                onToggleTheme = {
-                    vm.setTheme(if (night) ReadingTheme.SEPIA else ReadingTheme.NIGHT)
-                },
+                onCycleTheme = { vm.setTheme(nextReadingTheme(theme)) },
                 onFontDown = { vm.stepFontScale(-0.125f) },
                 onFontUp = { vm.stepFontScale(0.125f) },
                 onSeek = { fraction -> vm.seekToFraction(fraction) },
@@ -483,10 +509,10 @@ private fun BoxScope.ReaderChrome(
     title: String,
     chapterLabel: String,
     percentage: Float,
-    night: Boolean,
+    theme: ReadingTheme,
     fontScale: Float,
     onBack: () -> Unit,
-    onToggleTheme: () -> Unit,
+    onCycleTheme: () -> Unit,
     onFontDown: () -> Unit,
     onFontUp: () -> Unit,
     onSeek: (Float) -> Unit,
@@ -538,10 +564,7 @@ private fun BoxScope.ReaderChrome(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            CipherButton(
-                text = if (night) "SEPIA" else "NIGHT",
-                onClick = onToggleTheme,
-            )
+            CipherButton(text = theme.name, onClick = onCycleTheme)
             Spacer(Modifier.weight(1f))
             CipherButton("A-", onClick = onFontDown, enabled = fontScale > 0.75f)
             CipherButton("A+", onClick = onFontUp, enabled = fontScale < 1.75f)
@@ -809,8 +832,12 @@ private fun ImagePage(vm: ReaderViewModel, path: String, ink: Color) {
 
 @Composable
 private fun ReadingBlank(theme: ReadingTheme?) {
-    val background =
-        if (theme == ReadingTheme.SEPIA) ReadingSepiaBackground else ReadingNightBackground
+    val background = when (theme) {
+        ReadingTheme.SEPIA -> ReadingSepiaBackground
+        ReadingTheme.BLACK -> ReadingBlackBackground
+        ReadingTheme.PAPER -> ReadingPaperBackground
+        else -> ReadingNightBackground // NIGHT or not-yet-loaded
+    }
     Box(
         Modifier
             .fillMaxSize()

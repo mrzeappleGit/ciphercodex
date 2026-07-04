@@ -8,6 +8,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import tech.mrzeapple.ciphercodex.R
+import tech.mrzeapple.ciphercodex.data.prefs.ReadingFontChoice
 
 // Chrome fonts. Add the .ttf files under res/font/ first — see the brief for sourcing.
 val Orbitron = FontFamily(Font(R.font.orbitron_black, FontWeight.Black))
@@ -58,3 +59,12 @@ val ReadingBodyStyle = TextStyle(
     fontSize = 17.sp,
     lineHeight = 27.sp
 )
+
+/** Resolves the user's font choice. Non-Literata options use platform families
+ *  (Compose synthesizes bold/italic), so no extra font assets are bundled. */
+fun readingFontFamily(choice: ReadingFontChoice): FontFamily = when (choice) {
+    ReadingFontChoice.LITERATA -> ReadingFont
+    ReadingFontChoice.SERIF -> FontFamily.Serif
+    ReadingFontChoice.SANS -> FontFamily.SansSerif
+    ReadingFontChoice.MONO -> FontFamily.Monospace
+}

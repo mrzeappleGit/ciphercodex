@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.data.prefs.LibrarySort
+import tech.mrzeapple.ciphercodex.data.prefs.ReaderMargin
+import tech.mrzeapple.ciphercodex.data.prefs.ReadingFontChoice
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
 import tech.mrzeapple.ciphercodex.data.prefs.UserPrefs
@@ -98,6 +100,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefs.setFontScale(prefs.current().fontScale + delta) }
     }
 
+    fun adjustLineSpacing(delta: Float) {
+        viewModelScope.launch { prefs.setLineSpacing(prefs.current().lineSpacing + delta) }
+    }
+
+    fun setReaderMargin(value: ReaderMargin) {
+        viewModelScope.launch { prefs.setReaderMargin(value) }
+    }
+
+    fun setJustify(value: Boolean) {
+        viewModelScope.launch { prefs.setJustify(value) }
+    }
+
+    fun setReadingFont(value: ReadingFontChoice) {
+        viewModelScope.launch { prefs.setReadingFont(value) }
+    }
+
     fun setKeepScreenOn(value: Boolean) {
         viewModelScope.launch { prefs.setKeepScreenOn(value) }
     }
@@ -140,6 +158,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             deviceId = "",
             readingTheme = ReadingTheme.NIGHT,
             fontScale = 1.0f,
+            lineSpacing = 1.0f,
+            readerMargin = ReaderMargin.MEDIUM,
+            justify = false,
+            readingFont = ReadingFontChoice.LITERATA,
             keepScreenOn = true,
             librarySort = LibrarySort.RECENT,
         )

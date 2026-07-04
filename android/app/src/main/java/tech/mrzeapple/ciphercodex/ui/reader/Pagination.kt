@@ -73,7 +73,8 @@ private const val RULE_TEXT = "* * *"
 /** Flattens a chapter's blocks into one AnnotatedString: indented paragraphs,
  *  bold scaled headings, centered rules, blocks separated by "\n" (kept inside
  *  the preceding paragraph's range so it never forms a stray paragraph). */
-fun buildChapterText(chapter: EpubChapter): ChapterText {
+fun buildChapterText(chapter: EpubChapter, justify: Boolean = false): ChapterText {
+    val paragraphAlign = if (justify) TextAlign.Justify else TextAlign.Unspecified
     val ranges = ArrayList<IntRange>(chapter.blocks.size)
     val images = ArrayList<Pair<Int, String>>()
     val text = buildAnnotatedString {
@@ -82,7 +83,7 @@ fun buildChapterText(chapter: EpubChapter): ChapterText {
             val separate = index < chapter.blocks.lastIndex
             when (block) {
                 is Block.Paragraph ->
-                    withStyle(ParagraphStyle(textIndent = TextIndent(firstLine = 16.sp))) {
+                    withStyle(ParagraphStyle(textIndent = TextIndent(firstLine = 16.sp), textAlign = paragraphAlign)) {
                         append(block.text)
                         if (separate) append('\n')
                     }
@@ -128,8 +129,9 @@ fun paginate(
     style: TextStyle,
     widthPx: Int,
     heightPx: Int,
+    justify: Boolean = false,
 ): PaginatedChapter {
-    val built = buildChapterText(chapter)
+    val built = buildChapterText(chapter, justify)
     val text = built.text
     if (text.isBlank()) {
         return PaginatedChapter(
