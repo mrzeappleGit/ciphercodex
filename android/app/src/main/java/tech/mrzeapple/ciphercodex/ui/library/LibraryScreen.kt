@@ -91,6 +91,7 @@ fun LibraryScreen(
     val collections by vm.collections.collectAsState()
     val bookCollections by vm.bookCollections.collectAsState()
     val selectedCollection by vm.selectedCollection.collectAsState()
+    val filterCounts by vm.filterCounts.collectAsState()
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
@@ -161,7 +162,8 @@ fun LibraryScreen(
                     onClick = { vm.setSort(nextSort(sort)) },
                 )
                 LibraryFilter.entries.forEach { f ->
-                    LibraryChip(text = f.name, active = filter == f, onClick = { vm.setFilter(f) })
+                    val count = filterCounts[f] ?: 0
+                    LibraryChip(text = "${f.name} · $count", active = filter == f, onClick = { vm.setFilter(f) })
                 }
             }
             if (collections.isNotEmpty()) {
@@ -411,7 +413,7 @@ private fun ContinueReadingHero(
                 .combinedClickable(onClick = onOpen, onLongClick = onLongPress),
         ) {
             Box(Modifier.width(110.dp)) {
-                BookCover(coverPath = entry.book.coverPath, title = entry.book.title)
+                BookCover(coverPath = entry.book.coverPath, title = entry.book.title, percentage = entry.percentage)
             }
             Column(
                 Modifier
@@ -454,7 +456,7 @@ private fun BookCard(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: (
                 .fillMaxWidth()
                 .combinedClickable(onClick = onOpen, onLongClick = onLongPress),
         ) {
-            BookCover(coverPath = entry.book.coverPath, title = entry.book.title)
+            BookCover(coverPath = entry.book.coverPath, title = entry.book.title, percentage = entry.percentage)
             Column(Modifier.padding(8.dp)) {
                 Text(
                     text = entry.book.title,
@@ -483,8 +485,8 @@ private fun BookCard(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: (
 }
 
 @Composable
-private fun BookCover(coverPath: String?, title: String) {
-    // Decode off the main thread; the placeholder motif shows while null.
+private fun BookCover(coverPath: String?, title: String, percentage: Float?) {
+    // Decode off the main thread; the generated cover shows while null.
     val cover by produceState<ImageBitmap?>(initialValue = null, coverPath) {
         value = coverPath?.let { path ->
             withContext(Dispatchers.IO) { decodeCoverSampled(path) }
@@ -506,7 +508,13 @@ private fun BookCover(coverPath: String?, title: String) {
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            BarsMotif(barWidth = 48.dp, barHeight = 4.dp, gap = 8.dp)
+            GeneratedCover(title = title)
+        }
+        // Reading-status corner: queued tag, finished check, or progress ring.
+        when {
+            percentage == null -> CoverQueuedTag(Modifier.align(Alignment.TopStart).padding(8.dp))
+            percentage >= COVER_FINISHED -> CoverFinishedBadge(Modifier.align(Alignment.TopEnd).padding(8.dp))
+            else -> CoverProgressRing(percentage, Modifier.align(Alignment.TopEnd).padding(8.dp))
         }
     }
 }

@@ -88,6 +88,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         repository.observeLibrary().map { it.isEmpty() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
+    /** Book count per reading-state filter, over the full library, for the chips. */
+    val filterCounts: StateFlow<Map<LibraryFilter, Int>> =
+        repository.observeLibrary()
+            .map { all -> LibraryFilter.entries.associateWith { f -> all.count { matchesFilter(it, f) } } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     fun setQuery(value: String) {
         _query.value = value
     }
