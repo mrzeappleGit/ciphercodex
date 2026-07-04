@@ -14,8 +14,8 @@ android {
         applicationId = "tech.mrzeapple.ciphercodex"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.3.2"
+        versionCode = 8
+        versionName = "0.3.3"
     }
 
     signingConfigs {
@@ -75,6 +75,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.documentfile)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     debugImplementation(libs.androidx.compose.ui.tooling)

@@ -9,6 +9,7 @@ import tech.mrzeapple.ciphercodex.sync.KosyncApi
 import tech.mrzeapple.ciphercodex.sync.KosyncClient
 import tech.mrzeapple.ciphercodex.sync.KosyncSyncManager
 import tech.mrzeapple.ciphercodex.sync.SyncManager
+import tech.mrzeapple.ciphercodex.sync.SyncWorker
 
 /** Manual DI container. ViewModels reach this via
  *  `application as CipherCodexApp`. */
@@ -18,4 +19,9 @@ class CipherCodexApp : Application() {
     val kosync: KosyncApi by lazy { KosyncClient() }
     val syncManager: SyncManager by lazy { KosyncSyncManager(prefs, database.bookDao(), kosync) }
     val repository: LibraryRepository by lazy { BookRepository(this, database.bookDao(), database.statsDao()) }
+
+    override fun onCreate() {
+        super.onCreate()
+        SyncWorker.schedule(this)
+    }
 }

@@ -76,6 +76,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val username by vm.username.collectAsState()
     val password by vm.password.collectAsState()
     val deviceName by vm.deviceName.collectAsState()
+    val syncStatus by vm.syncStatus.collectAsState()
 
     Column(
         modifier = Modifier
@@ -119,6 +120,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onDeviceName = vm::setDeviceName,
                 onLogin = { vm.testConnection(register = false) },
                 onRegister = { vm.testConnection(register = true) },
+                syncStatus = syncStatus,
+                onSyncNow = vm::syncNow,
             )
             ReadingPanel(
                 settings = settings,
@@ -154,6 +157,8 @@ private fun SyncPanel(
     onDeviceName: (String) -> Unit,
     onLogin: () -> Unit,
     onRegister: () -> Unit,
+    syncStatus: String?,
+    onSyncNow: () -> Unit,
 ) {
     CipherPanel(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -223,7 +228,27 @@ private fun SyncPanel(
                 is ConnectionState.Error -> c.message.uppercase() to CipherMagenta
             }
             CipherCaption(statusText, color = statusColor)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CipherButton("SYNC NOW", onClick = onSyncNow, enabled = settings.syncEnabled)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    syncStatus?.let { CipherCaption(it, color = CipherCyan) }
+                    CipherCaption("LAST SYNC // ${formatLastSync(settings.lastSyncAt)}")
+                }
+            }
         }
+    }
+}
+
+/** Short relative last-sync label for the sync panel. */
+private fun formatLastSync(millis: Long): String {
+    if (millis <= 0L) return "NEVER"
+    val diff = System.currentTimeMillis() - millis
+    return when {
+        diff < 60_000L -> "JUST NOW"
+        diff < 3_600_000L -> "${diff / 60_000L}M AGO"
+        diff < 86_400_000L -> "${diff / 3_600_000L}H AGO"
+        else -> "${diff / 86_400_000L}D AGO"
     }
 }
 
@@ -480,7 +505,7 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.3.2", color = CipherCyan)
+                CipherCaption("v0.3.3", color = CipherCyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(

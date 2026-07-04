@@ -75,6 +75,23 @@ class KosyncSyncManager(
         }
     }
 
+    override suspend fun syncAllDirty(): SyncSummary {
+        if (!prefs.current().syncUsable()) return SyncSummary(0, 0, 0)
+        var pushed = 0
+        var failed = 0
+        var skipped = 0
+        for (row in dao.dirtyProgress()) {
+            val book = dao.bookById(row.bookId) ?: continue
+            when (pushProgress(book)) {
+                PushResult.Pushed -> pushed++
+                is PushResult.Failed -> failed++
+                else -> skipped++
+            }
+        }
+        prefs.setLastSyncAt(System.currentTimeMillis())
+        return SyncSummary(pushed, failed, skipped)
+    }
+
     override suspend fun testConnection(account: KosyncAccount, register: Boolean): KosyncResult<Unit> =
         if (register) api.register(account) else api.authorize(account)
 

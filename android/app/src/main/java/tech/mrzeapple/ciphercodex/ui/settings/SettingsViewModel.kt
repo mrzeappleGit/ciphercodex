@@ -58,6 +58,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _connection = MutableStateFlow<ConnectionState>(ConnectionState.Idle)
     val connection: StateFlow<ConnectionState> = _connection.asStateFlow()
 
+    private val _syncStatus = MutableStateFlow<String?>(null)
+    val syncStatus: StateFlow<String?> = _syncStatus.asStateFlow()
+
+    fun syncNow() {
+        if (_syncStatus.value == "SYNCING...") return
+        viewModelScope.launch {
+            _syncStatus.value = "SYNCING..."
+            val summary = app.syncManager.syncAllDirty()
+            _syncStatus.value = when {
+                !prefs.current().syncEnabled -> "SYNC DISABLED"
+                summary.attempted == 0 -> "NOTHING TO SYNC"
+                summary.failed > 0 -> "PUSHED ${summary.pushed} · ${summary.failed} FAILED"
+                else -> "PUSHED ${summary.pushed}"
+            }
+        }
+    }
+
     init {
         viewModelScope.launch {
             prefs.deviceId() // generate on first visit; surfaces via the settings flow
@@ -183,6 +200,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             warmth = 0f,
             keepScreenOn = true,
             dailyGoalMinutes = 0,
+            lastSyncAt = 0L,
             librarySort = LibrarySort.RECENT,
         )
     }
