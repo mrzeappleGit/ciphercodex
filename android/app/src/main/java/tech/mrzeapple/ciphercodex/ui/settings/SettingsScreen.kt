@@ -110,8 +110,10 @@ fun SettingsScreen(onBack: () -> Unit) {
             ReadingPanel(
                 theme = settings.readingTheme,
                 fontScale = settings.fontScale,
+                keepScreenOn = settings.keepScreenOn,
                 onTheme = vm::setReadingTheme,
                 onAdjustFontScale = vm::adjustFontScale,
+                onKeepScreenOn = vm::setKeepScreenOn,
             )
             AboutPanel(deviceId = settings.deviceId)
         }
@@ -210,8 +212,10 @@ private fun SyncPanel(
 private fun ReadingPanel(
     theme: ReadingTheme,
     fontScale: Float,
+    keepScreenOn: Boolean,
     onTheme: (ReadingTheme) -> Unit,
     onAdjustFontScale: (Float) -> Unit,
+    onKeepScreenOn: (Boolean) -> Unit,
 ) {
     CipherPanel(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -256,6 +260,28 @@ private fun ReadingPanel(
                     text = "A+",
                     onClick = { onAdjustFontScale(FONT_STEP) },
                     enabled = fontScale < FONT_MAX,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "KEEP SCREEN ON",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    CipherCaption("STAY AWAKE WHILE READING")
+                }
+                Switch(
+                    checked = keepScreenOn,
+                    onCheckedChange = onKeepScreenOn,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = CipherCyan,
+                        checkedTrackColor = CipherStatic,
+                        checkedBorderColor = CipherCyan,
+                        uncheckedThumbColor = CipherMuted,
+                        uncheckedTrackColor = CipherStatic,
+                        uncheckedBorderColor = CipherMuted,
+                    ),
                 )
             }
         }
@@ -314,7 +340,7 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.2.1", color = CipherCyan)
+                CipherCaption("v0.3.0", color = CipherCyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(

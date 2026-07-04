@@ -13,6 +13,9 @@ import java.util.UUID
 
 enum class ReadingTheme { NIGHT, SEPIA }
 
+/** Library ordering. RECENT is the historical default (recently opened, then added). */
+enum class LibrarySort { RECENT, TITLE, AUTHOR, ADDED, PROGRESS }
+
 data class Settings(
     val syncEnabled: Boolean,
     val serverUrl: String,
@@ -24,6 +27,9 @@ data class Settings(
     val readingTheme: ReadingTheme,
     /** Multiplier on ReadingBodyStyle's base size, 0.75f..1.75f. */
     val fontScale: Float,
+    /** Hold the screen awake while reading. */
+    val keepScreenOn: Boolean,
+    val librarySort: LibrarySort,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -39,6 +45,8 @@ class UserPrefs(private val context: Context) {
         val deviceId = stringPreferencesKey("device_id")
         val readingTheme = stringPreferencesKey("reading_theme")
         val fontScale = floatPreferencesKey("font_scale")
+        val keepScreenOn = booleanPreferencesKey("keep_screen_on")
+        val librarySort = stringPreferencesKey("library_sort")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -54,6 +62,9 @@ class UserPrefs(private val context: Context) {
                 else -> ReadingTheme.NIGHT
             },
             fontScale = p[Keys.fontScale] ?: 1.0f,
+            keepScreenOn = p[Keys.keepScreenOn] ?: true,
+            librarySort = LibrarySort.entries.firstOrNull { it.name == p[Keys.librarySort] }
+                ?: LibrarySort.RECENT,
         )
     }
 
@@ -75,6 +86,8 @@ class UserPrefs(private val context: Context) {
     suspend fun setDeviceName(value: String) = context.dataStore.edit { it[Keys.deviceName] = value.trim() }
     suspend fun setReadingTheme(value: ReadingTheme) = context.dataStore.edit { it[Keys.readingTheme] = value.name }
     suspend fun setFontScale(value: Float) = context.dataStore.edit { it[Keys.fontScale] = value.coerceIn(0.75f, 1.75f) }
+    suspend fun setKeepScreenOn(value: Boolean) = context.dataStore.edit { it[Keys.keepScreenOn] = value }
+    suspend fun setLibrarySort(value: LibrarySort) = context.dataStore.edit { it[Keys.librarySort] = value.name }
 
     companion object {
         const val DEFAULT_SERVER = "https://sync.koreader.rocks"

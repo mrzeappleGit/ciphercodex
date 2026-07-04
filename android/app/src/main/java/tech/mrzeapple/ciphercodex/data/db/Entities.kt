@@ -36,6 +36,24 @@ data class ReadingSessionEntity(
     val endPercentage: Float,
 )
 
+/** A user-saved position within a book. Mirrors the firmware's BookmarkEntry;
+ *  kept local (kosync carries progress only) until an annotation transport exists. */
+@Entity(
+    tableName = "bookmarks",
+    indices = [Index(value = ["bookId"])],
+)
+data class BookmarkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bookId: Long,
+    val spineIndex: Int,
+    val charOffset: Int,
+    /** Whole-book percentage at capture, for display and ordering fallback. */
+    val percentage: Float,
+    /** Short snippet of the bookmarked page; may be blank. */
+    val label: String,
+    val createdAt: Long,
+)
+
 @Entity(tableName = "progress")
 data class ProgressEntity(
     @PrimaryKey val bookId: Long,

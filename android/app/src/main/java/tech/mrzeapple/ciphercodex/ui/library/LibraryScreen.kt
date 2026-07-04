@@ -6,8 +6,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.lerp
@@ -53,12 +57,15 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.data.BookWithProgress
+import tech.mrzeapple.ciphercodex.data.prefs.LibrarySort
 import tech.mrzeapple.ciphercodex.ui.components.CipherButton
 import tech.mrzeapple.ciphercodex.ui.components.CipherCaption
 import tech.mrzeapple.ciphercodex.ui.components.CipherHeader
 import tech.mrzeapple.ciphercodex.ui.components.CipherPanel
 import tech.mrzeapple.ciphercodex.ui.components.CipherProgressBar
 import tech.mrzeapple.ciphercodex.ui.components.CipherShape
+import tech.mrzeapple.ciphercodex.ui.components.CipherShapeSmall
+import tech.mrzeapple.ciphercodex.ui.components.CipherTextField
 import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
@@ -76,6 +83,10 @@ fun LibraryScreen(
     val vm: LibraryViewModel = viewModel()
     val books by vm.books.collectAsState()
     val importState by vm.importState.collectAsState()
+    val query by vm.query.collectAsState()
+    val filter by vm.filter.collectAsState()
+    val sort by vm.sort.collectAsState()
+    val libraryEmpty by vm.isLibraryEmpty.collectAsState()
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
@@ -119,12 +130,12 @@ fun LibraryScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ImportStatus(importState, Modifier.weight(1f))
-            if (books.isNotEmpty()) {
+            if (!libraryEmpty) {
                 CipherButton("IMPORT", onClick = launchImport, enabled = !importing)
             }
         }
         Spacer(Modifier.height(12.dp))
-        if (books.isEmpty()) {
+        if (libraryEmpty) {
             EmptyLibrary(
                 onImport = launchImport,
                 importing = importing,
@@ -133,32 +144,76 @@ fun LibraryScreen(
                     .fillMaxWidth(),
             )
         } else {
-            val lastRead = books.first().takeIf { it.book.lastOpenedAt != null }
-            val gridBooks = if (lastRead != null) books.drop(1) else books
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 16.dp),
+            CipherTextField(
+                value = query,
+                onValueChange = vm::setQuery,
+                label = "SEARCH",
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (lastRead != null) {
-                    item(key = lastRead.book.id, span = { GridItemSpan(maxLineSpan) }) {
-                        ContinueReadingHero(
-                            entry = lastRead,
-                            onOpen = { onOpenBook(lastRead.book.id) },
-                            onLongPress = { deleteTarget = lastRead },
+                LibraryChip(
+                    text = "SORT ▸ ${sort.name}",
+                    active = sort != LibrarySort.RECENT,
+                    onClick = { vm.setSort(nextSort(sort)) },
+                )
+                LibraryFilter.entries.forEach { f ->
+                    LibraryChip(text = f.name, active = filter == f, onClick = { vm.setFilter(f) })
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            if (books.isEmpty()) {
+                // Only a genuine search/filter shows "NO MATCHES"; with no query
+                // and no filter an empty list is just the first-frame race
+                // between the books and isLibraryEmpty flows.
+                val searching = query.isNotBlank() || filter != LibraryFilter.ALL
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (searching) CipherCaption("NO MATCHES")
+                }
+            } else {
+                // The Continue Reading hero only makes sense in the default
+                // browsing view; searching/filtering/re-sorting hides it.
+                val defaultView = query.isBlank() &&
+                    filter == LibraryFilter.ALL &&
+                    sort == LibrarySort.RECENT
+                val lastRead =
+                    if (defaultView) books.first().takeIf { it.book.lastOpenedAt != null } else null
+                val gridBooks = if (lastRead != null) books.drop(1) else books
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                ) {
+                    if (lastRead != null) {
+                        item(key = lastRead.book.id, span = { GridItemSpan(maxLineSpan) }) {
+                            ContinueReadingHero(
+                                entry = lastRead,
+                                onOpen = { onOpenBook(lastRead.book.id) },
+                                onLongPress = { deleteTarget = lastRead },
+                            )
+                        }
+                    }
+                    items(gridBooks, key = { it.book.id }) { entry ->
+                        BookCard(
+                            entry = entry,
+                            onOpen = { onOpenBook(entry.book.id) },
+                            onLongPress = { deleteTarget = entry },
                         )
                     }
-                }
-                items(gridBooks, key = { it.book.id }) { entry ->
-                    BookCard(
-                        entry = entry,
-                        onOpen = { onOpenBook(entry.book.id) },
-                        onLongPress = { deleteTarget = entry },
-                    )
                 }
             }
         }
@@ -205,6 +260,30 @@ private fun ImportStatus(state: ImportUiState, modifier: Modifier = Modifier) {
         is ImportUiState.Done -> CipherCaption(state.message.uppercase(), modifier, color = CipherCyan)
         is ImportUiState.Error -> CipherCaption(state.message.uppercase(), modifier, color = CipherMagenta)
     }
+}
+
+/** Compact toggle chip for the sort cycle and reading-state filters. */
+@Composable
+private fun LibraryChip(text: String, active: Boolean, onClick: () -> Unit) {
+    val color = if (active) CipherCyan else CipherMuted
+    Box(
+        modifier = Modifier
+            .clip(CipherShapeSmall)
+            .border(1.dp, color, CipherShapeSmall)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+        )
+    }
+}
+
+private fun nextSort(current: LibrarySort): LibrarySort {
+    val values = LibrarySort.entries
+    return values[(current.ordinal + 1) % values.size]
 }
 
 @OptIn(ExperimentalFoundationApi::class)

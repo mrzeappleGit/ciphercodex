@@ -15,6 +15,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -37,6 +39,8 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -81,11 +85,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
+import tech.mrzeapple.ciphercodex.data.db.BookmarkEntity
+import tech.mrzeapple.ciphercodex.epub.EpubTocEntry
 import tech.mrzeapple.ciphercodex.sync.PullResult
 import tech.mrzeapple.ciphercodex.ui.components.CipherButton
 import tech.mrzeapple.ciphercodex.ui.components.CipherCaption
 import tech.mrzeapple.ciphercodex.ui.components.CipherPanel
 import tech.mrzeapple.ciphercodex.ui.components.CipherProgressBar
+import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
 import tech.mrzeapple.ciphercodex.ui.theme.CipherPhosphor
@@ -115,6 +122,8 @@ private data class PaginationResult(
     val sysDensity: Float,
     val chapter: PaginatedChapter,
 )
+
+private enum class NavTab { CHAPTERS, BOOKMARKS }
 
 @Composable
 fun ReaderScreen(bookId: Long, onBack: () -> Unit) {
@@ -201,13 +210,34 @@ private fun ReaderContent(
         }
     }
 
+    // Hold the screen awake while reading (prefs-gated); released on leave.
+    DisposableEffect(settings.keepScreenOn) {
+        view.keepScreenOn = settings.keepScreenOn
+        onDispose { view.keepScreenOn = false }
+    }
+
     val position by vm.position.collectAsState()
     val percentage by vm.percentage.collectAsState()
     val syncPrompt by vm.syncPrompt.collectAsState()
+    val toc by vm.toc.collectAsState()
+    val bookmarks by vm.bookmarks.collectAsState()
 
     var chromeVisible by remember { mutableStateOf(false) }
     var turnDirection by remember { mutableIntStateOf(1) }
     var current by remember { mutableStateOf<PageSpec?>(null) }
+    var navTab by remember { mutableStateOf<NavTab?>(null) }
+
+    // Snapshot the visible page into a bookmark: its start offset + a short
+    // preview snippet taken from the page's first characters.
+    val addBookmark: () -> Unit = add@{
+        val spec = current ?: return@add
+        val page = spec.paginated.pages[spec.pageIndex]
+        val text = spec.paginated.text
+        val start = page.startChar.coerceIn(0, text.length)
+        val end = (start + 60).coerceAtMost(text.length)
+        val snippet = text.subSequence(start, end).toString().replace('\n', ' ').trim()
+        vm.addBookmark(spec.spineIndex, page.startChar, percentage, snippet)
+    }
 
     fun goNext() {
         val spec = current ?: return
@@ -409,6 +439,32 @@ private fun ReaderContent(
                 },
                 onFontDown = { vm.stepFontScale(-0.125f) },
                 onFontUp = { vm.stepFontScale(0.125f) },
+                onSeek = { fraction -> vm.seekToFraction(fraction) },
+                onOpenToc = { navTab = NavTab.CHAPTERS },
+                onOpenBookmarks = { navTab = NavTab.BOOKMARKS },
+            )
+        }
+
+        navTab?.let { tab ->
+            ReaderNavOverlay(
+                tab = tab,
+                toc = toc,
+                bookmarks = bookmarks,
+                currentSpine = position.spineIndex,
+                onSwitchTab = { navTab = it },
+                onSelectChapter = { spine ->
+                    vm.moveTo(spine, 0)
+                    navTab = null
+                    chromeVisible = false
+                },
+                onSelectBookmark = { spine, offset ->
+                    vm.moveTo(spine, offset)
+                    navTab = null
+                    chromeVisible = false
+                },
+                onAddBookmark = addBookmark,
+                onDeleteBookmark = { vm.deleteBookmark(it) },
+                onDismiss = { navTab = null },
             )
         }
 
@@ -433,6 +489,9 @@ private fun BoxScope.ReaderChrome(
     onToggleTheme: () -> Unit,
     onFontDown: () -> Unit,
     onFontUp: () -> Unit,
+    onSeek: (Float) -> Unit,
+    onOpenToc: () -> Unit,
+    onOpenBookmarks: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -473,11 +532,7 @@ private fun BoxScope.ReaderChrome(
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CipherProgressBar(percentage, modifier = Modifier.weight(1f))
-            Spacer(Modifier.width(8.dp))
-            CipherCaption("${(percentage * 100).roundToInt()}%")
-        }
+        ReaderScrubber(percentage = percentage, onSeek = onSeek)
         Spacer(Modifier.height(12.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -491,7 +546,185 @@ private fun BoxScope.ReaderChrome(
             CipherButton("A-", onClick = onFontDown, enabled = fontScale > 0.75f)
             CipherButton("A+", onClick = onFontUp, enabled = fontScale < 1.75f)
         }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CipherButton("TOC", onClick = onOpenToc)
+            CipherButton("MARKS", onClick = onOpenBookmarks)
+        }
     }
+}
+
+/** Interactive whole-book progress: tap or drag to seek. While dragging it
+ *  previews the target percent; the seek commits on release. */
+@Composable
+private fun ReaderScrubber(percentage: Float, onSeek: (Float) -> Unit, modifier: Modifier = Modifier) {
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val shown = dragFraction ?: percentage
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(24.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        onSeek((offset.x / size.width).coerceIn(0f, 1f))
+                    }
+                }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset ->
+                            dragFraction = (offset.x / size.width).coerceIn(0f, 1f)
+                        },
+                        onDragEnd = {
+                            dragFraction?.let { onSeek(it) }
+                            dragFraction = null
+                        },
+                        onDragCancel = { dragFraction = null },
+                    ) { change, _ ->
+                        change.consume()
+                        dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                    }
+                },
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            CipherProgressBar(shown)
+        }
+        Spacer(Modifier.width(8.dp))
+        CipherCaption("${(shown * 100).roundToInt()}%")
+    }
+}
+
+/** Bottom-anchored in-book navigation: a Chapters/Bookmarks switcher over a
+ *  scrim. Chrome aesthetic (never the reading surface). */
+@Composable
+private fun BoxScope.ReaderNavOverlay(
+    tab: NavTab,
+    toc: List<EpubTocEntry>,
+    bookmarks: List<BookmarkEntity>,
+    currentSpine: Int,
+    onSwitchTab: (NavTab) -> Unit,
+    onSelectChapter: (Int) -> Unit,
+    onSelectBookmark: (Int, Int) -> Unit,
+    onAddBookmark: () -> Unit,
+    onDeleteBookmark: (Long) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        Modifier
+            .matchParentSize()
+            .background(CipherVoid.copy(alpha = 0.75f))
+            .pointerInput(Unit) { detectTapGestures { onDismiss() } }
+            .pointerInput(Unit) {
+                // Consume drags so a swipe over the scrim can't reach the reader's
+                // page-turn detector behind this modal (which would silently turn
+                // the page and cancel the dismiss tap).
+                detectHorizontalDragGestures { change, _ -> change.consume() }
+            },
+    )
+    CipherPanel(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(12.dp)
+            // Swallow taps so tapping the panel doesn't fall through to the scrim.
+            .pointerInput(Unit) { detectTapGestures { } },
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                NavTabLabel("CHAPTERS", tab == NavTab.CHAPTERS) { onSwitchTab(NavTab.CHAPTERS) }
+                Spacer(Modifier.width(16.dp))
+                NavTabLabel("BOOKMARKS", tab == NavTab.BOOKMARKS) { onSwitchTab(NavTab.BOOKMARKS) }
+                Spacer(Modifier.weight(1f))
+                CipherCaption(
+                    "CLOSE",
+                    modifier = Modifier
+                        .clickable(onClick = onDismiss)
+                        .padding(8.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            when (tab) {
+                NavTab.CHAPTERS -> {
+                    if (toc.isEmpty()) {
+                        CipherCaption("NO TABLE OF CONTENTS", modifier = Modifier.padding(vertical = 12.dp))
+                    } else {
+                        LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                            items(toc) { entry ->
+                                NavRow(onClick = { onSelectChapter(entry.spineIndex) }) {
+                                    Text(
+                                        text = entry.title,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = if (entry.spineIndex == currentSpine) CipherCyan else CipherPhosphor,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    CipherCaption("CH ${entry.spineIndex + 1}")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                NavTab.BOOKMARKS -> {
+                    CipherButton("+ BOOKMARK THIS PAGE", onClick = onAddBookmark)
+                    Spacer(Modifier.height(8.dp))
+                    if (bookmarks.isEmpty()) {
+                        CipherCaption("NO BOOKMARKS YET", modifier = Modifier.padding(vertical = 12.dp))
+                    } else {
+                        LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                            items(bookmarks, key = { it.id }) { bm ->
+                                NavRow(onClick = { onSelectBookmark(bm.spineIndex, bm.charOffset) }) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            text = bm.label.ifBlank { "CH ${bm.spineIndex + 1}" },
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = CipherPhosphor,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        CipherCaption("${(bm.percentage * 100).roundToInt()}%")
+                                    }
+                                    CipherCaption(
+                                        "DELETE",
+                                        color = CipherMagenta,
+                                        modifier = Modifier
+                                            .clickable { onDeleteBookmark(bm.id) }
+                                            .padding(8.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NavTabLabel(text: String, active: Boolean, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (active) CipherCyan else CipherMuted,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+    )
+}
+
+@Composable
+private fun NavRow(onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
 }
 
 @Composable

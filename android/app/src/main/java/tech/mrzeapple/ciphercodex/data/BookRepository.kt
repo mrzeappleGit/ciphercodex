@@ -6,6 +6,8 @@ import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.data.db.BookDao
 import tech.mrzeapple.ciphercodex.data.db.BookEntity
@@ -22,6 +24,8 @@ class BookRepository(
     private val statsDao: StatsDao,
 ) : LibraryRepository {
 
+    private val importMutex = Mutex()
+
     private fun booksDir(): File = File(context.filesDir, "books").apply { mkdirs() }
 
     private fun coversDir(): File = File(context.filesDir, "covers").apply { mkdirs() }
@@ -32,7 +36,13 @@ class BookRepository(
             books.map { book -> BookWithProgress(book, byBookId[book.id]?.percentage) }
         }
 
-    override suspend fun importEpub(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
+    override suspend fun importEpub(uri: Uri): ImportResult =
+        // Serialize imports so sweepStaleImportTemps never races a live sibling
+        // temp — both the library batch and the share/open-with intent path
+        // import through here, potentially concurrently.
+        importMutex.withLock { doImportEpub(uri) }
+
+    private suspend fun doImportEpub(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
         sweepStaleImportTemps()
         val temp = File(booksDir(), "import-${System.nanoTime()}.tmp")
         try {
@@ -97,6 +107,7 @@ class BookRepository(
         withContext(Dispatchers.IO) {
             val book = dao.bookById(bookId) ?: return@withContext
             dao.deleteProgressFor(bookId)
+            dao.deleteBookmarksFor(bookId)
             statsDao.deleteSessionsFor(bookId)
             dao.delete(book)
             File(book.filePath).delete()
@@ -133,7 +144,7 @@ class BookRepository(
     }
 
     /** Deletes temps orphaned by a process kill mid-import. Safe to run at
-     *  import start because LibraryViewModel serializes imports, so no live
+     *  import start because importMutex serializes all imports, so no live
      *  sibling temp can exist. */
     private fun sweepStaleImportTemps() {
         booksDir().listFiles()?.forEach { f ->

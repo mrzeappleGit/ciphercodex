@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import tech.mrzeapple.ciphercodex.CipherCodexApp
+import tech.mrzeapple.ciphercodex.data.prefs.LibrarySort
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
 import tech.mrzeapple.ciphercodex.data.prefs.UserPrefs
@@ -97,6 +98,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefs.setFontScale(prefs.current().fontScale + delta) }
     }
 
+    fun setKeepScreenOn(value: Boolean) {
+        viewModelScope.launch { prefs.setKeepScreenOn(value) }
+    }
+
     fun testConnection(register: Boolean) {
         if (_connection.value is ConnectionState.Testing) return
         viewModelScope.launch {
@@ -135,6 +140,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             deviceId = "",
             readingTheme = ReadingTheme.NIGHT,
             fontScale = 1.0f,
+            keepScreenOn = true,
+            librarySort = LibrarySort.RECENT,
         )
     }
 }

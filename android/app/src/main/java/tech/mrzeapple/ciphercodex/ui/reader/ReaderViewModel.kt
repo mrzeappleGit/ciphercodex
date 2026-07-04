@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.data.db.BookEntity
+import tech.mrzeapple.ciphercodex.data.db.BookmarkEntity
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
 import tech.mrzeapple.ciphercodex.data.stats.SessionRecorder
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
@@ -26,6 +27,7 @@ import tech.mrzeapple.ciphercodex.epub.Epub
 import tech.mrzeapple.ciphercodex.epub.EpubChapter
 import tech.mrzeapple.ciphercodex.epub.EpubDocument
 import tech.mrzeapple.ciphercodex.epub.EpubParseException
+import tech.mrzeapple.ciphercodex.epub.EpubTocEntry
 import tech.mrzeapple.ciphercodex.sync.PullResult
 import java.io.File
 import kotlin.math.max
@@ -64,6 +66,13 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
 
     private val _syncPrompt = MutableStateFlow<PullResult.RemoteNewer?>(null)
     val syncPrompt: StateFlow<PullResult.RemoteNewer?> = _syncPrompt
+
+    private val _toc = MutableStateFlow<List<EpubTocEntry>>(emptyList())
+    val toc: StateFlow<List<EpubTocEntry>> = _toc
+
+    val bookmarks: StateFlow<List<BookmarkEntity>> =
+        dao.observeBookmarks(bookId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private var book: BookEntity? = null
     private var doc: EpubDocument? = null
@@ -104,6 +113,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
                 }
                 book = b
                 doc = d
+                _toc.value = d.toc
                 repository.markOpened(bookId)
                 val saved = dao.progressFor(bookId)
                 if (saved != null) {
@@ -301,6 +311,59 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
 
     fun dismissSyncPrompt() {
         _syncPrompt.value = null
+    }
+
+    /** Maps a whole-book fraction to a concrete position, parsing the target
+     *  chapter for its char length. Blocking; call off the main thread. */
+    private fun positionForFraction(fraction: Float): ReaderPosition? {
+        val d = doc ?: return null
+        val weights = d.spineWeights
+        if (weights.isEmpty()) return null
+        val total = weights.sum().toDouble().coerceAtLeast(1.0)
+        val target = fraction.toDouble().coerceIn(0.0, 1.0) * total
+        var before = 0.0
+        var idx = weights.lastIndex
+        for (i in weights.indices) {
+            if (before + weights[i] >= target) {
+                idx = i
+                break
+            }
+            before += weights[i]
+        }
+        val within = ((target - before) / weights[idx].toDouble().coerceAtLeast(1.0)).coerceIn(0.0, 1.0)
+        val length = try {
+            buildChapterText(d.chapter(idx)).text.length
+        } catch (e: Exception) {
+            0
+        }
+        return ReaderPosition(idx, (within * length).toInt())
+    }
+
+    /** Seek to a whole-book fraction (0f..1f) — drives the scrubber. */
+    fun seekToFraction(fraction: Float) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val pos = positionForFraction(fraction) ?: return@launch
+            moveTo(pos.spineIndex, pos.charOffset)
+        }
+    }
+
+    fun addBookmark(spineIndex: Int, charOffset: Int, percentage: Float, label: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.insertBookmark(
+                BookmarkEntity(
+                    bookId = bookId,
+                    spineIndex = spineIndex,
+                    charOffset = charOffset,
+                    percentage = percentage,
+                    label = label.trim().take(80),
+                    createdAt = System.currentTimeMillis(),
+                )
+            )
+        }
+    }
+
+    fun deleteBookmark(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) { dao.deleteBookmark(id) }
     }
 
     fun setTheme(theme: ReadingTheme) {

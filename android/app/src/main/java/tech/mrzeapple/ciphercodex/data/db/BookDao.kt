@@ -47,4 +47,16 @@ interface BookDao {
 
     @Query("SELECT * FROM progress WHERE syncedAt IS NULL OR syncedAt < updatedAt")
     suspend fun dirtyProgress(): List<ProgressEntity>
+
+    @Query("SELECT * FROM bookmarks WHERE bookId = :bookId ORDER BY spineIndex, charOffset")
+    fun observeBookmarks(bookId: Long): Flow<List<BookmarkEntity>>
+
+    @Insert
+    suspend fun insertBookmark(bookmark: BookmarkEntity): Long
+
+    @Query("DELETE FROM bookmarks WHERE id = :id")
+    suspend fun deleteBookmark(id: Long)
+
+    @Query("DELETE FROM bookmarks WHERE bookId = :bookId")
+    suspend fun deleteBookmarksFor(bookId: Long)
 }
