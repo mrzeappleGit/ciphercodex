@@ -54,6 +54,22 @@ data class BookmarkEntity(
     val createdAt: Long,
 )
 
+/** A highlighted range within a book, char offsets into the chapter's built
+ *  text (stable across typography). Local-only until an annotation transport exists. */
+@Entity(
+    tableName = "highlights",
+    indices = [Index(value = ["bookId", "spineIndex"])],
+)
+data class HighlightEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bookId: Long,
+    val spineIndex: Int,
+    val startChar: Int,
+    val endChar: Int,
+    val text: String,
+    val createdAt: Long,
+)
+
 @Entity(tableName = "progress")
 data class ProgressEntity(
     @PrimaryKey val bookId: Long,

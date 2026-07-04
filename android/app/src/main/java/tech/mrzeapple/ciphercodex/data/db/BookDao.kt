@@ -59,4 +59,16 @@ interface BookDao {
 
     @Query("DELETE FROM bookmarks WHERE bookId = :bookId")
     suspend fun deleteBookmarksFor(bookId: Long)
+
+    @Query("SELECT * FROM highlights WHERE bookId = :bookId ORDER BY spineIndex, startChar")
+    fun observeHighlights(bookId: Long): Flow<List<HighlightEntity>>
+
+    @Insert
+    suspend fun insertHighlight(highlight: HighlightEntity): Long
+
+    @Query("DELETE FROM highlights WHERE id = :id")
+    suspend fun deleteHighlight(id: Long)
+
+    @Query("DELETE FROM highlights WHERE bookId = :bookId")
+    suspend fun deleteHighlightsFor(bookId: Long)
 }

@@ -1,7 +1,12 @@
 package tech.mrzeapple.ciphercodex.ui.reader
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.view.WindowManager
 import android.provider.Settings as SystemSettings
 import androidx.activity.compose.BackHandler
@@ -17,6 +22,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -61,15 +68,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -87,6 +100,7 @@ import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
 import tech.mrzeapple.ciphercodex.data.db.BookmarkEntity
+import tech.mrzeapple.ciphercodex.data.db.HighlightEntity
 import tech.mrzeapple.ciphercodex.epub.EpubTocEntry
 import tech.mrzeapple.ciphercodex.sync.PullResult
 import tech.mrzeapple.ciphercodex.ui.components.CipherButton
@@ -132,7 +146,7 @@ private data class PaginationResult(
     val chapter: PaginatedChapter,
 )
 
-private enum class NavTab { CHAPTERS, BOOKMARKS }
+private enum class NavTab { CHAPTERS, BOOKMARKS, HIGHLIGHTS }
 
 private fun nextReadingTheme(current: ReadingTheme): ReadingTheme {
     val values = ReadingTheme.entries
@@ -142,6 +156,13 @@ private fun nextReadingTheme(current: ReadingTheme): ReadingTheme {
 // Amber wash for the warm-light overlay; strength scales with the warmth pref.
 private val WarmthColor = Color(0xFFFF7A1A)
 private const val WARMTH_MAX_ALPHA = 0.45f
+
+// Selection/highlight tints (translucent so the reading theme shows through).
+private val HighlightColor = Color(0x5500E5FF)
+private val SelectionColor = Color(0x66FF2A93)
+
+/** A long-press word selection: char range into the chapter's built text. */
+private data class WordSelection(val spineIndex: Int, val start: Int, val end: Int, val text: String)
 
 @Composable
 fun ReaderScreen(bookId: Long, onBack: () -> Unit) {
@@ -257,11 +278,18 @@ private fun ReaderContent(
     val syncPrompt by vm.syncPrompt.collectAsState()
     val toc by vm.toc.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
+    val highlights by vm.highlights.collectAsState()
 
     var chromeVisible by remember { mutableStateOf(false) }
     var turnDirection by remember { mutableIntStateOf(1) }
     var current by remember { mutableStateOf<PageSpec?>(null) }
     var navTab by remember { mutableStateOf<NavTab?>(null) }
+    var selection by remember { mutableStateOf<WordSelection?>(null) }
+    // Current page's text layout + its origin in root coords, so the root Box's
+    // long-press can hit-test a word without a competing gesture on the page.
+    var pageLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var textBoxOrigin by remember { mutableStateOf(Offset.Zero) }
+    val context = LocalContext.current
 
     // Snapshot the visible page into a bookmark: its start offset + a short
     // preview snippet taken from the page's first characters.
@@ -277,6 +305,7 @@ private fun ReaderContent(
 
     fun goNext() {
         val spec = current ?: return
+        selection = null
         if (spec.pageIndex < spec.paginated.pages.lastIndex) {
             turnDirection = 1
             vm.moveTo(spec.spineIndex, spec.paginated.pages[spec.pageIndex + 1].startChar)
@@ -288,6 +317,7 @@ private fun ReaderContent(
 
     fun goPrev() {
         val spec = current ?: return
+        selection = null
         if (spec.pageIndex > 0) {
             turnDirection = -1
             vm.moveTo(spec.spineIndex, spec.paginated.pages[spec.pageIndex - 1].startChar)
@@ -303,14 +333,47 @@ private fun ReaderContent(
             .fillMaxSize()
             .background(background)
             .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    val third = size.width / 3f
-                    when {
-                        offset.x < third -> goPrev()
-                        offset.x > third * 2 -> goNext()
-                        else -> chromeVisible = !chromeVisible
-                    }
-                }
+                detectTapGestures(
+                    onLongPress = { offset ->
+                        // One detector for tap AND long-press avoids the gesture-theft
+                        // that a separate page-box detector caused.
+                        val spec = current
+                        val l = pageLayout
+                        val pg = spec?.paginated?.pages?.getOrNull(spec.pageIndex)
+                        // Only on a text page: image pages leave pageLayout/textBoxOrigin
+                        // stale, which would select text from a previous page.
+                        if (spec != null && l != null && pg != null && pg.imagePath == null) {
+                            val local = offset - textBoxOrigin
+                            val charOffset = l.getOffsetForPosition(Offset(local.x, local.y + pg.topPx))
+                            // Ignore presses that resolve outside the VISIBLE page's char
+                            // range — the margins, vertical padding, and the empty area
+                            // below a short page all map into the full-chapter layout and
+                            // would otherwise select an off-page (invisible) word.
+                            if (charOffset in pg.startChar until pg.endChar) {
+                                val range = l.getWordBoundary(charOffset)
+                                val text = spec.paginated.text
+                                val s = range.start.coerceIn(pg.startChar, pg.endChar)
+                                val e = range.end.coerceIn(pg.startChar, pg.endChar)
+                                if (e > s) {
+                                    selection = WordSelection(spec.spineIndex, s, e, text.text.substring(s, e))
+                                }
+                            }
+                        }
+                    },
+                    onTap = { offset ->
+                        // A tap while a word is selected just dismisses the selection.
+                        if (selection != null) {
+                            selection = null
+                        } else {
+                            val third = size.width / 3f
+                            when {
+                                offset.x < third -> goPrev()
+                                offset.x > third * 2 -> goNext()
+                                else -> chromeVisible = !chromeVisible
+                            }
+                        }
+                    },
+                )
             }
             .pointerInput(Unit) {
                 val threshold = 48.dp.toPx()
@@ -447,20 +510,53 @@ private fun ReaderContent(
                         // lines that would fit the box vertically.
                         val contentHeight =
                             with(LocalDensity.current) { page.contentHeightPx.toDp() }
+                        // Saved highlights on this chapter (+ the active selection)
+                        // render as translucent background spans. Backgrounds never
+                        // change layout, so the measured page offsets stay valid.
+                        val base = spec.paginated.text
+                        val spineHighlights = highlights.filter { it.spineIndex == spec.spineIndex }
+                        val activeSel = selection?.takeIf { it.spineIndex == spec.spineIndex }
+                        val displayText = remember(base, spineHighlights, activeSel) {
+                            if (spineHighlights.isEmpty() && activeSel == null) {
+                                base
+                            } else {
+                                buildAnnotatedString {
+                                    append(base)
+                                    spineHighlights.forEach {
+                                        addStyle(
+                                            SpanStyle(background = HighlightColor),
+                                            it.startChar.coerceIn(0, base.length),
+                                            it.endChar.coerceIn(0, base.length),
+                                        )
+                                    }
+                                    activeSel?.let {
+                                        addStyle(
+                                            SpanStyle(background = SelectionColor),
+                                            it.start.coerceIn(0, base.length),
+                                            it.end.coerceIn(0, base.length),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         Box(Modifier.fillMaxSize()) {
                             Box(
                                 Modifier
                                     .fillMaxWidth()
                                     .height(contentHeight)
                                     .align(Alignment.TopStart)
+                                    // Record the text box origin in root coords so the
+                                    // root Box's long-press can map a screen tap to a char.
+                                    .onGloballyPositioned { textBoxOrigin = it.positionInRoot() }
                                     .clipToBounds(),
                             ) {
                                 // Same text, same style, same width as the measure
                                 // pass; unbounded height so it reflows identically,
                                 // shifted up to this page's first line.
                                 Text(
-                                    text = spec.paginated.text,
+                                    text = displayText,
                                     style = spec.style,
+                                    onTextLayout = { pageLayout = it },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .wrapContentHeight(align = Alignment.Top, unbounded = true)
@@ -519,7 +615,27 @@ private fun ReaderContent(
                 },
                 onAddBookmark = addBookmark,
                 onDeleteBookmark = { vm.deleteBookmark(it) },
+                highlights = highlights,
+                onSelectHighlight = { spine, startChar ->
+                    vm.moveTo(spine, startChar)
+                    navTab = null
+                    chromeVisible = false
+                },
+                onDeleteHighlight = { vm.deleteHighlight(it) },
                 onDismiss = { navTab = null },
+            )
+        }
+
+        selection?.let { sel ->
+            SelectionToolbar(
+                onDefine = { defineText(context, sel.text); selection = null },
+                onHighlight = {
+                    vm.addHighlight(sel.spineIndex, sel.start, sel.end, sel.text)
+                    selection = null
+                },
+                onCopy = { copyText(context, sel.text); selection = null },
+                onShare = { shareText(context, sel.text); selection = null },
+                onDismiss = { selection = null },
             )
         }
 
@@ -531,6 +647,79 @@ private fun ReaderContent(
             )
         }
     }
+}
+
+@Composable
+private fun BoxScope.SelectionToolbar(
+    onDefine: () -> Unit,
+    onHighlight: () -> Unit,
+    onCopy: () -> Unit,
+    onShare: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    CipherPanel(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(12.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CipherButton("DEFINE", onClick = onDefine)
+            CipherButton("HIGHLIGHT", onClick = onHighlight)
+            CipherButton("COPY", onClick = onCopy)
+            CipherButton("SHARE", onClick = onShare)
+            CipherCaption(
+                "CLOSE",
+                modifier = Modifier
+                    .clickable(onClick = onDismiss)
+                    .padding(8.dp),
+            )
+        }
+    }
+}
+
+private fun defineText(context: Context, text: String) {
+    val process = Intent(Intent.ACTION_PROCESS_TEXT).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_PROCESS_TEXT, text)
+        putExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, true)
+    }
+    if (process.resolveActivity(context.packageManager) != null) {
+        context.startActivity(Intent.createChooser(process, "DEFINE"))
+    } else {
+        // No dictionary/translate app: fall back to a web "define" search.
+        val query = Uri.encode("define $text")
+        val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query"))
+        try {
+            context.startActivity(web)
+        } catch (e: android.content.ActivityNotFoundException) {
+            // No browser either — nothing to do.
+        }
+    }
+}
+
+private fun copyText(context: Context, text: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("CipherCodex", text))
+}
+
+private fun shareText(context: Context, text: String) {
+    context.startActivity(
+        Intent.createChooser(
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+            },
+            "SHARE",
+        ),
+    )
 }
 
 @Composable
@@ -659,6 +848,9 @@ private fun BoxScope.ReaderNavOverlay(
     onSelectBookmark: (Int, Int) -> Unit,
     onAddBookmark: () -> Unit,
     onDeleteBookmark: (Long) -> Unit,
+    highlights: List<HighlightEntity>,
+    onSelectHighlight: (Int, Int) -> Unit,
+    onDeleteHighlight: (Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
     Box(
@@ -687,6 +879,8 @@ private fun BoxScope.ReaderNavOverlay(
                 NavTabLabel("CHAPTERS", tab == NavTab.CHAPTERS) { onSwitchTab(NavTab.CHAPTERS) }
                 Spacer(Modifier.width(16.dp))
                 NavTabLabel("BOOKMARKS", tab == NavTab.BOOKMARKS) { onSwitchTab(NavTab.BOOKMARKS) }
+                Spacer(Modifier.width(16.dp))
+                NavTabLabel("HIGHLIGHTS", tab == NavTab.HIGHLIGHTS) { onSwitchTab(NavTab.HIGHLIGHTS) }
                 Spacer(Modifier.weight(1f))
                 CipherCaption(
                     "CLOSE",
@@ -743,6 +937,37 @@ private fun BoxScope.ReaderNavOverlay(
                                         color = CipherMagenta,
                                         modifier = Modifier
                                             .clickable { onDeleteBookmark(bm.id) }
+                                            .padding(8.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                NavTab.HIGHLIGHTS -> {
+                    if (highlights.isEmpty()) {
+                        CipherCaption(
+                            "NO HIGHLIGHTS YET — LONG-PRESS A WORD",
+                            modifier = Modifier.padding(vertical = 12.dp),
+                        )
+                    } else {
+                        LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                            items(highlights, key = { it.id }) { hl ->
+                                NavRow(onClick = { onSelectHighlight(hl.spineIndex, hl.startChar) }) {
+                                    Text(
+                                        text = hl.text,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = CipherPhosphor,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    CipherCaption(
+                                        "DELETE",
+                                        color = CipherMagenta,
+                                        modifier = Modifier
+                                            .clickable { onDeleteHighlight(hl.id) }
                                             .padding(8.dp),
                                     )
                                 }

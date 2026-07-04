@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.data.db.BookEntity
 import tech.mrzeapple.ciphercodex.data.db.BookmarkEntity
+import tech.mrzeapple.ciphercodex.data.db.HighlightEntity
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
 import tech.mrzeapple.ciphercodex.data.stats.SessionRecorder
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
@@ -72,6 +73,10 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
 
     val bookmarks: StateFlow<List<BookmarkEntity>> =
         dao.observeBookmarks(bookId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val highlights: StateFlow<List<HighlightEntity>> =
+        dao.observeHighlights(bookId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private var book: BookEntity? = null
@@ -375,6 +380,26 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
 
     fun deleteBookmark(id: Long) {
         viewModelScope.launch(Dispatchers.IO) { dao.deleteBookmark(id) }
+    }
+
+    fun addHighlight(spineIndex: Int, startChar: Int, endChar: Int, text: String) {
+        if (endChar <= startChar) return
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.insertHighlight(
+                HighlightEntity(
+                    bookId = bookId,
+                    spineIndex = spineIndex,
+                    startChar = startChar,
+                    endChar = endChar,
+                    text = text.trim().take(200),
+                    createdAt = System.currentTimeMillis(),
+                )
+            )
+        }
+    }
+
+    fun deleteHighlight(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) { dao.deleteHighlight(id) }
     }
 
     fun setTheme(theme: ReadingTheme) {

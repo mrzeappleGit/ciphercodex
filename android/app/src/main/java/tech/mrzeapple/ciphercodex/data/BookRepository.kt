@@ -108,6 +108,7 @@ class BookRepository(
             val book = dao.bookById(bookId) ?: return@withContext
             dao.deleteProgressFor(bookId)
             dao.deleteBookmarksFor(bookId)
+            dao.deleteHighlightsFor(bookId)
             statsDao.deleteSessionsFor(bookId)
             dao.delete(book)
             File(book.filePath).delete()
