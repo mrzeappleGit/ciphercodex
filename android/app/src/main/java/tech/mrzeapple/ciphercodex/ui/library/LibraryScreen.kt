@@ -79,6 +79,7 @@ fun LibraryScreen(
     onOpenBook: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenStats: () -> Unit,
+    onOpenOpds: () -> Unit,
 ) {
     val vm: LibraryViewModel = viewModel()
     val books by vm.books.collectAsState()
@@ -107,6 +108,14 @@ fun LibraryScreen(
         CipherHeader(
             title = "CIPHERCODEX",
             trailing = {
+                Text(
+                    text = "BROWSE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CipherMuted,
+                    modifier = Modifier
+                        .clickable(onClick = onOpenOpds)
+                        .padding(8.dp),
+                )
                 Text(
                     text = "STATS",
                     style = MaterialTheme.typography.labelSmall,

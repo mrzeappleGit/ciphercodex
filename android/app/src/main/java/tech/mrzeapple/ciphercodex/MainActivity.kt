@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import tech.mrzeapple.ciphercodex.data.ImportResult
 import tech.mrzeapple.ciphercodex.ui.library.LibraryScreen
 import tech.mrzeapple.ciphercodex.ui.nav.Routes
+import tech.mrzeapple.ciphercodex.ui.opds.OpdsScreen
 import tech.mrzeapple.ciphercodex.ui.reader.ReaderScreen
 import tech.mrzeapple.ciphercodex.ui.settings.SettingsScreen
 import tech.mrzeapple.ciphercodex.ui.stats.StatsScreen
@@ -61,7 +62,11 @@ class MainActivity : ComponentActivity() {
                             onOpenBook = { bookId -> nav.navigate(Routes.reader(bookId)) },
                             onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                             onOpenStats = { nav.navigate(Routes.STATS) },
+                            onOpenOpds = { nav.navigate(Routes.OPDS) },
                         )
+                    }
+                    composable(Routes.OPDS) {
+                        OpdsScreen(onBack = { nav.popBackStack() })
                     }
                     composable(
                         Routes.READER,

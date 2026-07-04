@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 import tech.mrzeapple.ciphercodex.data.db.BookDao
 import tech.mrzeapple.ciphercodex.data.db.BookEntity
 import tech.mrzeapple.ciphercodex.data.db.ProgressEntity
@@ -26,6 +29,13 @@ class BookRepository(
 
     private val importMutex = Mutex()
 
+    private val http: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .callTimeout(120, TimeUnit.SECONDS)
+            .build()
+    }
+
     private fun booksDir(): File = File(context.filesDir, "books").apply { mkdirs() }
 
     private fun coversDir(): File = File(context.filesDir, "covers").apply { mkdirs() }
@@ -41,6 +51,25 @@ class BookRepository(
         // temp — both the library batch and the share/open-with intent path
         // import through here, potentially concurrently.
         importMutex.withLock { doImportEpub(uri) }
+
+    override suspend fun importEpubFromUrl(url: String): ImportResult = withContext(Dispatchers.IO) {
+        val temp = File(context.cacheDir, "opds-${System.nanoTime()}.download")
+        try {
+            http.newCall(Request.Builder().url(url).build()).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext ImportResult.Failed("Download failed: HTTP ${response.code}")
+                }
+                val stream = response.body?.byteStream()
+                    ?: return@withContext ImportResult.Failed("Empty download")
+                temp.outputStream().use { stream.copyTo(it) }
+            }
+            importEpub(Uri.fromFile(temp))
+        } catch (e: Exception) {
+            ImportResult.Failed("Download failed: ${e.readable()}")
+        } finally {
+            temp.delete()
+        }
+    }
 
     private suspend fun doImportEpub(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
         sweepStaleImportTemps()

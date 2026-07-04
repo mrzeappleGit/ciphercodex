@@ -27,6 +27,10 @@ interface LibraryRepository {
      *  partial-MD5 digest, extracts metadata + cover, inserts the row. */
     suspend fun importEpub(uri: Uri): ImportResult
 
+    /** Downloads the EPUB at [url] (e.g. an OPDS acquisition link) to a temp
+     *  file, then imports it exactly like a picked file. */
+    suspend fun importEpubFromUrl(url: String): ImportResult
+
     /** Removes the row, its progress, the imported file and cached cover. */
     suspend fun deleteBook(bookId: Long)
 
