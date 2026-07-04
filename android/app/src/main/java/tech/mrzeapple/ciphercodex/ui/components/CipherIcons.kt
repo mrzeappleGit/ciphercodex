@@ -43,6 +43,13 @@ val CipherIconKept: ImageVector = strokeIcon(
 /** Bar chart — the STATS tab. */
 val CipherIconStats: ImageVector = strokeIcon("M18 20V10", "M12 20V4", "M6 20v-6")
 
+/** Four-square grid — the library grid-view toggle. */
+val CipherIconGrid: ImageVector = strokeIcon("M3 3h7v7H3z", "M14 3h7v7h-7z", "M3 14h7v7H3z", "M14 14h7v7h-7z")
+
+/** Lines with leading ticks — the library list-view toggle. */
+val CipherIconList: ImageVector =
+    strokeIcon("M8 6h13", "M8 12h13", "M8 18h13", "M3 6h0.01", "M3 12h0.01", "M3 18h0.01")
+
 /** Gear — the SET(tings) tab. */
 val CipherIconSettings: ImageVector = strokeIcon(
     "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",

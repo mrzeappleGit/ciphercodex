@@ -68,6 +68,14 @@ import tech.mrzeapple.ciphercodex.ui.components.CipherProgressBar
 import tech.mrzeapple.ciphercodex.ui.components.CipherShape
 import tech.mrzeapple.ciphercodex.ui.components.CipherShapeSmall
 import tech.mrzeapple.ciphercodex.ui.components.CipherTextField
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import tech.mrzeapple.ciphercodex.ui.components.CipherIconGrid
+import tech.mrzeapple.ciphercodex.ui.components.CipherIconList
 import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
@@ -101,6 +109,7 @@ fun LibraryScreen(
 
     var bookMenu by remember { mutableStateOf<BookWithProgress?>(null) }
     var shelfToDelete by remember { mutableStateOf<CollectionEntity?>(null) }
+    var listView by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -121,6 +130,8 @@ fun LibraryScreen(
                         .clickable(onClick = onOpenOpds)
                         .padding(8.dp),
                 )
+                Spacer(Modifier.width(6.dp))
+                GridListToggle(listView = listView, onToggle = { listView = it })
             },
         )
         Spacer(Modifier.height(12.dp))
@@ -201,6 +212,13 @@ fun LibraryScreen(
                 ) {
                     if (searching) CipherCaption("NO MATCHES")
                 }
+            } else if (listView) {
+                LibraryList(
+                    books = books,
+                    onOpen = onOpenBook,
+                    onLongPress = { bookMenu = it },
+                    modifier = Modifier.weight(1f),
+                )
             } else {
                 // The Continue Reading hero only makes sense in the default
                 // browsing view; searching/filtering/re-sorting hides it.
@@ -485,13 +503,110 @@ private fun BookCard(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: (
 }
 
 @Composable
-private fun BookCover(coverPath: String?, title: String, percentage: Float?) {
-    // Decode off the main thread; the generated cover shows while null.
-    val cover by produceState<ImageBitmap?>(initialValue = null, coverPath) {
-        value = coverPath?.let { path ->
-            withContext(Dispatchers.IO) { decodeCoverSampled(path) }
+private fun GridListToggle(listView: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(CipherShapeSmall)
+            .background(CipherVoid)
+            .border(1.dp, CipherMuted.copy(alpha = 0.3f), CipherShapeSmall)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        ToggleIcon(CipherIconGrid, active = !listView) { onToggle(false) }
+        ToggleIcon(CipherIconList, active = listView) { onToggle(true) }
+    }
+}
+
+@Composable
+private fun ToggleIcon(icon: ImageVector, active: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(CipherShapeSmall)
+            .background(if (active) CipherCyan else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(5.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = if (active) CipherVoid else CipherMuted, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun LibraryList(
+    books: List<BookWithProgress>,
+    onOpen: (Long) -> Unit,
+    onLongPress: (BookWithProgress) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = 16.dp)) {
+        items(books, key = { it.book.id }) { entry ->
+            BookRow(entry, onOpen = { onOpen(entry.book.id) }, onLongPress = { onLongPress(entry) })
         }
     }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun BookRow(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: () -> Unit) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(onClick = onOpen, onLongClick = onLongPress)
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .width(44.dp)
+                    .height(64.dp)
+                    .clip(CipherShapeSmall)
+                    .background(CipherVoid),
+            ) {
+                CoverImageOrPlaceholder(
+                    coverPath = entry.book.coverPath,
+                    title = entry.book.title,
+                    showTitle = false,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Spacer(Modifier.width(13.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = entry.book.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(3.dp))
+                CipherCaption((entry.book.author ?: "UNKNOWN AUTHOR").uppercase())
+                Spacer(Modifier.height(9.dp))
+                val pct = entry.percentage
+                when {
+                    pct == null -> CipherCaption("QUEUED · NOT STARTED")
+                    pct >= COVER_FINISHED -> CipherCaption("✓ FINISHED", color = CipherCyan)
+                    else -> CipherProgressBar(pct)
+                }
+            }
+            entry.percentage?.let { pct ->
+                Spacer(Modifier.width(12.dp))
+                CipherCaption(
+                    if (pct >= COVER_FINISHED) "DONE" else "${(pct * 100).roundToInt()}%",
+                    color = CipherCyan,
+                )
+            }
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(CipherMuted.copy(alpha = 0.12f)),
+        )
+    }
+}
+
+@Composable
+private fun BookCover(coverPath: String?, title: String, percentage: Float?) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -499,23 +614,47 @@ private fun BookCover(coverPath: String?, title: String, percentage: Float?) {
             .background(CipherVoid),
         contentAlignment = Alignment.Center,
     ) {
-        val bitmap = cover
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = title,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            GeneratedCover(title = title)
-        }
+        CoverImageOrPlaceholder(
+            coverPath = coverPath,
+            title = title,
+            showTitle = true,
+            modifier = Modifier.fillMaxSize(),
+        )
         // Reading-status corner: queued tag, finished check, or progress ring.
         when {
             percentage == null -> CoverQueuedTag(Modifier.align(Alignment.TopStart).padding(8.dp))
             percentage >= COVER_FINISHED -> CoverFinishedBadge(Modifier.align(Alignment.TopEnd).padding(8.dp))
             else -> CoverProgressRing(percentage, Modifier.align(Alignment.TopEnd).padding(8.dp))
         }
+    }
+}
+
+/** The decoded embedded cover art, or the generated placeholder while decoding
+ *  and when the book has none — no status overlay, so it is shared by the grid
+ *  card, the hero, and the compact list row. */
+@Composable
+private fun CoverImageOrPlaceholder(
+    coverPath: String?,
+    title: String,
+    showTitle: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    // Decode off the main thread; the generated cover shows while null.
+    val cover by produceState<ImageBitmap?>(initialValue = null, coverPath) {
+        value = coverPath?.let { path ->
+            withContext(Dispatchers.IO) { decodeCoverSampled(path) }
+        }
+    }
+    val bitmap = cover
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = title,
+            contentScale = ContentScale.Fit,
+            modifier = modifier,
+        )
+    } else {
+        GeneratedCover(title = title, showTitle = showTitle, modifier = modifier)
     }
 }
 

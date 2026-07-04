@@ -51,7 +51,7 @@ private fun coverTint(title: String): CoverTint = when (Math.floorMod(title.hash
 /** Generated cover for a book with no embedded art: tinted gradient, diagonal
  *  scanlines, and the title set in Orbitron — the design comp's cover motif. */
 @Composable
-internal fun GeneratedCover(title: String, modifier: Modifier = Modifier) {
+internal fun GeneratedCover(title: String, modifier: Modifier = Modifier, showTitle: Boolean = true) {
     val t = remember(title) { coverTint(title) }
     Box(
         modifier
@@ -68,16 +68,18 @@ internal fun GeneratedCover(title: String, modifier: Modifier = Modifier) {
             }
             .border(1.dp, t.border),
     ) {
-        Text(
-            text = title.uppercase(),
-            style = TextStyle(fontFamily = Orbitron, fontSize = 13.sp, lineHeight = 15.sp, letterSpacing = 0.3.sp),
-            color = t.ink,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(10.dp),
-        )
+        if (showTitle) {
+            Text(
+                text = title.uppercase(),
+                style = TextStyle(fontFamily = Orbitron, fontSize = 13.sp, lineHeight = 15.sp, letterSpacing = 0.3.sp),
+                color = t.ink,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(10.dp),
+            )
+        }
     }
 }
 
