@@ -50,6 +50,11 @@ private const val PAGE_CACHE_LIMIT = 8
 private const val MIN_SEARCH_LEN = 2
 private const val MAX_SEARCH_HITS = 300
 private const val SEARCH_CONTEXT = 36
+// Reading-speed fallback (pages/min) until the reader has enough turns of its
+// own to estimate a personal pace; page size is user-specific, so this is only
+// a first-open placeholder that self-corrects once sessions accumulate.
+private const val DEFAULT_PAGES_PER_MIN = 1.8f
+private const val MIN_PAGES_FOR_SPEED = 10
 
 class ReaderViewModel(application: Application, private val bookId: Long) :
     AndroidViewModel(application) {
@@ -71,6 +76,15 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
 
     private val _percentage = MutableStateFlow(0f)
     val percentage: StateFlow<Float> = _percentage
+
+    /** Personal reading speed (pages/min) derived from past sessions; a default
+     *  until enough pages have been turned. Drives the time-left readout. */
+    private val _pagesPerMinute = MutableStateFlow(DEFAULT_PAGES_PER_MIN)
+    val pagesPerMinute: StateFlow<Float> = _pagesPerMinute
+
+    /** Total character weight of the whole book (0 until the document opens). */
+    private val _bookChars = MutableStateFlow(0L)
+    val bookChars: StateFlow<Long> = _bookChars
 
     private val _syncPrompt = MutableStateFlow<PullResult.RemoteNewer?>(null)
     val syncPrompt: StateFlow<PullResult.RemoteNewer?> = _syncPrompt
@@ -147,6 +161,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
                 }
                 book = b
                 doc = d
+                _bookChars.value = d.spineWeights.sum()
                 _toc.value = d.toc
                 repository.markOpened(bookId)
                 val saved = dao.progressFor(bookId)
@@ -167,6 +182,15 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
                 if (pull is PullResult.RemoteNewer) _syncPrompt.value = pull
             } catch (e: Exception) {
                 _uiState.value = ReaderUiState.Error(e.message ?: "FAILED TO OPEN BOOK")
+            }
+        }
+        // Personal reading pace from history (all books), for the time-left readout.
+        viewModelScope.launch(Dispatchers.IO) {
+            val statsDao = app.database.statsDao()
+            val pages = statsDao.totalPagesTurned()
+            val ms = statsDao.totalReadingMs()
+            if (pages >= MIN_PAGES_FOR_SPEED && ms > 0) {
+                _pagesPerMinute.value = (pages.toFloat() / (ms.toFloat() / 60_000f)).coerceIn(0.3f, 12f)
             }
         }
     }

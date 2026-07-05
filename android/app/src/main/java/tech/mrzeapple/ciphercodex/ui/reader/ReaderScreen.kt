@@ -285,6 +285,8 @@ private fun ReaderContent(
     val highlights by vm.highlights.collectAsState()
     val searchResults by vm.searchResults.collectAsState()
     val searching by vm.searching.collectAsState()
+    val pagesPerMin by vm.pagesPerMinute.collectAsState()
+    val bookChars by vm.bookChars.collectAsState()
 
     var chromeVisible by remember { mutableStateOf(false) }
     var turnDirection by remember { mutableIntStateOf(1) }
@@ -598,10 +600,31 @@ private fun ReaderContent(
         }
 
         if (chromeVisible) {
+            val spec = current
+            val timeLeftLabel = if (spec != null && pagesPerMin > 0f && spec.paginated.pages.isNotEmpty()) {
+                val chapterPages = spec.paginated.pages.size
+                val pagesLeftChapter = (chapterPages - (spec.pageIndex + 1)).coerceAtLeast(0)
+                val chapterPart = "~${fmtDuration(pagesLeftChapter / pagesPerMin)} LEFT IN CHAPTER"
+                val chapterChars = spec.paginated.text.length
+                val charsPerPage = chapterChars.toFloat() / chapterPages
+                // Only extrapolate a book estimate from a text-representative chapter;
+                // an image/cover chapter is ~1 char over 1 page, which would blow the
+                // pages-per-page density up and yield a nonsense book time.
+                if (bookChars > 0 && charsPerPage >= MIN_CHARS_PER_PAGE) {
+                    val estTotalPages = bookChars / charsPerPage
+                    val pagesLeftBook = (estTotalPages * (1f - percentage)).coerceAtLeast(0f)
+                    "$chapterPart · ~${fmtDuration(pagesLeftBook / pagesPerMin)} LEFT IN BOOK"
+                } else {
+                    chapterPart
+                }
+            } else {
+                null
+            }
             ReaderChrome(
                 title = state.title,
                 chapterLabel = "CH ${position.spineIndex + 1}/${state.spineCount}",
                 percentage = percentage,
+                timeLeftLabel = timeLeftLabel,
                 theme = theme,
                 fontScale = settings.fontScale,
                 onBack = onLeave,
@@ -738,6 +761,24 @@ private fun copyText(context: Context, text: String) {
     clipboard.setPrimaryClip(ClipData.newPlainText("CipherCodex", text))
 }
 
+// A chapter thinner than this (chars per page) is treated as non-text (image /
+// cover) and excluded from the whole-book time extrapolation.
+private const val MIN_CHARS_PER_PAGE = 200f
+
+/** Compact reading-time label: "<1 MIN", "9 MIN", or "2H 40M". */
+private fun fmtDuration(minutes: Float): String {
+    val m = minutes.roundToInt()
+    return when {
+        m < 1 -> "<1 MIN"
+        m < 60 -> "$m MIN"
+        else -> {
+            val h = m / 60
+            val rem = m % 60
+            if (rem == 0) "${h}H" else "${h}H ${rem}M"
+        }
+    }
+}
+
 private fun shareText(context: Context, text: String) {
     context.startActivity(
         Intent.createChooser(
@@ -755,6 +796,7 @@ private fun BoxScope.ReaderChrome(
     title: String,
     chapterLabel: String,
     percentage: Float,
+    timeLeftLabel: String?,
     theme: ReadingTheme,
     fontScale: Float,
     onBack: () -> Unit,
@@ -805,6 +847,10 @@ private fun BoxScope.ReaderChrome(
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
+        if (timeLeftLabel != null) {
+            CipherCaption(timeLeftLabel)
+            Spacer(Modifier.height(10.dp))
+        }
         ReaderScrubber(percentage = percentage, onSeek = onSeek)
         Spacer(Modifier.height(12.dp))
         Row(
