@@ -20,6 +20,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
@@ -290,6 +291,7 @@ private fun ReaderContent(
     val bookmarks by vm.bookmarks.collectAsState()
     val highlights by vm.highlights.collectAsState()
     val canReturn by vm.canReturn.collectAsState()
+    val chapterFractions by vm.chapterFractions.collectAsState()
     val searchResults by vm.searchResults.collectAsState()
     val searching by vm.searching.collectAsState()
     val pagesPerMin by vm.pagesPerMinute.collectAsState()
@@ -639,6 +641,9 @@ private fun ReaderContent(
                 onFontDown = { vm.stepFontScale(-0.125f) },
                 onFontUp = { vm.stepFontScale(0.125f) },
                 onSeek = { fraction -> vm.seekToFraction(fraction) },
+                chapterMarks = chapterFractions,
+                bookmarkMarks = bookmarks.map { it.percentage },
+                highlightMarks = highlights.map { chapterFractions.getOrElse(it.spineIndex) { 0f } },
                 onOpenToc = { navTab = NavTab.CHAPTERS },
                 onOpenBookmarks = { navTab = NavTab.BOOKMARKS },
                 onOpenSearch = { navTab = NavTab.SEARCH },
@@ -840,6 +845,9 @@ private fun BoxScope.ReaderChrome(
     onFontDown: () -> Unit,
     onFontUp: () -> Unit,
     onSeek: (Float) -> Unit,
+    chapterMarks: List<Float>,
+    bookmarkMarks: List<Float>,
+    highlightMarks: List<Float>,
     onOpenToc: () -> Unit,
     onOpenBookmarks: () -> Unit,
     onOpenSearch: () -> Unit,
@@ -887,7 +895,13 @@ private fun BoxScope.ReaderChrome(
             CipherCaption(timeLeftLabel)
             Spacer(Modifier.height(10.dp))
         }
-        ReaderScrubber(percentage = percentage, onSeek = onSeek)
+        ReaderScrubber(
+            percentage = percentage,
+            onSeek = onSeek,
+            chapters = chapterMarks,
+            bookmarks = bookmarkMarks,
+            highlights = highlightMarks,
+        )
         Spacer(Modifier.height(12.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -910,7 +924,14 @@ private fun BoxScope.ReaderChrome(
 /** Interactive whole-book progress: tap or drag to seek. While dragging it
  *  previews the target percent; the seek commits on release. */
 @Composable
-private fun ReaderScrubber(percentage: Float, onSeek: (Float) -> Unit, modifier: Modifier = Modifier) {
+private fun ReaderScrubber(
+    percentage: Float,
+    onSeek: (Float) -> Unit,
+    chapters: List<Float>,
+    bookmarks: List<Float>,
+    highlights: List<Float>,
+    modifier: Modifier = Modifier,
+) {
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     val shown = dragFraction ?: percentage
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier.fillMaxWidth()) {
@@ -941,6 +962,24 @@ private fun ReaderScrubber(percentage: Float, onSeek: (Float) -> Unit, modifier:
             contentAlignment = Alignment.CenterStart,
         ) {
             CipherProgressBar(shown)
+            // Book Map: chapter boundaries as faint ticks, bookmarks (cyan) and
+            // highlights (magenta) as marks, and a bright current-position line.
+            Canvas(Modifier.matchParentSize()) {
+                val w = size.width
+                val h = size.height
+                chapters.forEach { f ->
+                    val x = f.coerceIn(0f, 1f) * w
+                    drawLine(CipherMuted.copy(alpha = 0.5f), Offset(x, h * 0.15f), Offset(x, h * 0.85f), 1.dp.toPx())
+                }
+                bookmarks.forEach { f ->
+                    drawCircle(CipherCyan, 2.5.dp.toPx(), Offset(f.coerceIn(0f, 1f) * w, h * 0.25f))
+                }
+                highlights.forEach { f ->
+                    drawCircle(CipherMagenta, 2.5.dp.toPx(), Offset(f.coerceIn(0f, 1f) * w, h * 0.75f))
+                }
+                val px = shown.coerceIn(0f, 1f) * w
+                drawLine(CipherCyan, Offset(px, 0f), Offset(px, h), 2.dp.toPx())
+            }
         }
         Spacer(Modifier.width(8.dp))
         CipherCaption("${(shown * 100).roundToInt()}%")

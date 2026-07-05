@@ -87,6 +87,10 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
     private val _bookChars = MutableStateFlow(0L)
     val bookChars: StateFlow<Long> = _bookChars
 
+    /** Whole-book start fraction of each spine item — the Book Map's chapter ticks. */
+    private val _chapterFractions = MutableStateFlow<List<Float>>(emptyList())
+    val chapterFractions: StateFlow<List<Float>> = _chapterFractions
+
     private val _syncPrompt = MutableStateFlow<PullResult.RemoteNewer?>(null)
     val syncPrompt: StateFlow<PullResult.RemoteNewer?> = _syncPrompt
 
@@ -162,7 +166,15 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
                 }
                 book = b
                 doc = d
-                _bookChars.value = d.spineWeights.sum()
+                val weights = d.spineWeights
+                _bookChars.value = weights.sum()
+                val total = weights.sum().toDouble().coerceAtLeast(1.0)
+                var acc = 0L
+                _chapterFractions.value = weights.map { w ->
+                    val f = (acc.toDouble() / total).toFloat()
+                    acc += w
+                    f
+                }
                 _toc.value = d.toc
                 repository.markOpened(bookId)
                 val saved = dao.progressFor(bookId)
