@@ -32,6 +32,9 @@ import tech.mrzeapple.ciphercodex.ui.theme.highlightTint
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -365,72 +368,103 @@ private fun ReaderContent(
             .fillMaxSize()
             .background(background)
             .pointerInput(Unit) {
-                detectTapGestures(
-                    onLongPress = { offset ->
-                        // One detector for tap AND long-press avoids the gesture-theft
-                        // that a separate page-box detector caused.
-                        val spec = current
-                        val l = pageLayout
-                        val pg = spec?.paginated?.pages?.getOrNull(spec.pageIndex)
-                        // Only on a text page: image pages leave pageLayout/textBoxOrigin
-                        // stale, which would select text from a previous page.
-                        if (spec != null && l != null && pg != null && pg.imagePath == null) {
-                            val local = offset - textBoxOrigin
-                            val charOffset = l.getOffsetForPosition(Offset(local.x, local.y + pg.topPx))
-                            // Ignore presses that resolve outside the VISIBLE page's char
-                            // range — the margins, vertical padding, and the empty area
-                            // below a short page all map into the full-chapter layout and
-                            // would otherwise select an off-page (invisible) word.
-                            if (charOffset in pg.startChar until pg.endChar) {
-                                val range = l.getWordBoundary(charOffset)
-                                val text = spec.paginated.text
-                                val s = range.start.coerceIn(pg.startChar, pg.endChar)
-                                val e = range.end.coerceIn(pg.startChar, pg.endChar)
-                                if (e > s) {
-                                    selection = WordSelection(spec.spineIndex, s, e, text.text.substring(s, e))
+                // ONE gesture detector for tap, long-press-to-select, and
+                // long-press-then-drag-to-extend. A single detector (rather than two
+                // competing ones) is what keeps tap-to-turn from being stolen.
+
+                // Char offset under [pos] on the current text page, or null if off
+                // the visible page / on an image page (stale layout would otherwise
+                // resolve to an invisible word).
+                fun charAt(pos: Offset): Int? {
+                    val spec = current ?: return null
+                    val l = pageLayout ?: return null
+                    val pg = spec.paginated.pages.getOrNull(spec.pageIndex) ?: return null
+                    if (pg.imagePath != null) return null
+                    val local = pos - textBoxOrigin
+                    val c = l.getOffsetForPosition(Offset(local.x, local.y + pg.topPx))
+                    return if (c in pg.startChar until pg.endChar) c else null
+                }
+
+                // Selects the word under [pos] as the anchor; returns its char range.
+                fun beginSelection(pos: Offset): IntRange? {
+                    val spec = current ?: return null
+                    val l = pageLayout ?: return null
+                    val pg = spec.paginated.pages.getOrNull(spec.pageIndex) ?: return null
+                    val c = charAt(pos) ?: return null
+                    val range = l.getWordBoundary(c)
+                    val s = range.start.coerceIn(pg.startChar, pg.endChar)
+                    val e = range.end.coerceIn(pg.startChar, pg.endChar)
+                    if (e <= s) return null
+                    selection = WordSelection(spec.spineIndex, s, e, spec.paginated.text.text.substring(s, e))
+                    return s until e
+                }
+
+                // Grows the selection to cover the word under [pos], keeping [anchor].
+                fun extendSelection(anchor: IntRange, pos: Offset) {
+                    val spec = current ?: return
+                    val l = pageLayout ?: return
+                    val pg = spec.paginated.pages.getOrNull(spec.pageIndex) ?: return
+                    val c = charAt(pos) ?: return
+                    val range = l.getWordBoundary(c)
+                    val s = minOf(anchor.first, range.start).coerceIn(pg.startChar, pg.endChar)
+                    val e = maxOf(anchor.last + 1, range.end).coerceIn(pg.startChar, pg.endChar)
+                    if (e > s) selection = WordSelection(spec.spineIndex, s, e, spec.paginated.text.text.substring(s, e))
+                }
+
+                fun handleTap(pos: Offset) {
+                    // A tap while a word is selected just dismisses the selection.
+                    if (selection != null) {
+                        selection = null
+                        return
+                    }
+                    // Footnote/internal link: a tap on a link span follows it instead
+                    // of turning the page.
+                    val spec = current
+                    val c = charAt(pos)
+                    val href = if (spec != null && c != null) {
+                        spec.paginated.text.getStringAnnotations(HREF_TAG, c, c).firstOrNull()?.item
+                    } else {
+                        null
+                    }
+                    if (href != null && spec != null &&
+                        !href.startsWith("http", ignoreCase = true) &&
+                        !href.startsWith("mailto:", ignoreCase = true)
+                    ) {
+                        vm.followLink(spec.spineIndex, href)
+                    } else {
+                        val third = size.width / 3f
+                        when {
+                            pos.x < third -> goPrev()
+                            pos.x > third * 2 -> goNext()
+                            else -> chromeVisible = !chromeVisible
+                        }
+                    }
+                }
+
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val longPress = awaitLongPressOrCancellation(down.id)
+                    if (longPress == null) {
+                        // Released before the long-press timeout: treat as a tap.
+                        handleTap(down.position)
+                    } else {
+                        val anchor = beginSelection(down.position)
+                        longPress.consume()
+                        if (anchor != null) {
+                            // Extend the selection as the finger drags, until release.
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) {
+                                    change.consume()
+                                    break
                                 }
+                                extendSelection(anchor, change.position)
+                                change.consume()
                             }
                         }
-                    },
-                    onTap = { offset ->
-                        // A tap while a word is selected just dismisses the selection.
-                        if (selection != null) {
-                            selection = null
-                        } else {
-                            // Footnote/internal link: a tap landing on a link span opens
-                            // its target instead of turning the page.
-                            val spec = current
-                            val l = pageLayout
-                            val pg = spec?.paginated?.pages?.getOrNull(spec.pageIndex)
-                            val href = if (spec != null && l != null && pg != null && pg.imagePath == null) {
-                                val local = offset - textBoxOrigin
-                                val charOffset = l.getOffsetForPosition(Offset(local.x, local.y + pg.topPx))
-                                if (charOffset in pg.startChar until pg.endChar) {
-                                    spec.paginated.text
-                                        .getStringAnnotations(HREF_TAG, charOffset, charOffset)
-                                        .firstOrNull()?.item
-                                } else {
-                                    null
-                                }
-                            } else {
-                                null
-                            }
-                            if (href != null && spec != null &&
-                                !href.startsWith("http", ignoreCase = true) &&
-                                !href.startsWith("mailto:", ignoreCase = true)
-                            ) {
-                                vm.followLink(spec.spineIndex, href)
-                            } else {
-                                val third = size.width / 3f
-                                when {
-                                    offset.x < third -> goPrev()
-                                    offset.x > third * 2 -> goNext()
-                                    else -> chromeVisible = !chromeVisible
-                                }
-                            }
-                        }
-                    },
-                )
+                    }
+                }
             }
             .pointerInput(Unit) {
                 val threshold = 48.dp.toPx()
