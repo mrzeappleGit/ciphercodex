@@ -78,6 +78,9 @@ interface BookDao {
     @Query("DELETE FROM highlights WHERE id = :id")
     suspend fun deleteHighlight(id: Long)
 
+    @Query("UPDATE highlights SET note = :note, colorId = :colorId WHERE id = :id")
+    suspend fun setHighlightAnnotation(id: Long, note: String?, colorId: Int)
+
     @Query("DELETE FROM highlights WHERE bookId = :bookId")
     suspend fun deleteHighlightsFor(bookId: Long)
 

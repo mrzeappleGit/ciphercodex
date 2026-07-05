@@ -493,7 +493,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         viewModelScope.launch(Dispatchers.IO) { dao.deleteBookmark(id) }
     }
 
-    fun addHighlight(spineIndex: Int, startChar: Int, endChar: Int, text: String) {
+    fun addHighlight(spineIndex: Int, startChar: Int, endChar: Int, text: String, colorId: Int = 0) {
         if (endChar <= startChar) return
         viewModelScope.launch(Dispatchers.IO) {
             dao.insertHighlight(
@@ -504,6 +504,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
                     endChar = endChar,
                     text = text.trim().take(200),
                     createdAt = System.currentTimeMillis(),
+                    colorId = colorId,
                 )
             )
         }

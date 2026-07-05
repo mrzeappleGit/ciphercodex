@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.data.db.HighlightWithBook
+import tech.mrzeapple.ciphercodex.ui.theme.HighlightPalette
 
 /** Backs the KEPT tab: every highlight across the library, newest first. */
 class KeptViewModel(application: Application) : AndroidViewModel(application) {
@@ -20,5 +21,9 @@ class KeptViewModel(application: Application) : AndroidViewModel(application) {
 
     fun delete(id: Long) {
         viewModelScope.launch { dao.deleteHighlight(id) }
+    }
+
+    fun updateAnnotation(id: Long, note: String?, colorId: Int) {
+        viewModelScope.launch { dao.setHighlightAnnotation(id, note, colorId.coerceIn(0, HighlightPalette.lastIndex)) }
     }
 }

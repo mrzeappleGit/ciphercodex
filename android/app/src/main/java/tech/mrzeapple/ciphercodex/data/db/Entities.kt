@@ -1,5 +1,6 @@
 package tech.mrzeapple.ciphercodex.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
@@ -69,6 +70,10 @@ data class HighlightEntity(
     val endChar: Int,
     val text: String,
     val createdAt: Long,
+    /** Optional personal note attached to the highlight. */
+    val note: String? = null,
+    /** Index into the highlight-tint palette (0 = default cyan). */
+    @ColumnInfo(defaultValue = "0") val colorId: Int = 0,
 )
 
 /** A highlight joined with its book's title/author, for the KEPT screen. */

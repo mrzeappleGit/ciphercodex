@@ -12,6 +12,18 @@ val CipherMagenta = Color(0xFFFF2A93)
 val CipherPhosphor = Color(0xFFE7F6FA)
 val CipherMuted = Color(0xFF6C8994)
 
+/** Translucent highlight tints, indexed by HighlightEntity.colorId — the reading
+ *  theme shows through the alpha. Use [highlightTint]; `.copy(alpha = 1f)` gives
+ *  the solid swatch color for pickers and accent bars. */
+val HighlightPalette = listOf(
+    Color(0x5500E5FF), // cyan (default)
+    Color(0x55FF2A93), // magenta
+    Color(0x55E0B062), // amber
+    Color(0x5540E0A0), // mint
+)
+
+fun highlightTint(colorId: Int): Color = HighlightPalette.getOrElse(colorId) { HighlightPalette[0] }
+
 // Reading surface — CipherCodex-specific, deliberately not neon.
 // Night and Sepia: the two modes every e-reader already trained readers to expect.
 val ReadingNightBackground = Color(0xFF121212)

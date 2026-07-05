@@ -21,6 +21,12 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import tech.mrzeapple.ciphercodex.ui.components.CipherShapeSmall
+import tech.mrzeapple.ciphercodex.ui.theme.HighlightPalette
+import tech.mrzeapple.ciphercodex.ui.theme.highlightTint
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -161,8 +167,8 @@ private fun nextReadingTheme(current: ReadingTheme): ReadingTheme {
 private val WarmthColor = Color(0xFFFF7A1A)
 private const val WARMTH_MAX_ALPHA = 0.45f
 
-// Selection/highlight tints (translucent so the reading theme shows through).
-private val HighlightColor = Color(0x5500E5FF)
+// The active-selection tint (translucent so the reading theme shows through);
+// saved highlights use their own colorId via highlightTint().
 private val SelectionColor = Color(0x66FF2A93)
 
 /** A long-press word selection: char range into the chapter's built text. */
@@ -544,7 +550,7 @@ private fun ReaderContent(
                                     append(base)
                                     spineHighlights.forEach {
                                         addStyle(
-                                            SpanStyle(background = HighlightColor),
+                                            SpanStyle(background = highlightTint(it.colorId)),
                                             it.startChar.coerceIn(0, base.length),
                                             it.endChar.coerceIn(0, base.length),
                                         )
@@ -680,8 +686,8 @@ private fun ReaderContent(
         selection?.let { sel ->
             SelectionToolbar(
                 onDefine = { defineText(context, sel.text); selection = null },
-                onHighlight = {
-                    vm.addHighlight(sel.spineIndex, sel.start, sel.end, sel.text)
+                onHighlight = { colorId ->
+                    vm.addHighlight(sel.spineIndex, sel.start, sel.end, sel.text, colorId)
                     selection = null
                 },
                 onCopy = { copyText(context, sel.text); selection = null },
@@ -703,7 +709,7 @@ private fun ReaderContent(
 @Composable
 private fun BoxScope.SelectionToolbar(
     onDefine: () -> Unit,
-    onHighlight: () -> Unit,
+    onHighlight: (Int) -> Unit,
     onCopy: () -> Unit,
     onShare: () -> Unit,
     onDismiss: () -> Unit,
@@ -723,7 +729,17 @@ private fun BoxScope.SelectionToolbar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CipherButton("DEFINE", onClick = onDefine)
-            CipherButton("HIGHLIGHT", onClick = onHighlight)
+            // Highlight in one of the palette colors (tap a swatch).
+            HighlightPalette.forEachIndexed { colorId, tint ->
+                Box(
+                    Modifier
+                        .size(30.dp)
+                        .clip(CipherShapeSmall)
+                        .background(tint.copy(alpha = 1f))
+                        .border(1.dp, CipherMuted.copy(alpha = 0.4f), CipherShapeSmall)
+                        .clickable { onHighlight(colorId) },
+                )
+            }
             CipherButton("COPY", onClick = onCopy)
             CipherButton("SHARE", onClick = onShare)
             CipherCaption(
