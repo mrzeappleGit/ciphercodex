@@ -511,7 +511,7 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.4.7", color = CipherCyan)
+                CipherCaption("v0.4.8", color = CipherCyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(

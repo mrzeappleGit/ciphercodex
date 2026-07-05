@@ -55,6 +55,7 @@ private const val SEARCH_CONTEXT = 36
 // a first-open placeholder that self-corrects once sessions accumulate.
 private const val DEFAULT_PAGES_PER_MIN = 1.8f
 private const val MIN_PAGES_FOR_SPEED = 10
+private const val RETURN_STACK_MAX = 10
 
 class ReaderViewModel(application: Application, private val bookId: Long) :
     AndroidViewModel(application) {
@@ -261,6 +262,31 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         )
     }
 
+    // Exploratory jumps (TOC / search / bookmark / scrubber) remember where you
+    // were so the RETURN pill can bring you back; page turns do not.
+    private val returnStack = ArrayDeque<ReaderPosition>()
+    private val _canReturn = MutableStateFlow(false)
+    val canReturn: StateFlow<Boolean> = _canReturn
+
+    private fun pushReturn() {
+        returnStack.addLast(_position.value)
+        while (returnStack.size > RETURN_STACK_MAX) returnStack.removeFirst()
+        _canReturn.value = true
+    }
+
+    /** A jump that can be undone: records the current position, then moves. */
+    fun jumpTo(spineIndex: Int, charOffset: Int) {
+        pushReturn()
+        moveTo(spineIndex, charOffset)
+    }
+
+    /** Pop back to the position before the last jump. */
+    fun returnBack() {
+        val prev = returnStack.removeLastOrNull() ?: return
+        _canReturn.value = returnStack.isNotEmpty()
+        moveTo(prev.spineIndex, prev.charOffset)
+    }
+
     /** Called whenever a page lands on screen: updates the whole-book
      *  percentage and schedules a debounced progress save. */
     fun onPageShown(spineIndex: Int, page: Page, chapterCharCount: Int) {
@@ -405,6 +431,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
 
     /** Seek to a whole-book fraction (0f..1f) — drives the scrubber. */
     fun seekToFraction(fraction: Float) {
+        pushReturn()
         viewModelScope.launch(Dispatchers.Default) {
             val pos = positionForFraction(fraction) ?: return@launch
             moveTo(pos.spineIndex, pos.charOffset)

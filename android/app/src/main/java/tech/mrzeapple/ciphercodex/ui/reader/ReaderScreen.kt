@@ -289,6 +289,7 @@ private fun ReaderContent(
     val toc by vm.toc.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
     val highlights by vm.highlights.collectAsState()
+    val canReturn by vm.canReturn.collectAsState()
     val searchResults by vm.searchResults.collectAsState()
     val searching by vm.searching.collectAsState()
     val pagesPerMin by vm.pagesPerMinute.collectAsState()
@@ -644,6 +645,25 @@ private fun ReaderContent(
             )
         }
 
+        // After an exploratory jump (TOC/search/bookmark/scrubber), a small pill
+        // offers to hop back to where you were. Hidden while other chrome is up.
+        if (canReturn && !chromeVisible && navTab == null && selection == null) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(12.dp)
+                    .clip(CipherShapeSmall)
+                    .background(CipherVoid.copy(alpha = 0.9f))
+                    .border(1.dp, CipherCyan.copy(alpha = 0.6f), CipherShapeSmall)
+                    .clickable { vm.returnBack() }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("↩ RETURN", style = MaterialTheme.typography.labelSmall, color = CipherCyan)
+            }
+        }
+
         navTab?.let { tab ->
             ReaderNavOverlay(
                 tab = tab,
@@ -652,12 +672,12 @@ private fun ReaderContent(
                 currentSpine = position.spineIndex,
                 onSwitchTab = { navTab = it },
                 onSelectChapter = { spine ->
-                    vm.moveTo(spine, 0)
+                    vm.jumpTo(spine, 0)
                     navTab = null
                     chromeVisible = false
                 },
                 onSelectBookmark = { spine, offset ->
-                    vm.moveTo(spine, offset)
+                    vm.jumpTo(spine, offset)
                     navTab = null
                     chromeVisible = false
                 },
@@ -665,7 +685,7 @@ private fun ReaderContent(
                 onDeleteBookmark = { vm.deleteBookmark(it) },
                 highlights = highlights,
                 onSelectHighlight = { spine, startChar ->
-                    vm.moveTo(spine, startChar)
+                    vm.jumpTo(spine, startChar)
                     navTab = null
                     chromeVisible = false
                 },
@@ -675,7 +695,7 @@ private fun ReaderContent(
                 onSearch = { vm.search(it) },
                 onClearSearch = { vm.clearSearch() },
                 onSelectSearchHit = { spine, offset ->
-                    vm.moveTo(spine, offset)
+                    vm.jumpTo(spine, offset)
                     navTab = null
                     chromeVisible = false
                 },
