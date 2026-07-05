@@ -21,6 +21,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
@@ -107,6 +108,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.MainActivity
+import tech.mrzeapple.ciphercodex.epub.HREF_TAG
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
 import tech.mrzeapple.ciphercodex.data.db.BookmarkEntity
@@ -292,6 +294,7 @@ private fun ReaderContent(
     val highlights by vm.highlights.collectAsState()
     val canReturn by vm.canReturn.collectAsState()
     val chapterFractions by vm.chapterFractions.collectAsState()
+    val footnote by vm.footnote.collectAsState()
     val searchResults by vm.searchResults.collectAsState()
     val searching by vm.searching.collectAsState()
     val pagesPerMin by vm.pagesPerMinute.collectAsState()
@@ -394,11 +397,36 @@ private fun ReaderContent(
                         if (selection != null) {
                             selection = null
                         } else {
-                            val third = size.width / 3f
-                            when {
-                                offset.x < third -> goPrev()
-                                offset.x > third * 2 -> goNext()
-                                else -> chromeVisible = !chromeVisible
+                            // Footnote/internal link: a tap landing on a link span opens
+                            // its target instead of turning the page.
+                            val spec = current
+                            val l = pageLayout
+                            val pg = spec?.paginated?.pages?.getOrNull(spec.pageIndex)
+                            val href = if (spec != null && l != null && pg != null && pg.imagePath == null) {
+                                val local = offset - textBoxOrigin
+                                val charOffset = l.getOffsetForPosition(Offset(local.x, local.y + pg.topPx))
+                                if (charOffset in pg.startChar until pg.endChar) {
+                                    spec.paginated.text
+                                        .getStringAnnotations(HREF_TAG, charOffset, charOffset)
+                                        .firstOrNull()?.item
+                                } else {
+                                    null
+                                }
+                            } else {
+                                null
+                            }
+                            if (href != null && spec != null &&
+                                !href.startsWith("http", ignoreCase = true) &&
+                                !href.startsWith("mailto:", ignoreCase = true)
+                            ) {
+                                vm.followLink(spec.spineIndex, href)
+                            } else {
+                                val third = size.width / 3f
+                                when {
+                                    offset.x < third -> goPrev()
+                                    offset.x > third * 2 -> goNext()
+                                    else -> chromeVisible = !chromeVisible
+                                }
                             }
                         }
                     },
@@ -721,6 +749,10 @@ private fun ReaderContent(
             )
         }
 
+        footnote?.let { note ->
+            FootnotePanel(text = note, onDismiss = { vm.dismissFootnote() })
+        }
+
         syncPrompt?.let { prompt ->
             SyncPromptPanel(
                 prompt = prompt,
@@ -917,6 +949,40 @@ private fun BoxScope.ReaderChrome(
             CipherButton("TOC", onClick = onOpenToc)
             CipherButton("MARKS", onClick = onOpenBookmarks)
             CipherButton("FIND", onClick = onOpenSearch)
+        }
+    }
+}
+
+/** A tapped footnote/internal-link target shown in a dismissible bottom panel,
+ *  so the reader can peek a note without losing their page. */
+@Composable
+private fun BoxScope.FootnotePanel(text: String, onDismiss: () -> Unit) {
+    CipherPanel(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(12.dp)
+            // Swallow taps so tapping the note doesn't fall through to a page turn.
+            .pointerInput(Unit) { detectTapGestures { } },
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CipherCaption("NOTE", Modifier.weight(1f))
+                CipherCaption(
+                    "CLOSE",
+                    modifier = Modifier.clickable(onClick = onDismiss).padding(8.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = CipherPhosphor,
+                modifier = Modifier
+                    .heightIn(max = 260.dp)
+                    .verticalScroll(rememberScrollState()),
+            )
         }
     }
 }

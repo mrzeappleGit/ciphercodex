@@ -376,15 +376,34 @@ private class ZipEpubDocument(
             cache[spineIndex]?.let { return it }
             val path = spinePaths[spineIndex]
             val baseDir = path.dirName()
-            val chapter = EpubChapter(
-                spineIndex,
-                XhtmlMapper.parse(archive.bytes(path), path) { href ->
-                    resolvePath(baseDir, href).takeIf { archive.entry(it) != null }
-                },
-            )
+            val mapped = XhtmlMapper.parse(archive.bytes(path), path) { href ->
+                resolvePath(baseDir, href).takeIf { archive.entry(it) != null }
+            }
+            val chapter = EpubChapter(spineIndex, mapped.blocks, mapped.anchors)
             cache[spineIndex] = chapter
             return chapter
         }
+    }
+
+    private val spineLookup: Map<String, Int> = buildMap {
+        spinePaths.forEachIndexed { i, p ->
+            putIfAbsent(p, i)
+            putIfAbsent(p.lowercase(), i)
+        }
+    }
+
+    override fun resolveLink(fromSpineIndex: Int, href: String): LinkTarget? {
+        if (fromSpineIndex !in spinePaths.indices) return null
+        val hash = href.indexOf('#')
+        val filePart = if (hash >= 0) href.substring(0, hash) else href
+        val anchor = if (hash >= 0) href.substring(hash + 1).ifEmpty { null } else null
+        val targetSpine = if (filePart.isEmpty()) {
+            fromSpineIndex
+        } else {
+            val path = resolvePath(spinePaths[fromSpineIndex].dirName(), filePart)
+            spineLookup[path] ?: spineLookup[path.lowercase()] ?: return null
+        }
+        return LinkTarget(targetSpine, anchor)
     }
 
     override fun coverImageBytes(): ByteArray? {

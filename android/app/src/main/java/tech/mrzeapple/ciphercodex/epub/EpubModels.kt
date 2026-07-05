@@ -42,6 +42,9 @@ val Block.textLength: Int
 data class EpubChapter(
     val spineIndex: Int,
     val blocks: List<Block>,
+    /** Anchor id -> index of the [Block] it marks, for resolving intra-chapter
+     *  footnote/link targets (href "#id"). */
+    val anchors: Map<String, Int> = emptyMap(),
 ) {
     val charCount: Int by lazy { blocks.sumOf { it.textLength } }
 }
@@ -67,7 +70,16 @@ interface EpubDocument : Closeable {
     /** Raw bytes of an in-flow image by its resolved zip path (from
      *  [Block.Image]); null when missing or unreadable — never throws. */
     fun imageBytes(zipPath: String): ByteArray?
+
+    /** Resolves an internal link href tapped in spine item [fromSpineIndex] to
+     *  its target spine index + anchor id. Handles same-file "#id" and cross-file
+     *  "path#id"; null when the target is outside the book (e.g. external URLs). */
+    fun resolveLink(fromSpineIndex: Int, href: String): LinkTarget?
 }
+
+/** A resolved internal-link destination: the [spineIndex] to open and the
+ *  optional [anchor] id within it. */
+data class LinkTarget(val spineIndex: Int, val anchor: String?)
 
 object Epub {
     /** Opens an EPUB: container.xml -> OPF -> spine/manifest/metadata parsed

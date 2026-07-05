@@ -30,6 +30,7 @@ import tech.mrzeapple.ciphercodex.data.prefs.Settings
 import tech.mrzeapple.ciphercodex.epub.Block
 import tech.mrzeapple.ciphercodex.epub.Epub
 import tech.mrzeapple.ciphercodex.epub.EpubChapter
+import tech.mrzeapple.ciphercodex.epub.textLength
 import tech.mrzeapple.ciphercodex.epub.EpubDocument
 import tech.mrzeapple.ciphercodex.epub.EpubParseException
 import tech.mrzeapple.ciphercodex.epub.EpubTocEntry
@@ -56,6 +57,7 @@ private const val SEARCH_CONTEXT = 36
 private const val DEFAULT_PAGES_PER_MIN = 1.8f
 private const val MIN_PAGES_FOR_SPEED = 10
 private const val RETURN_STACK_MAX = 10
+private const val NOTE_MAX_CHARS = 600
 
 class ReaderViewModel(application: Application, private val bookId: Long) :
     AndroidViewModel(application) {
@@ -297,6 +299,49 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         val prev = returnStack.removeLastOrNull() ?: return
         _canReturn.value = returnStack.isNotEmpty()
         moveTo(prev.spineIndex, prev.charOffset)
+    }
+
+    private val _footnote = MutableStateFlow<String?>(null)
+    val footnote: StateFlow<String?> = _footnote
+
+    /** Follows a tapped internal link: a short, same-chapter target opens as a
+     *  footnote popup; anything else (cross-file, a heading, a long block) is a
+     *  navigation jump, so it lands on the RETURN stack. No-op for external URLs. */
+    fun followLink(spineIndex: Int, href: String) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val d = doc ?: return@launch
+            val target = d.resolveLink(spineIndex, href) ?: return@launch
+            val chapter = try {
+                d.chapter(target.spineIndex)
+            } catch (e: Exception) {
+                return@launch
+            }
+            val blockIndex = target.anchor?.let { chapter.anchors[it] }
+            val noteText = when (val block = blockIndex?.let { chapter.blocks.getOrNull(it) }) {
+                is Block.Paragraph -> block.text.text
+                is Block.Heading -> block.text.text
+                else -> null
+            }?.trim()
+            if (noteText != null && target.spineIndex == spineIndex && noteText.length <= NOTE_MAX_CHARS) {
+                _footnote.value = noteText.take(1200)
+            } else {
+                val charOffset = blockIndex?.let { charOffsetOfBlock(chapter, it) } ?: 0
+                withContext(Dispatchers.Main.immediate) { jumpTo(target.spineIndex, charOffset) }
+            }
+        }
+    }
+
+    /** Char offset where [blockIndex] begins in the built chapter text, matching
+     *  buildChapterText's one-separator-per-block layout (approximate landing). */
+    private fun charOffsetOfBlock(chapter: EpubChapter, blockIndex: Int): Int {
+        var offset = 0
+        val end = blockIndex.coerceIn(0, chapter.blocks.size)
+        for (i in 0 until end) offset += chapter.blocks[i].textLength + 1
+        return offset
+    }
+
+    fun dismissFootnote() {
+        _footnote.value = null
     }
 
     /** Called whenever a page lands on screen: updates the whole-book

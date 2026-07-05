@@ -1,5 +1,6 @@
 package tech.mrzeapple.ciphercodex.epub
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
@@ -12,6 +13,10 @@ import org.xmlpull.v1.XmlPullParserFactory
 import java.io.ByteArrayInputStream
 import kotlin.math.min
 
+/** A parsed chapter: its flow blocks plus the anchor-id -> block-index map used
+ *  to resolve intra-chapter footnote/link targets. */
+internal data class MappedChapter(val blocks: List<Block>, val anchors: Map<String, Int>)
+
 /** Maps one spine XHTML document into the reader's flow [Block]s. */
 internal object XhtmlMapper {
 
@@ -22,7 +27,7 @@ internal object XhtmlMapper {
         bytes: ByteArray,
         entryName: String,
         resolveImage: (String) -> String? = { null },
-    ): List<Block> {
+    ): MappedChapter {
         try {
             return readBlocks(newEpubXmlParser(bytes), resolveImage)
         } catch (e: EpubParseException) {
@@ -32,8 +37,9 @@ internal object XhtmlMapper {
         }
     }
 
-    private fun readBlocks(parser: XmlPullParser, resolveImage: (String) -> String?): List<Block> {
+    private fun readBlocks(parser: XmlPullParser, resolveImage: (String) -> String?): MappedChapter {
         val blocks = mutableListOf<Block>()
+        val anchors = mutableMapOf<String, Int>()
         val acc = InlineAccumulator()
         val headingLevels = ArrayDeque<Int>()
         var skipDepth = 0
@@ -74,8 +80,17 @@ internal object XhtmlMapper {
                                     blocks += Block.Image(path)
                                 }
                             }
+                            name == "a" -> parser.getAttributeValue(null, "href")
+                                ?.takeIf { !it.startsWith("http", true) && !it.startsWith("mailto:", true) }
+                                ?.let(acc::pushLink)
                             name == "br" -> acc.lineBreak()
                             else -> InlineStyles[name]?.let(acc::pushSpan)
+                        }
+                        // Record any anchor id -> the block index it marks (first wins),
+                        // so a footnote link "#id" resolves to that block's text.
+                        if (skipDepth == 0) {
+                            parser.getAttributeValue(null, "id")?.takeIf { it.isNotBlank() }
+                                ?.let { anchors.putIfAbsent(it, blocks.size) }
                         }
                     }
                 }
@@ -90,6 +105,7 @@ internal object XhtmlMapper {
                                 flushBlock()
                                 headingLevels.removeLastOrNull()
                             }
+                            name == "a" -> acc.popLink()
                             else -> InlineStyles[name]?.let(acc::popSpan)
                         }
                     }
@@ -99,7 +115,7 @@ internal object XhtmlMapper {
             event = parser.next()
         }
         flushBlock()
-        return blocks
+        return MappedChapter(blocks, anchors)
     }
 }
 
@@ -151,6 +167,13 @@ private val UnderlineStyle = SpanStyle(textDecoration = TextDecoration.Underline
 private val SubscriptStyle = SpanStyle(baselineShift = BaselineShift.Subscript, fontSize = 0.75.em)
 private val SuperscriptStyle = SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 0.75.em)
 
+/** Cyan + underline so footnote/internal links read as tappable across all
+ *  reading themes; the "href" string annotation carries the target. */
+private val LinkStyle = SpanStyle(color = Color(0xFF00E5FF), textDecoration = TextDecoration.Underline)
+
+/** String-annotation tag marking an intra-book link's href on its text range. */
+internal const val HREF_TAG = "href"
+
 private val InlineStyles = mapOf(
     "b" to BoldStyle,
     "strong" to BoldStyle,
@@ -166,10 +189,14 @@ private val InlineStyles = mapOf(
 private class InlineAccumulator {
     private class OpenSpan(val style: SpanStyle, var start: Int)
     private class ClosedSpan(val style: SpanStyle, val start: Int, val end: Int)
+    private class OpenLink(val href: String, var start: Int)
+    private class ClosedLink(val href: String, val start: Int, val end: Int)
 
     private val text = StringBuilder()
     private val openSpans = mutableListOf<OpenSpan>()
     private val closedSpans = mutableListOf<ClosedSpan>()
+    private val openLinks = mutableListOf<OpenLink>()
+    private val closedLinks = mutableListOf<ClosedLink>()
 
     fun append(raw: String) {
         for (ch in raw) {
@@ -199,6 +226,15 @@ private class InlineAccumulator {
         if (span.start < text.length) closedSpans += ClosedSpan(span.style, span.start, text.length)
     }
 
+    fun pushLink(href: String) {
+        openLinks += OpenLink(href, text.length)
+    }
+
+    fun popLink() {
+        val link = openLinks.removeLastOrNull() ?: return
+        if (link.start < text.length) closedLinks += ClosedLink(link.href, link.start, text.length)
+    }
+
     /** Emits the trimmed accumulated text (null if blank) and resets, carrying
      *  still-open inline spans over into the next block at offset 0. */
     fun flush(): AnnotatedString? {
@@ -213,11 +249,26 @@ private class InlineAccumulator {
             for (span in openSpans) {
                 if (span.start < end) builder.addStyle(span.style, span.start, end)
             }
+            for (link in closedLinks) {
+                val clampedEnd = min(link.end, end)
+                if (link.start < clampedEnd) {
+                    builder.addStyle(LinkStyle, link.start, clampedEnd)
+                    builder.addStringAnnotation(HREF_TAG, link.href, link.start, clampedEnd)
+                }
+            }
+            for (link in openLinks) {
+                if (link.start < end) {
+                    builder.addStyle(LinkStyle, link.start, end)
+                    builder.addStringAnnotation(HREF_TAG, link.href, link.start, end)
+                }
+            }
             builder.toAnnotatedString()
         }
         text.setLength(0)
         closedSpans.clear()
+        closedLinks.clear()
         for (span in openSpans) span.start = 0
+        for (link in openLinks) link.start = 0
         return result
     }
 }
