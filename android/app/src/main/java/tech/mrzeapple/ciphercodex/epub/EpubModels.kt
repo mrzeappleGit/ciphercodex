@@ -9,6 +9,8 @@ data class EpubMetadata(
     val title: String?,
     val author: String?,
     val language: String?,
+    /** dc:description (the publisher blurb), or null when the EPUB declares none. */
+    val description: String? = null,
 )
 
 data class EpubTocEntry(

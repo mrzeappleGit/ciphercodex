@@ -25,7 +25,8 @@ import tech.mrzeapple.ciphercodex.ui.stats.StatsScreen
  *  Reader and OPDS remain full-screen destinations outside this scaffold. */
 @Composable
 fun MainScaffold(
-    onOpenBook: (Long) -> Unit,
+    onOpenBookDetail: (Long) -> Unit,
+    onOpenReader: (Long) -> Unit,
     onOpenOpds: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -42,8 +43,8 @@ fun MainScaffold(
     ) {
         Box(Modifier.weight(1f)) {
             when (tab) {
-                0 -> LibraryScreen(onOpenBook = onOpenBook, onOpenOpds = onOpenOpds)
-                1 -> KeptScreen(onOpenBook = onOpenBook)
+                0 -> LibraryScreen(onOpenBook = onOpenBookDetail, onOpenOpds = onOpenOpds)
+                1 -> KeptScreen(onOpenBook = onOpenReader)
                 2 -> StatsScreen()
                 else -> SettingsScreen()
             }

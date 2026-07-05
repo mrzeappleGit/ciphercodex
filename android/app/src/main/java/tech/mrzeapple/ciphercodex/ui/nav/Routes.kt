@@ -6,4 +6,6 @@ object Routes {
     const val OPDS = "opds"
     const val READER = "reader/{bookId}"
     fun reader(bookId: Long) = "reader/$bookId"
+    const val DETAIL = "detail/{bookId}"
+    fun detail(bookId: Long) = "detail/$bookId"
 }

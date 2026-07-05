@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import tech.mrzeapple.ciphercodex.data.ImportResult
 import tech.mrzeapple.ciphercodex.ui.MainScaffold
+import tech.mrzeapple.ciphercodex.ui.detail.BookDetailScreen
 import tech.mrzeapple.ciphercodex.ui.nav.Routes
 import tech.mrzeapple.ciphercodex.ui.opds.OpdsScreen
 import tech.mrzeapple.ciphercodex.ui.reader.ReaderScreen
@@ -63,12 +64,25 @@ class MainActivity : ComponentActivity() {
                 NavHost(navController = nav, startDestination = Routes.MAIN) {
                     composable(Routes.MAIN) {
                         MainScaffold(
-                            onOpenBook = { bookId -> nav.navigate(Routes.reader(bookId)) },
+                            onOpenBookDetail = { bookId -> nav.navigate(Routes.detail(bookId)) },
+                            onOpenReader = { bookId -> nav.navigate(Routes.reader(bookId)) },
                             onOpenOpds = { nav.navigate(Routes.OPDS) },
                         )
                     }
                     composable(Routes.OPDS) {
                         OpdsScreen(onBack = { nav.popBackStack() })
+                    }
+                    composable(
+                        Routes.DETAIL,
+                        arguments = listOf(navArgument("bookId") { type = NavType.LongType }),
+                    ) { backStack ->
+                        val bookId = backStack.arguments?.getLong("bookId") ?: return@composable
+                        BookDetailScreen(
+                            bookId = bookId,
+                            onBack = { nav.popBackStack() },
+                            onResume = { nav.navigate(Routes.reader(bookId)) },
+                            onDeleted = { nav.popBackStack() },
+                        )
                     }
                     composable(
                         Routes.READER,

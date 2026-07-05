@@ -72,6 +72,7 @@ internal object EpubParser {
                 title = pkg.title,
                 author = pkg.creator,
                 language = pkg.language,
+                description = pkg.description,
             )
             val document = ZipEpubDocument(
                 archive = archive,
@@ -117,6 +118,7 @@ internal object EpubParser {
         var title: String? = null
         var creator: String? = null
         var language: String? = null
+        var description: String? = null
         val manifest = mutableListOf<ManifestItem>()
         val spineItemIds = mutableListOf<String>()
         var ncxId: String? = null
@@ -134,6 +136,9 @@ internal object EpubParser {
                         }
                         "language" -> if (language == null) {
                             language = parser.collectText().collapseWhitespace().ifBlank { null }
+                        }
+                        "description" -> if (description == null) {
+                            description = parser.collectText().collapseWhitespace().ifBlank { null }
                         }
                     }
                 } else {
@@ -166,7 +171,7 @@ internal object EpubParser {
             }
             event = parser.next()
         }
-        return PackageDoc(title, creator, language, manifest, spineItemIds, ncxId, coverMetaId)
+        return PackageDoc(title, creator, language, description, manifest, spineItemIds, ncxId, coverMetaId)
     }
 
     private fun buildToc(
@@ -307,6 +312,7 @@ private class PackageDoc(
     val title: String?,
     val creator: String?,
     val language: String?,
+    val description: String?,
     val manifest: List<ManifestItem>,
     val spineItemIds: List<String>,
     /** spine@toc idref (EPUB 2 NCX). */
