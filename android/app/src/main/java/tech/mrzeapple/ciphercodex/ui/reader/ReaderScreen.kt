@@ -66,6 +66,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -109,6 +110,7 @@ import tech.mrzeapple.ciphercodex.ui.components.CipherButton
 import tech.mrzeapple.ciphercodex.ui.components.CipherCaption
 import tech.mrzeapple.ciphercodex.ui.components.CipherPanel
 import tech.mrzeapple.ciphercodex.ui.components.CipherProgressBar
+import tech.mrzeapple.ciphercodex.ui.components.CipherTextField
 import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
 import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
@@ -148,7 +150,7 @@ private data class PaginationResult(
     val chapter: PaginatedChapter,
 )
 
-private enum class NavTab { CHAPTERS, BOOKMARKS, HIGHLIGHTS }
+private enum class NavTab { CHAPTERS, BOOKMARKS, HIGHLIGHTS, SEARCH }
 
 private fun nextReadingTheme(current: ReadingTheme): ReadingTheme {
     val values = ReadingTheme.entries
@@ -281,6 +283,8 @@ private fun ReaderContent(
     val toc by vm.toc.collectAsState()
     val bookmarks by vm.bookmarks.collectAsState()
     val highlights by vm.highlights.collectAsState()
+    val searchResults by vm.searchResults.collectAsState()
+    val searching by vm.searching.collectAsState()
 
     var chromeVisible by remember { mutableStateOf(false) }
     var turnDirection by remember { mutableIntStateOf(1) }
@@ -607,6 +611,7 @@ private fun ReaderContent(
                 onSeek = { fraction -> vm.seekToFraction(fraction) },
                 onOpenToc = { navTab = NavTab.CHAPTERS },
                 onOpenBookmarks = { navTab = NavTab.BOOKMARKS },
+                onOpenSearch = { navTab = NavTab.SEARCH },
             )
         }
 
@@ -636,6 +641,15 @@ private fun ReaderContent(
                     chromeVisible = false
                 },
                 onDeleteHighlight = { vm.deleteHighlight(it) },
+                searchResults = searchResults,
+                searching = searching,
+                onSearch = { vm.search(it) },
+                onClearSearch = { vm.clearSearch() },
+                onSelectSearchHit = { spine, offset ->
+                    vm.moveTo(spine, offset)
+                    navTab = null
+                    chromeVisible = false
+                },
                 onDismiss = { navTab = null },
             )
         }
@@ -750,6 +764,7 @@ private fun BoxScope.ReaderChrome(
     onSeek: (Float) -> Unit,
     onOpenToc: () -> Unit,
     onOpenBookmarks: () -> Unit,
+    onOpenSearch: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -805,6 +820,7 @@ private fun BoxScope.ReaderChrome(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CipherButton("TOC", onClick = onOpenToc)
             CipherButton("MARKS", onClick = onOpenBookmarks)
+            CipherButton("FIND", onClick = onOpenSearch)
         }
     }
 }
@@ -865,6 +881,11 @@ private fun BoxScope.ReaderNavOverlay(
     highlights: List<HighlightEntity>,
     onSelectHighlight: (Int, Int) -> Unit,
     onDeleteHighlight: (Long) -> Unit,
+    searchResults: List<ReaderViewModel.SearchHit>,
+    searching: Boolean,
+    onSearch: (String) -> Unit,
+    onClearSearch: () -> Unit,
+    onSelectSearchHit: (Int, Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     Box(
@@ -890,12 +911,20 @@ private fun BoxScope.ReaderNavOverlay(
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                NavTabLabel("CHAPTERS", tab == NavTab.CHAPTERS) { onSwitchTab(NavTab.CHAPTERS) }
-                Spacer(Modifier.width(16.dp))
-                NavTabLabel("BOOKMARKS", tab == NavTab.BOOKMARKS) { onSwitchTab(NavTab.BOOKMARKS) }
-                Spacer(Modifier.width(16.dp))
-                NavTabLabel("HIGHLIGHTS", tab == NavTab.HIGHLIGHTS) { onSwitchTab(NavTab.HIGHLIGHTS) }
-                Spacer(Modifier.weight(1f))
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    NavTabLabel("CHAPTERS", tab == NavTab.CHAPTERS) { onSwitchTab(NavTab.CHAPTERS) }
+                    Spacer(Modifier.width(16.dp))
+                    NavTabLabel("BOOKMARKS", tab == NavTab.BOOKMARKS) { onSwitchTab(NavTab.BOOKMARKS) }
+                    Spacer(Modifier.width(16.dp))
+                    NavTabLabel("HIGHLIGHTS", tab == NavTab.HIGHLIGHTS) { onSwitchTab(NavTab.HIGHLIGHTS) }
+                    Spacer(Modifier.width(16.dp))
+                    NavTabLabel("FIND", tab == NavTab.SEARCH) { onSwitchTab(NavTab.SEARCH) }
+                }
                 CipherCaption(
                     "CLOSE",
                     modifier = Modifier
@@ -987,6 +1016,51 @@ private fun BoxScope.ReaderNavOverlay(
                                 }
                             }
                         }
+                    }
+                }
+
+                NavTab.SEARCH -> {
+                    var query by remember { mutableStateOf("") }
+                    // Debounce: search 300ms after the last keystroke; a blank
+                    // query clears results immediately.
+                    LaunchedEffect(query) {
+                        if (query.isBlank()) {
+                            onClearSearch()
+                        } else {
+                            delay(300)
+                            onSearch(query)
+                        }
+                    }
+                    CipherTextField(value = query, onValueChange = { query = it }, label = "FIND IN BOOK")
+                    Spacer(Modifier.height(8.dp))
+                    when {
+                        searching -> CipherCaption("SEARCHING…", modifier = Modifier.padding(vertical = 12.dp))
+                        query.trim().length >= 2 && searchResults.isEmpty() ->
+                            CipherCaption("NO MATCHES", modifier = Modifier.padding(vertical = 12.dp))
+                        searchResults.isNotEmpty() -> {
+                            CipherCaption("${searchResults.size} MATCH${if (searchResults.size == 1) "" else "ES"}")
+                            Spacer(Modifier.height(4.dp))
+                            LazyColumn(Modifier.heightIn(max = 340.dp)) {
+                                items(searchResults, key = { "${it.spineIndex}:${it.charOffset}" }) { hit ->
+                                    NavRow(onClick = { onSelectSearchHit(hit.spineIndex, hit.charOffset) }) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                text = hit.snippet,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = CipherPhosphor,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            CipherCaption(hit.chapterLabel)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else -> CipherCaption(
+                            "TYPE TO SEARCH THE WHOLE BOOK",
+                            modifier = Modifier.padding(vertical = 12.dp),
+                        )
                     }
                 }
             }

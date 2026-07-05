@@ -2,14 +2,18 @@ package tech.mrzeapple.ciphercodex.ui.reader
 
 import android.app.Application
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +47,9 @@ sealed interface ReaderUiState {
 
 private const val SAVE_DEBOUNCE_MS = 500L
 private const val PAGE_CACHE_LIMIT = 8
+private const val MIN_SEARCH_LEN = 2
+private const val MAX_SEARCH_HITS = 300
+private const val SEARCH_CONTEXT = 36
 
 class ReaderViewModel(application: Application, private val bookId: Long) :
     AndroidViewModel(application) {
@@ -78,6 +85,23 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
     val highlights: StateFlow<List<HighlightEntity>> =
         dao.observeHighlights(bookId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** One full-text search match. [charOffset] is in the same char space as
+     *  [moveTo], so a hit jumps straight to the word. */
+    data class SearchHit(
+        val spineIndex: Int,
+        val charOffset: Int,
+        val chapterLabel: String,
+        val snippet: AnnotatedString,
+    )
+
+    private val _searchResults = MutableStateFlow<List<SearchHit>>(emptyList())
+    val searchResults: StateFlow<List<SearchHit>> = _searchResults
+
+    private val _searching = MutableStateFlow(false)
+    val searching: StateFlow<Boolean> = _searching
+
+    private var searchJob: Job? = null
 
     private var book: BookEntity? = null
     private var doc: EpubDocument? = null
@@ -360,6 +384,69 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         viewModelScope.launch(Dispatchers.Default) {
             val pos = positionForFraction(fraction) ?: return@launch
             moveTo(pos.spineIndex, pos.charOffset)
+        }
+    }
+
+    /** Full-text search across the whole book, off the main thread. A new query
+     *  supersedes the previous one; results are capped at [MAX_SEARCH_HITS]. */
+    fun search(query: String) {
+        searchJob?.cancel()
+        val q = query.trim()
+        if (q.length < MIN_SEARCH_LEN) {
+            _searchResults.value = emptyList()
+            _searching.value = false
+            return
+        }
+        val d = doc ?: return
+        _searching.value = true
+        searchJob = viewModelScope.launch(Dispatchers.Default) {
+            val hits = ArrayList<SearchHit>()
+            for (spine in 0 until d.spineCount) {
+                ensureActive()
+                val text = try {
+                    buildChapterText(d.chapter(spine)).text.text
+                } catch (e: Exception) {
+                    continue
+                }
+                var from = 0
+                while (from <= text.length - q.length) {
+                    val idx = text.indexOf(q, from, ignoreCase = true)
+                    if (idx < 0) break
+                    hits += SearchHit(spine, idx, "CH ${spine + 1}", searchSnippet(text, idx, q.length))
+                    if (hits.size >= MAX_SEARCH_HITS) {
+                        _searchResults.value = hits
+                        _searching.value = false
+                        return@launch
+                    }
+                    from = idx + q.length
+                }
+            }
+            _searchResults.value = hits
+            _searching.value = false
+        }
+    }
+
+    fun clearSearch() {
+        searchJob?.cancel()
+        _searchResults.value = emptyList()
+        _searching.value = false
+    }
+
+    /** A one-line context snippet around a match, with the match itself bolded. */
+    private fun searchSnippet(text: String, matchStart: Int, matchLen: Int): AnnotatedString {
+        val start = (matchStart - SEARCH_CONTEXT).coerceAtLeast(0)
+        val end = (matchStart + matchLen + SEARCH_CONTEXT).coerceAtMost(text.length)
+        val body = text.substring(start, end).replace('\n', ' ')
+        val relStart = (if (start > 0) 1 else 0) + (matchStart - start)  // +1 for the leading ellipsis
+        return buildAnnotatedString {
+            if (start > 0) append('…')
+            append(body)
+            if (end < text.length) append('…')
+            addStyle(
+                SpanStyle(fontWeight = FontWeight.Bold),
+                relStart.coerceIn(0, length),
+                (relStart + matchLen).coerceIn(0, length),
+            )
         }
     }
 
