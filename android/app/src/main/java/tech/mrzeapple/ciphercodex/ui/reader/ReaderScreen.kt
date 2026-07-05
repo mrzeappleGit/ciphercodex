@@ -57,6 +57,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -97,6 +98,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import tech.mrzeapple.ciphercodex.MainActivity
 import tech.mrzeapple.ciphercodex.data.prefs.ReadingTheme
 import tech.mrzeapple.ciphercodex.data.prefs.Settings
 import tech.mrzeapple.ciphercodex.data.db.BookmarkEntity
@@ -326,6 +328,18 @@ private fun ReaderContent(
             turnDirection = -1
             vm.moveTo(spec.spineIndex - 1, Int.MAX_VALUE)
         }
+    }
+
+    // Volume-key page turns (prefs-gated): register a handler on the host
+    // activity while enabled. rememberUpdatedState keeps the registered handler
+    // calling the latest goNext/goPrev without re-registering each recomposition.
+    val turnAction = rememberUpdatedState<(Boolean) -> Unit> { next -> if (next) goNext() else goPrev() }
+    val activity = context as? MainActivity
+    DisposableEffect(activity, settings.volumeKeyTurn) {
+        if (activity != null && settings.volumeKeyTurn) {
+            activity.volumeKeyTurnHandler = { next -> turnAction.value(next) }
+        }
+        onDispose { activity?.volumeKeyTurnHandler = null }
     }
 
     Box(

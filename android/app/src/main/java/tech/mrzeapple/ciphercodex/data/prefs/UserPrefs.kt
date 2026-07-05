@@ -49,6 +49,8 @@ data class Settings(
     val warmth: Float,
     /** Hold the screen awake while reading. */
     val keepScreenOn: Boolean,
+    /** Turn pages with the volume keys while reading (volume-down = next). */
+    val volumeKeyTurn: Boolean,
     /** Daily reading target in minutes; 0 = no goal. */
     val dailyGoalMinutes: Int,
     /** Wall-clock millis of the last sync attempt; 0 = never. */
@@ -77,6 +79,7 @@ class UserPrefs(private val context: Context) {
         val brightness = floatPreferencesKey("brightness")
         val warmth = floatPreferencesKey("warmth")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
+        val volumeKeyTurn = booleanPreferencesKey("volume_key_turn")
         val dailyGoalMinutes = intPreferencesKey("daily_goal_minutes")
         val lastSyncAt = longPreferencesKey("last_sync_at")
         val librarySort = stringPreferencesKey("library_sort")
@@ -103,6 +106,7 @@ class UserPrefs(private val context: Context) {
             brightness = p[Keys.brightness] ?: 0.5f,
             warmth = p[Keys.warmth] ?: 0f,
             keepScreenOn = p[Keys.keepScreenOn] ?: true,
+            volumeKeyTurn = p[Keys.volumeKeyTurn] ?: false,
             dailyGoalMinutes = p[Keys.dailyGoalMinutes] ?: 0,
             lastSyncAt = p[Keys.lastSyncAt] ?: 0L,
             librarySort = LibrarySort.entries.firstOrNull { it.name == p[Keys.librarySort] }
@@ -136,6 +140,7 @@ class UserPrefs(private val context: Context) {
     suspend fun setBrightness(value: Float) = context.dataStore.edit { it[Keys.brightness] = value.coerceIn(0.01f, 1f) }
     suspend fun setWarmth(value: Float) = context.dataStore.edit { it[Keys.warmth] = value.coerceIn(0f, 1f) }
     suspend fun setKeepScreenOn(value: Boolean) = context.dataStore.edit { it[Keys.keepScreenOn] = value }
+    suspend fun setVolumeKeyTurn(value: Boolean) = context.dataStore.edit { it[Keys.volumeKeyTurn] = value }
     suspend fun setDailyGoalMinutes(value: Int) = context.dataStore.edit { it[Keys.dailyGoalMinutes] = value.coerceIn(0, 600) }
     suspend fun setLastSyncAt(value: Long) = context.dataStore.edit { it[Keys.lastSyncAt] = value }
     suspend fun setLibrarySort(value: LibrarySort) = context.dataStore.edit { it[Keys.librarySort] = value.name }

@@ -149,6 +149,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefs.setKeepScreenOn(value) }
     }
 
+    fun setVolumeKeyTurn(value: Boolean) {
+        viewModelScope.launch { prefs.setVolumeKeyTurn(value) }
+    }
+
     fun setDailyGoalMinutes(value: Int) {
         viewModelScope.launch { prefs.setDailyGoalMinutes(value) }
     }
@@ -199,6 +203,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             brightness = 0.5f,
             warmth = 0f,
             keepScreenOn = true,
+            volumeKeyTurn = false,
             dailyGoalMinutes = 0,
             lastSyncAt = 0L,
             librarySort = LibrarySort.RECENT,

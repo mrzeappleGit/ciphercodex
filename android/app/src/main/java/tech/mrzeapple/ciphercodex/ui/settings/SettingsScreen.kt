@@ -138,6 +138,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
                 onBrightness = vm::setBrightness,
                 onWarmth = vm::setWarmth,
                 onKeepScreenOn = vm::setKeepScreenOn,
+                onVolumeKeyTurn = vm::setVolumeKeyTurn,
                 onDailyGoal = vm::setDailyGoalMinutes,
             )
             AboutPanel(deviceId = settings.deviceId)
@@ -272,6 +273,7 @@ private fun ReadingPanel(
     onBrightness: (Float) -> Unit,
     onWarmth: (Float) -> Unit,
     onKeepScreenOn: (Boolean) -> Unit,
+    onVolumeKeyTurn: (Boolean) -> Unit,
     onDailyGoal: (Int) -> Unit,
 ) {
     CipherPanel(modifier = Modifier.fillMaxWidth()) {
@@ -334,6 +336,7 @@ private fun ReadingPanel(
             }
             SliderRow("WARMTH", settings.warmth, 0f..1f, onWarmth)
             SwitchRow("KEEP SCREEN ON", "STAY AWAKE WHILE READING", settings.keepScreenOn, onKeepScreenOn)
+            SwitchRow("VOLUME KEY TURNS", "VOL-DOWN NEXT · VOL-UP PREVIOUS", settings.volumeKeyTurn, onVolumeKeyTurn)
             StepperRow(
                 label = "DAILY GOAL",
                 value = if (settings.dailyGoalMinutes > 0) "${settings.dailyGoalMinutes}M" else "OFF",
@@ -508,7 +511,7 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.4.2", color = CipherCyan)
+                CipherCaption("v0.4.3", color = CipherCyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(

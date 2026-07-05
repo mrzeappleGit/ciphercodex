@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -32,6 +33,11 @@ class MainActivity : ComponentActivity() {
     // A book delivered via VIEW/SEND intent, imported and pending open; consumed
     // once by the nav effect (set back to null) so config changes don't reopen it.
     private val pendingOpen = MutableStateFlow<Long?>(null)
+
+    // Set by the reader while volume-key page turns are enabled, cleared on
+    // dispose. `next` is true for volume-down. Null the rest of the time, so
+    // volume keys keep their normal behaviour everywhere but an active reader.
+    var volumeKeyTurnHandler: ((next: Boolean) -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,6 +80,28 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        val handler = volumeKeyTurnHandler
+        if (handler != null) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_VOLUME_DOWN -> { handler(true); return true }
+                KeyEvent.KEYCODE_VOLUME_UP -> { handler(false); return true }
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        // Swallow the matching key-up too, so the system volume panel never
+        // surfaces while the reader owns the volume keys.
+        if (volumeKeyTurnHandler != null &&
+            (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)
+        ) {
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun onNewIntent(intent: Intent) {
