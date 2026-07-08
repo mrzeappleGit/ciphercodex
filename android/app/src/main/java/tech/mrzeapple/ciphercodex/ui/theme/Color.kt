@@ -35,3 +35,8 @@ val ReadingBlackBackground = Color(0xFF000000)
 val ReadingBlackText = Color(0xFFCFC9BE)
 val ReadingPaperBackground = Color(0xFFFAF9F5)
 val ReadingPaperText = Color(0xFF1A1712)
+// E-INK: true #000 on #FFF — the max contrast color e-ink (Kaleido) needs, since
+// its color-filter layer mutes the softer Paper tones. Paired with a heavier body
+// weight in the reader to counter the panel thinning out letter strokes.
+val ReadingContrastBackground = Color(0xFFFFFFFF)
+val ReadingContrastText = Color(0xFF000000)

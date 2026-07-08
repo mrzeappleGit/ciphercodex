@@ -56,6 +56,8 @@ import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
 import tech.mrzeapple.ciphercodex.ui.theme.CipherStatic
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackBackground
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackText
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingContrastBackground
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingContrastText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingNightBackground
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingNightText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingPaperBackground
@@ -300,6 +302,11 @@ private fun ReadingPanel(
                 ThemeSwatch("PAPER", ReadingPaperBackground, ReadingPaperText,
                     settings.readingTheme == ReadingTheme.PAPER, { onTheme(ReadingTheme.PAPER) }, Modifier.weight(1f))
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ThemeSwatch("E-INK", ReadingContrastBackground, ReadingContrastText,
+                    settings.readingTheme == ReadingTheme.CONTRAST, { onTheme(ReadingTheme.CONTRAST) }, Modifier.weight(1f))
+                Spacer(Modifier.weight(1f))
+            }
             StepperRow(
                 label = "SIZE",
                 value = "${(settings.fontScale * 100).roundToInt()}%",
@@ -511,7 +518,7 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.4.12", color = CipherCyan)
+                CipherCaption("v0.4.13", color = CipherCyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(

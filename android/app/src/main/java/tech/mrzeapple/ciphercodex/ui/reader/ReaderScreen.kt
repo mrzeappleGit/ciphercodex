@@ -95,6 +95,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
@@ -131,6 +132,8 @@ import tech.mrzeapple.ciphercodex.ui.theme.CipherVoid
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackBackground
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingBodyStyle
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingContrastBackground
+import tech.mrzeapple.ciphercodex.ui.theme.ReadingContrastText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingNightBackground
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingNightText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingPaperBackground
@@ -252,11 +255,13 @@ private fun ReaderContent(
         ReadingTheme.SEPIA -> ReadingSepiaBackground to ReadingSepiaText
         ReadingTheme.BLACK -> ReadingBlackBackground to ReadingBlackText
         ReadingTheme.PAPER -> ReadingPaperBackground to ReadingPaperText
+        ReadingTheme.CONTRAST -> ReadingContrastBackground to ReadingContrastText
     }
     // Light reading surfaces (Sepia, Paper) need dark system-bar icons; the
     // dark ones (Night, Black) keep the app's default light icons, restored on
     // leave (MainActivity forces the app chrome dark).
-    val lightTheme = theme == ReadingTheme.SEPIA || theme == ReadingTheme.PAPER
+    val lightTheme = theme == ReadingTheme.SEPIA || theme == ReadingTheme.PAPER ||
+        theme == ReadingTheme.CONTRAST
     val view = LocalView.current
     DisposableEffect(lightTheme) {
         val window = (view.context as Activity).window
@@ -498,19 +503,22 @@ private fun ReaderContent(
             val sysDensity = density.density
             val spineIndex = position.spineIndex
             val measurer = rememberTextMeasurer()
-            val pageStyle = remember(ink, fontScale, lineSpacing, settings.readingFont) {
+            val pageStyle = remember(theme, ink, fontScale, lineSpacing, settings.readingFont) {
                 ReadingBodyStyle.copy(
                     color = ink,
                     fontFamily = readingFontFamily(settings.readingFont),
                     fontSize = ReadingBodyStyle.fontSize * fontScale,
                     lineHeight = ReadingBodyStyle.lineHeight * fontScale * lineSpacing,
+                    // E-INK reads darker with a heavier stroke on color e-ink.
+                    fontWeight = if (theme == ReadingTheme.CONTRAST) FontWeight.Medium
+                        else ReadingBodyStyle.fontWeight,
                 )
             }
 
             val result by produceState<PaginationResult?>(
                 initialValue = null,
                 spineIndex, widthPx, heightPx, fontScale, lineSpacing, fontFamilyName, justify,
-                sysFontScale, sysDensity,
+                sysFontScale, sysDensity, theme, // theme: CONTRAST's heavier weight re-breaks lines
             ) {
                 value = try {
                     withContext(Dispatchers.Default) {
@@ -1399,6 +1407,7 @@ private fun ReadingBlank(theme: ReadingTheme?) {
         ReadingTheme.SEPIA -> ReadingSepiaBackground
         ReadingTheme.BLACK -> ReadingBlackBackground
         ReadingTheme.PAPER -> ReadingPaperBackground
+        ReadingTheme.CONTRAST -> ReadingContrastBackground
         else -> ReadingNightBackground // NIGHT or not-yet-loaded
     }
     Box(

@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
-enum class ReadingTheme { NIGHT, SEPIA, BLACK, PAPER }
+enum class ReadingTheme { NIGHT, SEPIA, BLACK, PAPER, CONTRAST }
 
 /** Library ordering. RECENT is the historical default (recently opened, then added). */
 enum class LibrarySort { RECENT, TITLE, AUTHOR, ADDED, PROGRESS }
