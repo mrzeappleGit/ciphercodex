@@ -47,11 +47,8 @@ import tech.mrzeapple.ciphercodex.ui.components.CipherHeader
 import tech.mrzeapple.ciphercodex.ui.components.CipherPanel
 import tech.mrzeapple.ciphercodex.ui.components.CipherShapeSmall
 import tech.mrzeapple.ciphercodex.ui.components.CipherTextField
-import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
-import tech.mrzeapple.ciphercodex.ui.theme.CipherPhosphor
 import tech.mrzeapple.ciphercodex.ui.theme.HighlightPalette
+import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 import tech.mrzeapple.ciphercodex.ui.theme.highlightTint
 
 /** KEPT: everything you highlighted, across every book — the annotation hub.
@@ -62,6 +59,7 @@ fun KeptScreen(
     modifier: Modifier = Modifier,
     vm: KeptViewModel = viewModel(),
 ) {
+    val c = LocalCipherColors.current
     val highlights by vm.highlights.collectAsState()
     var editing by remember { mutableStateOf<HighlightWithBook?>(null) }
     val context = LocalContext.current
@@ -79,7 +77,7 @@ fun KeptScreen(
             if (highlights.isNotEmpty()) {
                 CipherCaption(
                     "EXPORT",
-                    color = CipherCyan,
+                    color = c.cyan,
                     modifier = Modifier
                         .clickable { shareHighlightsMarkdown(context, highlights) }
                         .padding(8.dp),
@@ -125,6 +123,7 @@ fun KeptScreen(
 
 @Composable
 private fun KeptCard(hw: HighlightWithBook, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val c = LocalCipherColors.current
     CipherPanel(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.height(IntrinsicSize.Min)) {
             // Accent bar in the highlight's own color.
@@ -147,7 +146,7 @@ private fun KeptCard(hw: HighlightWithBook, onOpen: () -> Unit, onEdit: () -> Un
                     Text(
                         text = note,
                         style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
-                        color = CipherPhosphor,
+                        color = c.phosphor,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -155,17 +154,17 @@ private fun KeptCard(hw: HighlightWithBook, onOpen: () -> Unit, onEdit: () -> Un
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val meta = hw.bookTitle.uppercase() + (hw.bookAuthor?.let { " · $it" } ?: "")
-                    CipherCaption(meta, Modifier.weight(1f), color = CipherMuted)
+                    CipherCaption(meta, Modifier.weight(1f), color = c.muted)
                     Text(
                         text = "OPEN",
                         style = MaterialTheme.typography.labelSmall,
-                        color = CipherCyan,
+                        color = c.cyan,
                         modifier = Modifier.clickable(onClick = onOpen).padding(8.dp),
                     )
                     Text(
                         text = "DELETE",
                         style = MaterialTheme.typography.labelSmall,
-                        color = CipherMagenta,
+                        color = c.magenta,
                         modifier = Modifier.clickable(onClick = onDelete).padding(8.dp),
                     )
                 }
@@ -181,6 +180,7 @@ private fun EditHighlightDialog(
     onOpen: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val c = LocalCipherColors.current
     var note by remember { mutableStateOf(hw.highlight.note.orEmpty()) }
     var colorId by remember { mutableStateOf(hw.highlight.colorId) }
     Dialog(onDismissRequest = onDismiss) {
@@ -189,7 +189,7 @@ private fun EditHighlightDialog(
                 Text(
                     text = "“${hw.highlight.text}”",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = CipherPhosphor,
+                    color = c.phosphor,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -205,7 +205,7 @@ private fun EditHighlightDialog(
                                 .background(tint.copy(alpha = 1f))
                                 .border(
                                     2.dp,
-                                    if (id == colorId) CipherCyan else Color.Transparent,
+                                    if (id == colorId) c.cyan else Color.Transparent,
                                     CipherShapeSmall,
                                 )
                                 .clickable { colorId = id },

@@ -56,6 +56,8 @@ data class Settings(
     /** Wall-clock millis of the last sync attempt; 0 = never. */
     val lastSyncAt: Long,
     val librarySort: LibrarySort,
+    /** High-contrast ink-on-paper chrome for color e-ink (Boox Kaleido). */
+    val einkMode: Boolean,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -83,6 +85,7 @@ class UserPrefs(private val context: Context) {
         val dailyGoalMinutes = intPreferencesKey("daily_goal_minutes")
         val lastSyncAt = longPreferencesKey("last_sync_at")
         val librarySort = stringPreferencesKey("library_sort")
+        val einkMode = booleanPreferencesKey("eink_mode")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -111,6 +114,7 @@ class UserPrefs(private val context: Context) {
             lastSyncAt = p[Keys.lastSyncAt] ?: 0L,
             librarySort = LibrarySort.entries.firstOrNull { it.name == p[Keys.librarySort] }
                 ?: LibrarySort.RECENT,
+            einkMode = p[Keys.einkMode] ?: false,
         )
     }
 
@@ -144,6 +148,7 @@ class UserPrefs(private val context: Context) {
     suspend fun setDailyGoalMinutes(value: Int) = context.dataStore.edit { it[Keys.dailyGoalMinutes] = value.coerceIn(0, 600) }
     suspend fun setLastSyncAt(value: Long) = context.dataStore.edit { it[Keys.lastSyncAt] = value }
     suspend fun setLibrarySort(value: LibrarySort) = context.dataStore.edit { it[Keys.librarySort] = value.name }
+    suspend fun setEinkMode(value: Boolean) = context.dataStore.edit { it[Keys.einkMode] = value }
 
     companion object {
         const val DEFAULT_SERVER = "https://sync.koreader.rocks"

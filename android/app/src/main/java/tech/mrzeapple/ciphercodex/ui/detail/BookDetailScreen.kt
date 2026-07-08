@@ -59,11 +59,7 @@ import tech.mrzeapple.ciphercodex.ui.library.COVER_FINISHED
 import tech.mrzeapple.ciphercodex.ui.library.CoverFinishedBadge
 import tech.mrzeapple.ciphercodex.ui.library.CoverProgressRing
 import tech.mrzeapple.ciphercodex.ui.library.GeneratedCover
-import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
-import tech.mrzeapple.ciphercodex.ui.theme.CipherPhosphor
-import tech.mrzeapple.ciphercodex.ui.theme.CipherVoid
+import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 import kotlin.math.roundToInt
 
 /** The per-book hub reached by tapping a library book: cover hero, progress,
@@ -75,6 +71,7 @@ fun BookDetailScreen(
     onResume: () -> Unit,
     onDeleted: () -> Unit,
 ) {
+    val c = LocalCipherColors.current
     val vm: BookDetailViewModel = viewModel(key = "detail-$bookId") {
         val application = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
         BookDetailViewModel(application, bookId)
@@ -99,7 +96,7 @@ fun BookDetailScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = CipherPhosphor)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = c.phosphor)
             }
             CipherCaption("DETAILS")
         }
@@ -138,7 +135,7 @@ fun BookDetailScreen(
                         pct >= COVER_FINISHED -> "✓ FINISHED"
                         else -> "READING · ${(pct * 100).roundToInt()}%"
                     },
-                    color = if (pct != null) CipherCyan else CipherMuted,
+                    color = if (pct != null) c.cyan else c.muted,
                 )
                 if (pct != null && pct < COVER_FINISHED) {
                     Spacer(Modifier.height(8.dp))
@@ -165,7 +162,7 @@ fun BookDetailScreen(
                         Text(
                             text = desc,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = CipherPhosphor,
+                            color = c.phosphor,
                         )
                     }
                 }
@@ -184,7 +181,7 @@ fun BookDetailScreen(
         if (collections.isEmpty()) {
             CipherCaption(
                 "NO SHELVES YET",
-                color = CipherMuted,
+                color = c.muted,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         } else {
@@ -224,7 +221,7 @@ fun BookDetailScreen(
         CipherButton(
             text = "DELETE BOOK",
             onClick = { confirmDelete = true },
-            accent = CipherMagenta,
+            accent = c.magenta,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
         Spacer(Modifier.height(24.dp))
@@ -237,7 +234,7 @@ fun BookDetailScreen(
                     Text(
                         text = "DELETE THIS BOOK?",
                         style = MaterialTheme.typography.titleMedium,
-                        color = CipherPhosphor,
+                        color = c.phosphor,
                     )
                     Spacer(Modifier.height(8.dp))
                     CipherCaption("REMOVES IT FROM YOUR LIBRARY. PROGRESS, BOOKMARKS AND HIGHLIGHTS ARE LOST.")
@@ -253,7 +250,7 @@ fun BookDetailScreen(
                                     confirmDelete = false
                                     vm.deleteBook(onDeleted)
                                 },
-                                accent = CipherMagenta,
+                                accent = c.magenta,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
@@ -268,12 +265,13 @@ private fun plural(n: Int) = if (n == 1) "" else "S"
 
 @Composable
 private fun ShelfChip(name: String, active: Boolean, onClick: () -> Unit) {
-    val c = if (active) CipherCyan else CipherMuted
+    val cipher = LocalCipherColors.current
+    val c = if (active) cipher.cyan else cipher.muted
     Box(
         Modifier
             .clip(CipherShapeSmall)
             .border(1.dp, c, CipherShapeSmall)
-            .background(if (active) CipherCyan.copy(alpha = 0.12f) else Color.Transparent)
+            .background(if (active) cipher.cyan.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
@@ -283,6 +281,7 @@ private fun ShelfChip(name: String, active: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun DetailCover(coverPath: String?, title: String, percentage: Float?, modifier: Modifier = Modifier) {
+    val c = LocalCipherColors.current
     val cover by produceState<ImageBitmap?>(initialValue = null, coverPath) {
         value = coverPath?.let { path ->
             withContext(Dispatchers.IO) {
@@ -300,7 +299,7 @@ private fun DetailCover(coverPath: String?, title: String, percentage: Float?, m
         modifier
             .aspectRatio(2f / 3f)
             .clip(CipherShapeSmall)
-            .background(CipherVoid),
+            .background(c.void),
         contentAlignment = Alignment.Center,
     ) {
         val bmp = cover

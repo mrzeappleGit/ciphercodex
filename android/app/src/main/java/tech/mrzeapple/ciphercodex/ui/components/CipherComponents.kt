@@ -26,23 +26,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
-import tech.mrzeapple.ciphercodex.ui.theme.CipherStatic
-import tech.mrzeapple.ciphercodex.ui.theme.CipherVoid
+import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 
 /* The Cipher design kit for chrome screens. One signature shape (the cut
  * corner, from the icon's angular frame), one signature gradient (cyan ->
- * magenta), used sparingly — restraint rules from the brief apply. The
- * reading surface must NOT use anything in this file. */
-
-val CipherGradient = Brush.linearGradient(listOf(CipherCyan, CipherMagenta))
+ * magenta), used sparingly — restraint rules from the brief apply. Colors come
+ * from LocalCipherColors so E-INK mode can swap them. The reading surface must
+ * NOT use anything in this file. */
 
 val CipherShape = CutCornerShape(10.dp)
 val CipherShapeSmall = CutCornerShape(6.dp)
@@ -55,11 +49,12 @@ fun CipherPanel(
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
+    val c = LocalCipherColors.current
     Box(
         modifier = modifier
             .clip(CipherShape)
-            .background(CipherStatic)
-            .border(1.dp, CipherGradient, CipherShape)
+            .background(c.static)
+            .border(1.dp, c.gradient, CipherShape)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it },
     ) {
         content()
@@ -90,7 +85,7 @@ fun CipherHeader(
             Modifier
                 .fillMaxWidth()
                 .height(2.dp)
-                .background(CipherGradient),
+                .background(LocalCipherColors.current.gradient),
         )
     }
 }
@@ -101,10 +96,11 @@ fun CipherButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    accent: Color = CipherCyan,
+    accent: Color? = null, // null = the theme's primary accent
     enabled: Boolean = true,
 ) {
-    val color = if (enabled) accent else CipherMuted
+    val c = LocalCipherColors.current
+    val color = if (enabled) (accent ?: c.cyan) else c.muted
     Box(
         modifier = modifier
             .clip(CipherShapeSmall)
@@ -134,6 +130,7 @@ fun CipherTextField(
         if (isPassword) androidx.compose.ui.text.input.PasswordVisualTransformation()
         else androidx.compose.ui.text.input.VisualTransformation.None,
 ) {
+    val c = LocalCipherColors.current
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -143,15 +140,15 @@ fun CipherTextField(
         textStyle = MaterialTheme.typography.bodyLarge,
         shape = CipherShapeSmall,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = CipherCyan,
-            unfocusedBorderColor = CipherMuted,
-            focusedLabelColor = CipherCyan,
-            unfocusedLabelColor = CipherMuted,
-            cursorColor = CipherCyan,
+            focusedBorderColor = c.cyan,
+            unfocusedBorderColor = c.muted,
+            focusedLabelColor = c.cyan,
+            unfocusedLabelColor = c.muted,
+            cursorColor = c.cyan,
             focusedTextColor = MaterialTheme.colorScheme.onSurface,
             unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-            focusedContainerColor = CipherVoid,
-            unfocusedContainerColor = CipherVoid,
+            focusedContainerColor = c.void,
+            unfocusedContainerColor = c.void,
         ),
         modifier = modifier.fillMaxWidth(),
     )
@@ -164,17 +161,18 @@ fun CipherProgressBar(
     modifier: Modifier = Modifier,
 ) {
     val clamped = fraction.coerceIn(0f, 1f)
+    val c = LocalCipherColors.current
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(3.dp)
-            .background(CipherStatic),
+            .background(c.static),
     ) {
         Box(
             Modifier
                 .fillMaxWidth(clamped)
                 .height(3.dp)
-                .background(CipherGradient),
+                .background(c.gradient),
         )
     }
 }
@@ -188,16 +186,17 @@ fun CipherBottomNav(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val c = LocalCipherColors.current
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(CipherStatic),
+            .background(c.static),
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(CipherGradient),
+                .background(c.gradient),
         )
         Row(
             modifier = Modifier
@@ -208,7 +207,7 @@ fun CipherBottomNav(
         ) {
             tabs.forEachIndexed { i, (icon, label) ->
                 val active = i == selected
-                val tint = if (active) CipherCyan else CipherMuted
+                val tint = if (active) c.cyan else c.muted
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -230,11 +229,11 @@ fun CipherBottomNav(
 
 /** Small mono caption in the muted ink — metadata lines, statuses. */
 @Composable
-fun CipherCaption(text: String, modifier: Modifier = Modifier, color: Color = CipherMuted) {
+fun CipherCaption(text: String, modifier: Modifier = Modifier, color: Color? = null) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
-        color = color,
+        color = color ?: LocalCipherColors.current.muted,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier,

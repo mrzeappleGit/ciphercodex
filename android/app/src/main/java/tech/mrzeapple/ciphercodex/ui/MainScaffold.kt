@@ -11,7 +11,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import tech.mrzeapple.ciphercodex.ui.apps.AppsScreen
 import tech.mrzeapple.ciphercodex.ui.components.CipherBottomNav
+import tech.mrzeapple.ciphercodex.ui.components.CipherIconApps
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconKept
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconLibrary
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconSettings
@@ -34,6 +36,7 @@ fun MainScaffold(
         CipherIconLibrary to "LIBRARY",
         CipherIconKept to "KEPT",
         CipherIconStats to "STATS",
+        CipherIconApps to "APPS",
         CipherIconSettings to "SET",
     )
     Column(
@@ -46,6 +49,7 @@ fun MainScaffold(
                 0 -> LibraryScreen(onOpenBook = onOpenBookDetail, onOpenOpds = onOpenOpds)
                 1 -> KeptScreen(onOpenBook = onOpenReader)
                 2 -> StatsScreen()
+                3 -> AppsScreen()
                 else -> SettingsScreen()
             }
         }

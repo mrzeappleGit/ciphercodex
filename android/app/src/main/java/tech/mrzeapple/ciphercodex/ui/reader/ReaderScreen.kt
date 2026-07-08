@@ -269,8 +269,9 @@ private fun ReaderContent(
         insets.isAppearanceLightStatusBars = lightTheme
         insets.isAppearanceLightNavigationBars = lightTheme
         onDispose {
-            insets.isAppearanceLightStatusBars = false
-            insets.isAppearanceLightNavigationBars = false
+            // Restore to the chrome's state: E-INK chrome is light (dark icons).
+            insets.isAppearanceLightStatusBars = settings.einkMode
+            insets.isAppearanceLightNavigationBars = settings.einkMode
         }
     }
 

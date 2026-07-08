@@ -50,6 +50,13 @@ val CipherIconGrid: ImageVector = strokeIcon("M3 3h7v7H3z", "M14 3h7v7h-7z", "M3
 val CipherIconList: ImageVector =
     strokeIcon("M8 6h13", "M8 12h13", "M8 18h13", "M3 6h0.01", "M3 12h0.01", "M3 18h0.01")
 
+/** 3x3 dots — the APPS launcher tab (distinct from the 2x2 grid toggle). */
+val CipherIconApps: ImageVector = strokeIcon(
+    "M4 4h3v3H4z", "M10.5 4h3v3h-3z", "M17 4h3v3h-3z",
+    "M4 10.5h3v3H4z", "M10.5 10.5h3v3h-3z", "M17 10.5h3v3h-3z",
+    "M4 17h3v3H4z", "M10.5 17h3v3h-3z", "M17 17h3v3h-3z",
+)
+
 /** Gear — the SET(tings) tab. */
 val CipherIconSettings: ImageVector = strokeIcon(
     "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",

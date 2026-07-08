@@ -10,9 +10,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -20,6 +24,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import tech.mrzeapple.ciphercodex.data.ImportResult
 import tech.mrzeapple.ciphercodex.ui.MainScaffold
@@ -53,7 +58,18 @@ class MainActivity : ComponentActivity() {
         // would re-import and force-reopen the book.
         if (savedInstanceState == null) handleIncomingIntent(intent)
         setContent {
-            CipherCodexTheme {
+            val prefs = (application as CipherCodexApp).prefs
+            val eink by remember { prefs.settings.map { it.einkMode } }.collectAsState(initial = false)
+            // E-INK chrome needs dark system-bar icons over its white surfaces.
+            // The reader overrides these while active and restores to this on leave.
+            val view = LocalView.current
+            DisposableEffect(eink) {
+                val insets = WindowCompat.getInsetsController(window, view)
+                insets.isAppearanceLightStatusBars = eink
+                insets.isAppearanceLightNavigationBars = eink
+                onDispose { }
+            }
+            CipherCodexTheme(eink = eink) {
                 val nav = rememberNavController()
                 val pending by pendingOpen.collectAsState()
                 LaunchedEffect(pending) {

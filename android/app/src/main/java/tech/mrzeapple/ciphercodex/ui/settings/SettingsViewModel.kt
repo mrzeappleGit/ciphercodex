@@ -157,6 +157,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefs.setDailyGoalMinutes(value) }
     }
 
+    fun setEinkMode(value: Boolean) {
+        viewModelScope.launch { prefs.setEinkMode(value) }
+    }
+
     fun testConnection(register: Boolean) {
         if (_connection.value is ConnectionState.Testing) return
         viewModelScope.launch {
@@ -207,6 +211,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             dailyGoalMinutes = 0,
             lastSyncAt = 0L,
             librarySort = LibrarySort.RECENT,
+            einkMode = false,
         )
     }
 }

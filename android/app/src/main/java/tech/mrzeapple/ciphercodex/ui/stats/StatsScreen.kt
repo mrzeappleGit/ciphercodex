@@ -37,17 +37,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import tech.mrzeapple.ciphercodex.ui.components.CipherCaption
-import tech.mrzeapple.ciphercodex.ui.components.CipherGradient
 import tech.mrzeapple.ciphercodex.ui.components.CipherHeader
 import tech.mrzeapple.ciphercodex.ui.components.CipherPanel
 import tech.mrzeapple.ciphercodex.ui.components.CipherProgressBar
-import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
-import tech.mrzeapple.ciphercodex.ui.theme.CipherStatic
+import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 import kotlin.math.roundToInt
 
 @Composable
 fun StatsScreen(onBack: (() -> Unit)? = null) {
+    val c = LocalCipherColors.current
     val vm: StatsViewModel = viewModel()
     val state by vm.state.collectAsState()
 
@@ -68,7 +66,7 @@ fun StatsScreen(onBack: (() -> Unit)? = null) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = CipherCyan,
+                        tint = c.cyan,
                     )
                 }
             }
@@ -126,7 +124,7 @@ fun StatsScreen(onBack: (() -> Unit)? = null) {
                             )
                             if (todayMin >= state.dailyGoalMinutes) {
                                 Spacer(Modifier.height(4.dp))
-                                CipherCaption("GOAL MET", color = CipherCyan)
+                                CipherCaption("GOAL MET", color = c.cyan)
                             }
                         }
                     }
@@ -166,7 +164,7 @@ fun StatsScreen(onBack: (() -> Unit)? = null) {
                                 Text(
                                     text = formatShortDuration(book.millis),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = CipherMuted,
+                                    color = c.muted,
                                 )
                             }
                             Spacer(Modifier.height(4.dp))
@@ -183,6 +181,7 @@ fun StatsScreen(onBack: (() -> Unit)? = null) {
 /** Circular today-vs-goal ring: static track under a cyan→magenta progress arc. */
 @Composable
 private fun GoalRing(todayMinutes: Int, goalMinutes: Int, modifier: Modifier = Modifier) {
+    val c = LocalCipherColors.current
     val progress = if (goalMinutes > 0) (todayMinutes.toFloat() / goalMinutes).coerceIn(0f, 1f) else 0f
     Box(modifier = modifier.size(88.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
@@ -190,8 +189,8 @@ private fun GoalRing(todayMinutes: Int, goalMinutes: Int, modifier: Modifier = M
             val d = size.minDimension - stroke
             val tl = Offset((size.width - d) / 2f, (size.height - d) / 2f)
             val arc = Size(d, d)
-            drawArc(CipherStatic, -90f, 360f, false, tl, arc, style = Stroke(stroke, cap = StrokeCap.Round))
-            drawArc(CipherGradient, -90f, 360f * progress, false, tl, arc, style = Stroke(stroke, cap = StrokeCap.Round))
+            drawArc(c.static, -90f, 360f, false, tl, arc, style = Stroke(stroke, cap = StrokeCap.Round))
+            drawArc(c.gradient, -90f, 360f * progress, false, tl, arc, style = Stroke(stroke, cap = StrokeCap.Round))
         }
         Text(
             text = "${(progress * 100).roundToInt()}%",

@@ -50,10 +50,7 @@ import tech.mrzeapple.ciphercodex.ui.components.CipherHeader
 import tech.mrzeapple.ciphercodex.ui.components.CipherPanel
 import tech.mrzeapple.ciphercodex.ui.components.CipherShapeSmall
 import tech.mrzeapple.ciphercodex.ui.components.CipherTextField
-import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
-import tech.mrzeapple.ciphercodex.ui.theme.CipherStatic
+import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackBackground
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingBlackText
 import tech.mrzeapple.ciphercodex.ui.theme.ReadingContrastBackground
@@ -72,6 +69,7 @@ private const val FONT_MAX = 1.75f
 
 @Composable
 fun SettingsScreen(onBack: (() -> Unit)? = null) {
+    val c = LocalCipherColors.current
     val vm: SettingsViewModel = viewModel()
     val settings by vm.settings.collectAsState()
     val connection by vm.connection.collectAsState()
@@ -98,7 +96,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = CipherCyan,
+                        tint = c.cyan,
                     )
                 }
             }
@@ -130,6 +128,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
             )
             ReadingPanel(
                 settings = settings,
+                onEink = vm::setEinkMode,
                 onTheme = vm::setReadingTheme,
                 onAdjustFontScale = vm::adjustFontScale,
                 onAdjustLineSpacing = vm::adjustLineSpacing,
@@ -166,6 +165,7 @@ private fun SyncPanel(
     syncStatus: String?,
     onSyncNow: () -> Unit,
 ) {
+    val cipher = LocalCipherColors.current
     CipherPanel(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
@@ -191,12 +191,12 @@ private fun SyncPanel(
                     checked = settings.syncEnabled,
                     onCheckedChange = onSyncEnabled,
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = CipherCyan,
-                        checkedTrackColor = CipherStatic,
-                        checkedBorderColor = CipherCyan,
-                        uncheckedThumbColor = CipherMuted,
-                        uncheckedTrackColor = CipherStatic,
-                        uncheckedBorderColor = CipherMuted,
+                        checkedThumbColor = cipher.cyan,
+                        checkedTrackColor = cipher.static,
+                        checkedBorderColor = cipher.cyan,
+                        uncheckedThumbColor = cipher.muted,
+                        uncheckedTrackColor = cipher.static,
+                        uncheckedBorderColor = cipher.muted,
                     ),
                 )
             }
@@ -222,23 +222,23 @@ private fun SyncPanel(
                 CipherButton(
                     text = "REGISTER",
                     onClick = onRegister,
-                    accent = CipherMagenta,
+                    accent = cipher.magenta,
                     enabled = !busy,
                     modifier = Modifier.weight(1f),
                 )
             }
             val (statusText, statusColor) = when (val c = connection) {
-                ConnectionState.Idle -> "STANDBY" to CipherMuted
-                ConnectionState.Testing -> "TESTING..." to CipherMuted
-                is ConnectionState.Ok -> c.message to CipherCyan
-                is ConnectionState.Error -> c.message.uppercase() to CipherMagenta
+                ConnectionState.Idle -> "STANDBY" to cipher.muted
+                ConnectionState.Testing -> "TESTING..." to cipher.muted
+                is ConnectionState.Ok -> c.message to cipher.cyan
+                is ConnectionState.Error -> c.message.uppercase() to cipher.magenta
             }
             CipherCaption(statusText, color = statusColor)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CipherButton("SYNC NOW", onClick = onSyncNow, enabled = settings.syncEnabled)
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    syncStatus?.let { CipherCaption(it, color = CipherCyan) }
+                    syncStatus?.let { CipherCaption(it, color = cipher.cyan) }
                     CipherCaption("LAST SYNC // ${formatLastSync(settings.lastSyncAt)}")
                 }
             }
@@ -265,6 +265,7 @@ private const val LINE_MAX = 1.8f
 @Composable
 private fun ReadingPanel(
     settings: Settings,
+    onEink: (Boolean) -> Unit,
     onTheme: (ReadingTheme) -> Unit,
     onAdjustFontScale: (Float) -> Unit,
     onAdjustLineSpacing: (Float) -> Unit,
@@ -289,6 +290,12 @@ private fun ReadingPanel(
                 text = "READING",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+            )
+            SwitchRow(
+                title = "E-INK MODE",
+                subtitle = "High-contrast ink-on-paper chrome for color e-ink",
+                checked = settings.einkMode,
+                onChange = onEink,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeSwatch("NIGHT", ReadingNightBackground, ReadingNightText,
@@ -363,6 +370,7 @@ private fun SliderRow(
     range: ClosedFloatingPointRange<Float>,
     onChange: (Float) -> Unit,
 ) {
+    val c = LocalCipherColors.current
     val pct = ((value - range.start) / (range.endInclusive - range.start) * 100).roundToInt()
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -379,9 +387,9 @@ private fun SliderRow(
             onValueChange = onChange,
             valueRange = range,
             colors = SliderDefaults.colors(
-                thumbColor = CipherCyan,
-                activeTrackColor = CipherCyan,
-                inactiveTrackColor = CipherStatic,
+                thumbColor = c.cyan,
+                activeTrackColor = c.cyan,
+                inactiveTrackColor = c.static,
             ),
         )
     }
@@ -428,7 +436,8 @@ private fun LabeledChips(label: String, chips: @Composable RowScope.() -> Unit) 
 
 @Composable
 private fun SettingChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    val color = if (selected) CipherCyan else CipherMuted
+    val c = LocalCipherColors.current
+    val color = if (selected) c.cyan else c.muted
     Box(
         modifier = Modifier
             .clip(CipherShapeSmall)
@@ -442,6 +451,7 @@ private fun SettingChip(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val c = LocalCipherColors.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(
@@ -455,12 +465,12 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChang
             checked = checked,
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = CipherCyan,
-                checkedTrackColor = CipherStatic,
-                checkedBorderColor = CipherCyan,
-                uncheckedThumbColor = CipherMuted,
-                uncheckedTrackColor = CipherStatic,
-                uncheckedBorderColor = CipherMuted,
+                checkedThumbColor = c.cyan,
+                checkedTrackColor = c.static,
+                checkedBorderColor = c.cyan,
+                uncheckedThumbColor = c.muted,
+                uncheckedTrackColor = c.static,
+                uncheckedBorderColor = c.muted,
             ),
         )
     }
@@ -478,11 +488,12 @@ private fun ThemeSwatch(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val c = LocalCipherColors.current
     Box(
         modifier = modifier
             .clip(CipherShapeSmall)
             .background(background)
-            .border(1.dp, if (selected) CipherCyan else CipherMuted, CipherShapeSmall)
+            .border(1.dp, if (selected) c.cyan else c.muted, CipherShapeSmall)
             .clickable(onClick = onClick)
             .padding(vertical = 16.dp),
         contentAlignment = Alignment.Center,
@@ -497,6 +508,7 @@ private fun ThemeSwatch(
 
 @Composable
 private fun AboutPanel(deviceId: String) {
+    val c = LocalCipherColors.current
     CipherPanel(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
@@ -518,13 +530,13 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.4.13", color = CipherCyan)
+                CipherCaption("v0.4.14", color = c.cyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(
                 text = "KOSYNC COMPATIBLE // POSITION SYNC VIA KOREADER PROTOCOL",
                 style = MaterialTheme.typography.labelSmall,
-                color = CipherMuted,
+                color = c.muted,
             )
         }
     }

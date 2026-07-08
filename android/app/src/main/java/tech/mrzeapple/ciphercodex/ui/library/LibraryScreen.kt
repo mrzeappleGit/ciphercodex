@@ -76,11 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconGrid
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconList
-import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
-import tech.mrzeapple.ciphercodex.ui.theme.CipherStatic
-import tech.mrzeapple.ciphercodex.ui.theme.CipherVoid
+import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 
 private val EPUB_MIME_TYPES = arrayOf("application/epub+zip", "application/octet-stream")
 
@@ -89,6 +85,7 @@ fun LibraryScreen(
     onOpenBook: (Long) -> Unit,
     onOpenOpds: () -> Unit,
 ) {
+    val c = LocalCipherColors.current
     val vm: LibraryViewModel = viewModel()
     val books by vm.books.collectAsState()
     val importState by vm.importState.collectAsState()
@@ -125,7 +122,7 @@ fun LibraryScreen(
                 Text(
                     text = "BROWSE",
                     style = MaterialTheme.typography.labelSmall,
-                    color = CipherMuted,
+                    color = c.muted,
                     modifier = Modifier
                         .clickable(onClick = onOpenOpds)
                         .padding(8.dp),
@@ -282,7 +279,7 @@ fun LibraryScreen(
     shelfToDelete?.let { shelf ->
         AlertDialog(
             onDismissRequest = { shelfToDelete = null },
-            containerColor = CipherStatic,
+            containerColor = c.static,
             shape = CipherShape,
             title = {
                 Text(
@@ -295,7 +292,7 @@ fun LibraryScreen(
             confirmButton = {
                 CipherButton(
                     text = "DELETE",
-                    accent = CipherMagenta,
+                    accent = c.magenta,
                     onClick = {
                         vm.deleteCollection(shelf.id)
                         shelfToDelete = null
@@ -319,10 +316,11 @@ private fun BookActionsDialog(
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val c = LocalCipherColors.current
     var newShelf by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = CipherStatic,
+        containerColor = c.static,
         shape = CipherShape,
         title = {
             Text(
@@ -365,7 +363,7 @@ private fun BookActionsDialog(
             }
         },
         confirmButton = {
-            CipherButton("DELETE", accent = CipherMagenta, onClick = onDelete)
+            CipherButton("DELETE", accent = c.magenta, onClick = onDelete)
         },
         dismissButton = {
             CipherButton("CLOSE", onClick = onDismiss)
@@ -375,14 +373,15 @@ private fun BookActionsDialog(
 
 @Composable
 private fun ImportStatus(state: ImportUiState, modifier: Modifier = Modifier) {
+    val c = LocalCipherColors.current
     when (state) {
         ImportUiState.Idle -> Spacer(modifier)
         is ImportUiState.Working -> CipherCaption(
             if (state.total == 1) "IMPORTING..." else "IMPORTING ${state.current}/${state.total}...",
             modifier,
         )
-        is ImportUiState.Done -> CipherCaption(state.message.uppercase(), modifier, color = CipherCyan)
-        is ImportUiState.Error -> CipherCaption(state.message.uppercase(), modifier, color = CipherMagenta)
+        is ImportUiState.Done -> CipherCaption(state.message.uppercase(), modifier, color = c.cyan)
+        is ImportUiState.Error -> CipherCaption(state.message.uppercase(), modifier, color = c.magenta)
     }
 }
 
@@ -396,7 +395,8 @@ private fun LibraryChip(
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
-    val color = if (active) CipherCyan else CipherMuted
+    val c = LocalCipherColors.current
+    val color = if (active) c.cyan else c.muted
     Box(
         modifier = Modifier
             .clip(CipherShapeSmall)
@@ -424,6 +424,7 @@ private fun ContinueReadingHero(
     onOpen: () -> Unit,
     onLongPress: () -> Unit,
 ) {
+    val c = LocalCipherColors.current
     CipherPanel {
         Row(
             modifier = Modifier
@@ -438,7 +439,7 @@ private fun ContinueReadingHero(
                     .weight(1f)
                     .padding(12.dp),
             ) {
-                CipherCaption("CONTINUE READING", color = CipherCyan)
+                CipherCaption("CONTINUE READING", color = c.cyan)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = entry.book.title,
@@ -504,11 +505,12 @@ private fun BookCard(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: (
 
 @Composable
 private fun GridListToggle(listView: Boolean, onToggle: (Boolean) -> Unit) {
+    val c = LocalCipherColors.current
     Row(
         modifier = Modifier
             .clip(CipherShapeSmall)
-            .background(CipherVoid)
-            .border(1.dp, CipherMuted.copy(alpha = 0.3f), CipherShapeSmall)
+            .background(c.void)
+            .border(1.dp, c.muted.copy(alpha = 0.3f), CipherShapeSmall)
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -519,14 +521,15 @@ private fun GridListToggle(listView: Boolean, onToggle: (Boolean) -> Unit) {
 
 @Composable
 private fun ToggleIcon(icon: ImageVector, active: Boolean, onClick: () -> Unit) {
+    val c = LocalCipherColors.current
     Box(
         Modifier
             .clip(CipherShapeSmall)
-            .background(if (active) CipherCyan else Color.Transparent)
+            .background(if (active) c.cyan else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(5.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = if (active) CipherVoid else CipherMuted, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = if (active) c.void else c.muted, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -547,6 +550,7 @@ private fun LibraryList(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BookRow(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: () -> Unit) {
+    val c = LocalCipherColors.current
     Column {
         Row(
             modifier = Modifier
@@ -560,7 +564,7 @@ private fun BookRow(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: ()
                     .width(44.dp)
                     .height(64.dp)
                     .clip(CipherShapeSmall)
-                    .background(CipherVoid),
+                    .background(c.void),
             ) {
                 CoverImageOrPlaceholder(
                     coverPath = entry.book.coverPath,
@@ -584,7 +588,7 @@ private fun BookRow(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: ()
                 val pct = entry.percentage
                 when {
                     pct == null -> CipherCaption("QUEUED · NOT STARTED")
-                    pct >= COVER_FINISHED -> CipherCaption("✓ FINISHED", color = CipherCyan)
+                    pct >= COVER_FINISHED -> CipherCaption("✓ FINISHED", color = c.cyan)
                     else -> CipherProgressBar(pct)
                 }
             }
@@ -592,7 +596,7 @@ private fun BookRow(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: ()
                 Spacer(Modifier.width(12.dp))
                 CipherCaption(
                     if (pct >= COVER_FINISHED) "DONE" else "${(pct * 100).roundToInt()}%",
-                    color = CipherCyan,
+                    color = c.cyan,
                 )
             }
         }
@@ -600,18 +604,19 @@ private fun BookRow(entry: BookWithProgress, onOpen: () -> Unit, onLongPress: ()
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(CipherMuted.copy(alpha = 0.12f)),
+                .background(c.muted.copy(alpha = 0.12f)),
         )
     }
 }
 
 @Composable
 private fun BookCover(coverPath: String?, title: String, percentage: Float?) {
+    val c = LocalCipherColors.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(2f / 3f)
-            .background(CipherVoid),
+            .background(c.void),
         contentAlignment = Alignment.Center,
     ) {
         CoverImageOrPlaceholder(
@@ -677,6 +682,7 @@ private fun decodeCoverSampled(path: String): ImageBitmap? {
  *  as the no-cover placeholder and the empty-state motif. */
 @Composable
 private fun BarsMotif(barWidth: Dp, barHeight: Dp, gap: Dp, modifier: Modifier = Modifier) {
+    val c = LocalCipherColors.current
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(gap),
@@ -687,7 +693,7 @@ private fun BarsMotif(barWidth: Dp, barHeight: Dp, gap: Dp, modifier: Modifier =
                 Modifier
                     .width(barWidth)
                     .height(barHeight)
-                    .background(lerp(CipherCyan, CipherMagenta, i / 4f)),
+                    .background(lerp(c.cyan, c.magenta, i / 4f)),
             )
         }
     }

@@ -33,12 +33,11 @@ import tech.mrzeapple.ciphercodex.ui.components.CipherCaption
 import tech.mrzeapple.ciphercodex.ui.components.CipherHeader
 import tech.mrzeapple.ciphercodex.ui.components.CipherPanel
 import tech.mrzeapple.ciphercodex.ui.components.CipherTextField
-import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMagenta
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
+import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 
 @Composable
 fun OpdsScreen(onBack: () -> Unit) {
+    val c = LocalCipherColors.current
     val vm: OpdsViewModel = viewModel()
     val state by vm.state.collectAsState()
 
@@ -63,7 +62,7 @@ fun OpdsScreen(onBack: () -> Unit) {
                 .padding(start = 4.dp, top = 8.dp, end = 16.dp),
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = CipherCyan)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = c.cyan)
             }
             CipherHeader(title = "BROWSE", modifier = Modifier.weight(1f))
         }
@@ -79,13 +78,13 @@ fun OpdsScreen(onBack: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CipherButton("GO", onClick = { vm.open(state.url) }, enabled = !state.loading)
                 if (state.canGoBack) {
-                    CipherButton("BACK", onClick = vm::back, accent = CipherMuted, enabled = !state.loading)
+                    CipherButton("BACK", onClick = vm::back, accent = c.muted, enabled = !state.loading)
                 }
             }
-            state.downloadStatus?.let { CipherCaption(it, color = CipherCyan) }
+            state.downloadStatus?.let { CipherCaption(it, color = c.cyan) }
             when {
                 state.loading -> CipherCaption("LOADING...")
-                state.error != null -> CipherCaption(state.error!!.uppercase(), color = CipherMagenta)
+                state.error != null -> CipherCaption(state.error!!.uppercase(), color = c.magenta)
             }
             state.feed?.let { feed ->
                 CipherCaption(feed.title.uppercase())
@@ -112,6 +111,7 @@ fun OpdsScreen(onBack: () -> Unit) {
 
 @Composable
 private fun OpdsRow(entry: OpdsEntry, onOpen: () -> Unit, onDownload: () -> Unit) {
+    val c = LocalCipherColors.current
     val base = Modifier.fillMaxWidth()
     CipherPanel(modifier = if (entry.isNavigation) base.clickable(onClick = onOpen) else base) {
         Row(
@@ -130,7 +130,7 @@ private fun OpdsRow(entry: OpdsEntry, onOpen: () -> Unit, onDownload: () -> Unit
             }
             when {
                 entry.isBook -> CipherButton("GET", onClick = onDownload)
-                entry.isNavigation -> CipherCaption("OPEN ›", color = CipherCyan)
+                entry.isNavigation -> CipherCaption("OPEN ›", color = c.cyan)
             }
         }
     }

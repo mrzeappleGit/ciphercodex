@@ -27,9 +27,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import tech.mrzeapple.ciphercodex.ui.components.CipherCaption
-import tech.mrzeapple.ciphercodex.ui.theme.CipherCyan
-import tech.mrzeapple.ciphercodex.ui.theme.CipherMuted
-import tech.mrzeapple.ciphercodex.ui.theme.CipherStatic
+import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 import tech.mrzeapple.ciphercodex.ui.theme.ShareTechMono
 import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
@@ -63,13 +61,14 @@ internal fun formatShortDuration(ms: Long): String {
 @Composable
 fun DailyBars(days: List<DayStat>, modifier: Modifier = Modifier) {
     if (days.isEmpty()) return
+    val c = LocalCipherColors.current
     var selected by remember(days) { mutableStateOf(-1) }
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val labelStyle = TextStyle(
         fontFamily = ShareTechMono,
         fontSize = 9.sp,
-        color = CipherMuted,
+        color = c.muted,
     )
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -99,13 +98,13 @@ fun DailyBars(days: List<DayStat>, modifier: Modifier = Modifier) {
 
             // Recessive baseline + one max gridline.
             drawLine(
-                color = CipherMuted.copy(alpha = 0.25f),
+                color = c.muted.copy(alpha = 0.25f),
                 start = Offset(0f, baseline),
                 end = Offset(size.width, baseline),
                 strokeWidth = 1f,
             )
             drawLine(
-                color = CipherMuted.copy(alpha = 0.25f),
+                color = c.muted.copy(alpha = 0.25f),
                 start = Offset(0f, chartTop),
                 end = Offset(size.width, chartTop),
                 strokeWidth = 1f,
@@ -129,7 +128,7 @@ fun DailyBars(days: List<DayStat>, modifier: Modifier = Modifier) {
                         )
                     }
                     val dim = selected != -1 && selected != i
-                    drawPath(path, color = if (dim) CipherCyan.copy(alpha = 0.45f) else CipherCyan)
+                    drawPath(path, color = if (dim) c.cyan.copy(alpha = 0.45f) else c.cyan)
                 }
                 // Selective direct labels: peak and today only.
                 val isToday = i == days.lastIndex
@@ -169,10 +168,11 @@ fun DailyBars(days: List<DayStat>, modifier: Modifier = Modifier) {
 @Composable
 fun StreakHeatmap(days: List<DayStat>, modifier: Modifier = Modifier) {
     if (days.isEmpty()) return
+    val c = LocalCipherColors.current
     var selected by remember(days) { mutableStateOf(-1) }
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val monthStyle = TextStyle(fontFamily = ShareTechMono, fontSize = 8.sp, color = CipherMuted)
+    val monthStyle = TextStyle(fontFamily = ShareTechMono, fontSize = 8.sp, color = c.muted)
     val weeks = (days.size + 6) / 7
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -212,7 +212,7 @@ fun StreakHeatmap(days: List<DayStat>, modifier: Modifier = Modifier) {
                 val x = col * (cell + gap)
                 val y = monthBand + row * (cell + gap)
                 val color = if (day.millis <= 0) {
-                    CipherStatic
+                    c.static
                 } else {
                     val q = ((day.millis * 4) / maxMs).toInt().coerceIn(0, 3)
                     HeatRamp[q]
