@@ -380,8 +380,8 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         repository.saveProgress(bookId, p.spineIndex, p.charOffset, p.percentage)
     }
 
-    /** Immediate save + kosync push. NonCancellable so leaving the screen
-     *  (and clearing this ViewModel) doesn't kill it. */
+    /** Immediate save + kosync push, plus a throttled WebDAV sync if one's due.
+     *  NonCancellable so leaving the screen (and clearing this ViewModel) doesn't kill it. */
     fun flushAndPush() {
         saveJob?.cancel()
         val p = takePendingSave()

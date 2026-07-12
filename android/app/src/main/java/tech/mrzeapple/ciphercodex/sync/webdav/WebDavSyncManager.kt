@@ -17,6 +17,7 @@ import tech.mrzeapple.ciphercodex.data.db.HighlightEntity
 import tech.mrzeapple.ciphercodex.data.db.ProgressEntity
 import tech.mrzeapple.ciphercodex.data.db.ReadingSessionEntity
 import tech.mrzeapple.ciphercodex.data.prefs.UserPrefs
+import tech.mrzeapple.ciphercodex.sync.Guids
 import java.io.File
 
 class WebDavSyncManager(
@@ -116,15 +117,19 @@ class WebDavSyncManager(
                     if (r.deleted == 1) continue // nothing local to tombstone; don't import a corpse
                     val row = BookEntity(title = r.title, author = r.author, filePath = "",
                         digest = digest, coverPath = null, sizeBytes = 0,
-                        addedAt = r.addedAt, lastOpenedAt = r.lastOpenedAt,
-                        guid = r.guid, updatedAt = r.updatedAt, deleted = false)
+                        addedAt = r.addedAt,
+                        // rM firmware sends 0 as its never-opened sentinel; keep it out of the DB.
+                        lastOpenedAt = r.lastOpenedAt?.takeIf { it != 0L },
+                        guid = r.guid.ifEmpty { Guids.new() }, updatedAt = r.updatedAt, deleted = false)
                     sync.upsertBook(row)
                     localBooks[digest] = sync.allBooks().first { it.digest == digest }
                     needFiles.add(digest); entities++
                 } else if (SnapshotMerge.wins(r.updatedAt, r.deleted, local.updatedAt, if (local.deleted) 1 else 0)) {
                     val nowDeleted = r.deleted == 1
                     sync.upsertBook(local.copy(title = r.title, author = r.author,
-                        addedAt = r.addedAt, lastOpenedAt = r.lastOpenedAt,
+                        addedAt = r.addedAt,
+                        // rM firmware sends 0 as its never-opened sentinel; keep it out of the DB.
+                        lastOpenedAt = r.lastOpenedAt?.takeIf { it != 0L },
                         updatedAt = r.updatedAt, deleted = nowDeleted,
                         filePath = if (nowDeleted) "" else local.filePath,
                         coverPath = if (nowDeleted) null else local.coverPath))
