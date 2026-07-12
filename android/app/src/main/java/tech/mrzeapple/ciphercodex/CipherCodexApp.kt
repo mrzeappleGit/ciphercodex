@@ -10,6 +10,7 @@ import tech.mrzeapple.ciphercodex.sync.KosyncClient
 import tech.mrzeapple.ciphercodex.sync.KosyncSyncManager
 import tech.mrzeapple.ciphercodex.sync.SyncManager
 import tech.mrzeapple.ciphercodex.sync.SyncWorker
+import tech.mrzeapple.ciphercodex.sync.webdav.WebDavSyncManager
 
 /** Manual DI container. ViewModels reach this via
  *  `application as CipherCodexApp`. */
@@ -21,7 +22,9 @@ class CipherCodexApp : Application() {
     val repository: LibraryRepository by lazy {
         BookRepository(this, database.bookDao(), database.statsDao(), database.syncDao())
     }
-    // webdavSync (WebDavSyncManager) wiring arrives in Task 7 Step 2.
+    val webdavSync: WebDavSyncManager by lazy {
+        WebDavSyncManager(prefs, database, repository, cacheDir)
+    }
 
     override fun onCreate() {
         super.onCreate()

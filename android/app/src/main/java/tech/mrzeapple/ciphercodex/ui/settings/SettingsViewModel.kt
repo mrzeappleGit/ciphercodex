@@ -61,6 +61,63 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _syncStatus = MutableStateFlow<String?>(null)
     val syncStatus: StateFlow<String?> = _syncStatus.asStateFlow()
 
+    // WebDAV sync — same editable-field pattern as the kosync fields above.
+    // Unlike kosync, the raw password is what's stored (Task 6), so it's safe
+    // to seed the field from prefs rather than leaving it write-only.
+    private val _webdavUrl = MutableStateFlow("")
+    val webdavUrl: StateFlow<String> = _webdavUrl.asStateFlow()
+
+    private val _webdavUser = MutableStateFlow("")
+    val webdavUser: StateFlow<String> = _webdavUser.asStateFlow()
+
+    private val _webdavPass = MutableStateFlow("")
+    val webdavPass: StateFlow<String> = _webdavPass.asStateFlow()
+
+    private val _webdavConnection = MutableStateFlow<ConnectionState>(ConnectionState.Idle)
+    val webdavConnection: StateFlow<ConnectionState> = _webdavConnection.asStateFlow()
+
+    private val _webdavSyncStatus = MutableStateFlow<String?>(null)
+    val webdavSyncStatus: StateFlow<String?> = _webdavSyncStatus.asStateFlow()
+
+    val webdavRunning: StateFlow<Boolean> = app.webdavSync.running
+
+    fun setWebdavUrl(value: String) {
+        _webdavUrl.value = value
+        viewModelScope.launch { prefs.setWebdavUrl(value) }
+    }
+
+    fun setWebdavUser(value: String) {
+        _webdavUser.value = value
+        viewModelScope.launch { prefs.setWebdavUser(value) }
+    }
+
+    fun setWebdavPass(value: String) {
+        _webdavPass.value = value
+        viewModelScope.launch { prefs.setWebdavPass(value) }
+    }
+
+    fun testWebdavConnection() {
+        if (_webdavConnection.value is ConnectionState.Testing) return
+        viewModelScope.launch {
+            _webdavConnection.value = ConnectionState.Testing
+            val result = app.webdavSync.testConnection(_webdavUrl.value, _webdavUser.value, _webdavPass.value)
+            _webdavConnection.value = result.fold(
+                onSuccess = { ConnectionState.Ok("LINK ESTABLISHED") },
+                onFailure = { ConnectionState.Error(it.message ?: it.javaClass.simpleName) },
+            )
+        }
+    }
+
+    fun webdavSyncNow() {
+        if (_webdavSyncStatus.value == "SYNCING...") return
+        viewModelScope.launch {
+            _webdavSyncStatus.value = "SYNCING..."
+            val summary = app.webdavSync.syncNow()
+            _webdavSyncStatus.value = summary.error
+                ?: "↑${summary.booksUp} ↓${summary.booksDown} ~${summary.entities}"
+        }
+    }
+
     fun syncNow() {
         if (_syncStatus.value == "SYNCING...") return
         viewModelScope.launch {
@@ -83,6 +140,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             if (_serverUrl.value.isEmpty()) _serverUrl.value = s.serverUrl
             if (_username.value.isEmpty()) _username.value = s.username
             if (_deviceName.value.isEmpty()) _deviceName.value = s.deviceName
+            if (_webdavUrl.value.isEmpty()) _webdavUrl.value = s.webdavUrl
+            if (_webdavUser.value.isEmpty()) _webdavUser.value = s.webdavUser
+            if (_webdavPass.value.isEmpty()) _webdavPass.value = s.webdavPass
         }
     }
 

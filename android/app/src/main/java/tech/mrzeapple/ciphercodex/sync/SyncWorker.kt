@@ -20,7 +20,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val app = applicationContext as CipherCodexApp
         return try {
             val summary = app.syncManager.syncAllDirty()
-            if (summary.failed > 0) Result.retry() else Result.success()
+            val dav = app.webdavSync.syncIfDue(0L)
+            if (summary.failed > 0 || dav?.error != null) Result.retry() else Result.success()
         } catch (e: Exception) {
             Result.retry()
         }

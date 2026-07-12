@@ -78,6 +78,12 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
     val password by vm.password.collectAsState()
     val deviceName by vm.deviceName.collectAsState()
     val syncStatus by vm.syncStatus.collectAsState()
+    val webdavUrl by vm.webdavUrl.collectAsState()
+    val webdavUser by vm.webdavUser.collectAsState()
+    val webdavPass by vm.webdavPass.collectAsState()
+    val webdavConnection by vm.webdavConnection.collectAsState()
+    val webdavSyncStatus by vm.webdavSyncStatus.collectAsState()
+    val webdavRunning by vm.webdavRunning.collectAsState()
 
     Column(
         modifier = Modifier
@@ -125,6 +131,20 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
                 onRegister = { vm.testConnection(register = true) },
                 syncStatus = syncStatus,
                 onSyncNow = vm::syncNow,
+            )
+            WebDavPanel(
+                settings = settings,
+                url = webdavUrl,
+                user = webdavUser,
+                pass = webdavPass,
+                connection = webdavConnection,
+                running = webdavRunning,
+                syncStatus = webdavSyncStatus,
+                onUrl = vm::setWebdavUrl,
+                onUser = vm::setWebdavUser,
+                onPass = vm::setWebdavPass,
+                onTest = vm::testWebdavConnection,
+                onSyncNow = vm::webdavSyncNow,
             )
             ReadingPanel(
                 settings = settings,
@@ -240,6 +260,59 @@ private fun SyncPanel(
                 Column(Modifier.weight(1f)) {
                     syncStatus?.let { CipherCaption(it, color = cipher.cyan) }
                     CipherCaption("LAST SYNC // ${formatLastSync(settings.lastSyncAt)}")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WebDavPanel(
+    settings: Settings,
+    url: String,
+    user: String,
+    pass: String,
+    connection: ConnectionState,
+    running: Boolean,
+    syncStatus: String?,
+    onUrl: (String) -> Unit,
+    onUser: (String) -> Unit,
+    onPass: (String) -> Unit,
+    onTest: () -> Unit,
+    onSyncNow: () -> Unit,
+) {
+    val cipher = LocalCipherColors.current
+    CipherPanel(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "CIPHERCODEX SYNC // WEBDAV",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            CipherCaption("BOOKS + LIBRARY DATA VIA WEBDAV")
+            CipherTextField(value = url, onValueChange = onUrl, label = "SERVER URL")
+            CipherTextField(value = user, onValueChange = onUser, label = "USER")
+            CipherTextField(value = pass, onValueChange = onPass, label = "APP PASSWORD", isPassword = true)
+            val busy = connection is ConnectionState.Testing
+            CipherButton(text = "TEST", onClick = onTest, enabled = !busy, modifier = Modifier.fillMaxWidth())
+            val (statusText, statusColor) = when (val c = connection) {
+                ConnectionState.Idle -> "STANDBY" to cipher.muted
+                ConnectionState.Testing -> "TESTING..." to cipher.muted
+                is ConnectionState.Ok -> c.message to cipher.cyan
+                is ConnectionState.Error -> c.message.uppercase() to cipher.magenta
+            }
+            CipherCaption(statusText, color = statusColor)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CipherButton("SYNC NOW", onClick = onSyncNow, enabled = !running)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    syncStatus?.let { CipherCaption(it, color = cipher.cyan) }
+                    CipherCaption("LAST SYNC // ${formatLastSync(settings.webdavLastSyncAt)}")
                 }
             }
         }

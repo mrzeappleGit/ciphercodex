@@ -395,6 +395,11 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
             } catch (_: Exception) {
                 // fire-and-forget: a failed push stays dirty and retries later
             }
+            try {
+                app.webdavSync.syncIfDue(5 * 60_000L)
+            } catch (_: Exception) {
+                // fire-and-forget, same as the kosync push above
+            }
         }
     }
 

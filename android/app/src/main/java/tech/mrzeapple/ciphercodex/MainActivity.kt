@@ -112,6 +112,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        lifecycleScope.launch { (application as CipherCodexApp).webdavSync.syncIfDue(5 * 60_000L) }
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val handler = volumeKeyTurnHandler
         if (handler != null) {
