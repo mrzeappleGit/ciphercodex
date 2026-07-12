@@ -1,7 +1,7 @@
 # STATUS / RESUME — CipherCodex OS for reMarkable 2
 
-Updated 2026-07-12. This file is the single place to resume. Read it top to bottom, run the
-"verify still alive" block, then pick up at "NEXT".
+Updated 2026-07-12 (evening session: auto-sync triggers). This file is the single place to
+resume. Read it top to bottom, run the "verify still alive" block, then pick up at "NEXT".
 
 ## What this is
 
@@ -74,11 +74,38 @@ here.)
   driving the focused TextInput/TextEdit. Unblocks self-serve credential entry.
 - Two adversarial-review passes on the sync/keyboard code; all confirmed findings fixed
   (per-table merge txns, PDFium mutex, password-clobber, WebDAV truncation, etc.).
+- **Automatic sync triggers** — event-driven, never polled: syncNow() 1.5s after app open and
+  on every return to Home (StackView depth 1); debounced Timer in `Main.qml`, only STARTS from
+  Home, silent when unconfigured. **App-open trigger live-verified on hardware** (nginx showed
+  the full MKCOL/PROPFIND/PUT pass 4s after launch, no interaction). Home-return trigger is the
+  same code path but needs a hands-on confirm (walk into a notebook and back, watch the server).
+  Hardening that came out of its two review rounds:
+  - **CRITICAL regression fix**: the earlier "WebDAV truncation" fix made `finish()` report every
+    4xx/5xx as a transport error (Qt maps them to reply errors) — mkcol's 405-means-exists never
+    fired, so every sync after the very first died at step 1, silently. `webdav.cpp finish()` now
+    treats only genuine interruptions (timeout/abort/host-closed) as transport failures. Failed
+    syncs also `qWarning` into shell.log now.
+  - Live-ink protection: reloadOpenPage() defers while `InkItem::penActive()` (applied at pen-up
+    via a QUEUED pen.penUp connection — ordering-safe across page re-opens); a mid-stroke merge
+    completion can no longer destroy the stroke being drawn.
+  - `syncedDataChanged` (and cache invalidate) now gated on entities+tombstones+booksDown > 0,
+    not on run-ok: no-change runs stop wiping undo history; merges that landed before a failed
+    snapshot PUT still refresh views. applyMerged returns real stats even if its final segment
+    commit fails (earlier segments are durable).
+  - Write-implies-existence: `Storage::appendStroke` resurrects a tombstoned page+notebook
+    (fresh updated_at wins LWW) — ink written while a peer's delete merges is never lost
+    invisibly. Host-tested: `write-resurrects-tombstone` in test_sync.
+  - Library/NotebookList/Kept reload on syncedDataChanged; SettingsScreen seeds its `syncing`
+    state from `webdavConfig().syncing` so an in-flight auto-sync shows SYNCING... on open.
 
 ## KNOWN GAPS / DEFERRED (nothing blocking; pick from these)
 
-- **Automatic sync triggers**: sync is currently manual (Settings → SYNC NOW). The decided design
-  is manual + on app-open + on leaving a book/notebook (no background polling). NOT yet wired.
+- **Auto-sync deferred nits** (all self-healing / cosmetic, from the review rounds): list screens
+  snap to top when a merge reloads them mid-scroll (save/restore contentY if it annoys);
+  PageScreen's page list and open Epub/Pdf readers don't refresh on a mid-session merge (heal on
+  re-entry); every Home return runs a full engine pass (~2MB snapshot PUT even idle — add a
+  max(updated_at) dirty-skip in SyncEngine if bandwidth ever matters); Home-return trigger not yet
+  hand-confirmed on device (same code path as the verified app-open one).
 - **Handwritten annotation OVER documents** (draw on PDF/EPUB pages): Phase 2 item, deferred. The
   InkItem + document-relative anchors exist; needs an ink layer over PdfView/EpubView + anchor model.
 - **PDF text highlighting**: EPUB highlights done; PDF needs a page+rect anchor model (follow-on).
@@ -93,20 +120,17 @@ here.)
 
 ## NEXT (recommended executable step)
 
-**Wire automatic sync triggers** — small, high-value, makes the sync already built feel seamless:
-1. `ReaderController::syncNow()` already exists + guards concurrent runs. Add a call on app
-   foreground/open (Main.qml Component.onCompleted or a Window active signal) and on leaving a
-   reader/notebook (Component.onDestruction of the reader/page screens), debounced, only when
-   WebDAV is configured. Respect "no background polling" — these are event-driven, not timed.
-2. Guard: don't START a sync while a notebook/reader page is open (the merge writes the DB the open
-   page reads); the review's per-table-txn fix + `reloadOpenPage()` make an in-flight race safe, but
-   gating open-during-sync (or sync-during-open) is cleaner. Consider a simple "sync only from Home"
-   rule.
-3. Test on device: draw on device A, sync; pull on the host-simulated device B (see the round-trip
-   recipe in the git history around commit c9280c8 / the deviceB seed dance in this session).
+**Handwritten annotation OVER documents** (draw on PDF/EPUB pages) — rounds out the reading
+experience; the InkItem + document-relative anchors exist:
+1. Overlay an InkItem on PdfView/EpubView; anchor strokes document-relative (PDF: page + page-space
+   rect; EPUB: spine + char-offset range like highlights survive reflow).
+2. New synced table (schema v4) for document ink, following the strokes table pattern (guid,
+   updated_at, deleted) so it rides the existing WebDAV merge unchanged.
+3. Host-test the anchor model; verify on device over a PDF page and an EPUB chapter reflow.
 
-Alternative next tracks if preferred: handwritten annotation over documents (rounds out reading), or
-the backup/packaging track toward a shippable image (Phase 4).
+Alternative next tracks: PDF text highlighting (page+rect anchor model), or the backup/packaging
+track toward a shippable image (Phase 4). Quick manual check worth doing first: the Home-return
+auto-sync trigger (draw in a notebook, back out to Home, watch the server snapshot rewrite).
 
 ## Pointers
 

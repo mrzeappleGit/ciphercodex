@@ -500,6 +500,20 @@ qint64 Storage::appendStroke(const StrokeData &s)
     if (!q.done())
         return -1;
     const qint64 id = sqlite3_last_insert_rowid(m_db);
+    // Writing implies existence: a peer's delete can tombstone the OPEN page mid-session
+    // (auto-sync merge) and new ink would land invisibly on a dead page — resurrect the
+    // page+notebook with a fresh updated_at so the un-delete wins LWW on every device.
+    Stmt rp(m_db, "UPDATE pages SET deleted = 0, updated_at = ? WHERE id = ? AND deleted = 1");
+    sqlite3_bind_int64(rp.s, 1, ts);
+    sqlite3_bind_int64(rp.s, 2, s.pageId);
+    if (!rp.done())
+        return -1;
+    Stmt rn(m_db, "UPDATE notebooks SET deleted = 0, updated_at = ? WHERE deleted = 1"
+                  "  AND id = (SELECT notebook_id FROM pages WHERE id = ?)");
+    sqlite3_bind_int64(rn.s, 1, ts);
+    sqlite3_bind_int64(rn.s, 2, s.pageId);
+    if (!rn.done())
+        return -1;
     return tx.commit() ? id : -1;
 }
 

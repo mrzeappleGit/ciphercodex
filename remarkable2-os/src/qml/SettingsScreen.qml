@@ -58,6 +58,11 @@ Item {
         const d = settings.reader.webdavConfig()
         davUrlField.text = d.url ? d.url : ""
         davUserField.text = d.user ? d.user : ""
+        // An auto-sync started from Home may already be running; without this seed the
+        // button would show an idle SYNC NOW whose tap silently no-ops on the m_syncing guard.
+        settings.syncing = d.syncing === true
+        if (settings.syncing)
+            settings.davStatus = "syncing..."
     }
 
     component Btn: Rectangle {

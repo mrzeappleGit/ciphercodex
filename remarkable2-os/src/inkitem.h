@@ -31,6 +31,7 @@ public:
 
     int tool() const { return m_tool; }
     void setTool(int t);
+    bool penActive() const { return m_down; }  // a stroke/erase gesture is mid-flight
 
     // Controller-facing API (C++). DB is the source of truth; these keep the map+buffer in sync.
     void setStrokes(const QVector<StrokeData> &strokes);  // load + full re-render

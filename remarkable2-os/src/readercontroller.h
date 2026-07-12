@@ -74,7 +74,7 @@ public:
     // Config lives in settings (webdav_url/webdav_user/webdav_pass; the app-password is stored
     // plaintext, device-local, like the kosync creds). syncNow() runs the whole engine on a
     // worker QThread and reports back via the sync* signals; the GUI never blocks on it.
-    Q_INVOKABLE QVariantMap webdavConfig();  // {url,user,configured}; the password is never returned
+    Q_INVOKABLE QVariantMap webdavConfig();  // {url,user,configured,syncing}; the password is never returned
     Q_INVOKABLE void setWebdavConfig(const QString &url, const QString &user, const QString &pass);
     Q_INVOKABLE QVariantMap testWebdav();    // {ok,message} — blocking PROPFIND, explicit user tap
     Q_INVOKABLE void syncNow();              // no-op if a run is already in flight

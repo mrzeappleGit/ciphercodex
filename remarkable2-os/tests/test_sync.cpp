@@ -250,6 +250,45 @@ static void testDeletePropagation()
     printf("  delete-propagation OK\n");
 }
 
+static void testWriteResurrectsTombstonedPage()
+{
+    // A peer's delete can land mid-session while the page is open locally (auto-sync):
+    // the next stroke written must resurrect the page+notebook — never leave new ink
+    // invisible on a dead page — and the un-delete must win LWW on the peer too.
+    Dev A = makeDev("device-a");
+    Dev B = makeDev("device-b");
+    const qint64 nb = A.st->createNotebook("N");
+    const qint64 pg = A.st->createPage(nb);
+    push(A, B);
+    const qint64 bnb = B.st->notebooks()[0].id;
+    B.st->deleteNotebook(bnb);
+    push(B, A);  // the remote delete lands while the page is "open" on A
+    assert(A.st->notebooks().isEmpty());
+
+    // Backdate both devices' tombstones so the resurrect's now() strictly wins LWW even
+    // when this test runs inside one millisecond.
+    for (sqlite3 *db : {A.db(), B.db()}) {
+        runSql(db, QStringLiteral("UPDATE notebooks SET updated_at = updated_at - 10"));
+        runSql(db, QStringLiteral("UPDATE pages SET updated_at = updated_at - 10"));
+    }
+
+    StrokeData sd;
+    sd.pageId = pg;
+    sd.pts = {{1.0f, 1.0f, 10, 0, 0, 1}};
+    assert(A.st->appendStroke(sd) > 0);
+    assert(A.st->notebooks().size() == 1);  // notebook back
+    assert(A.st->pages(nb).size() == 1);    // page back
+    assert(A.st->strokes(pg).size() == 1);  // the new ink is alive
+
+    push(A, B);  // resurrection propagates
+    assert(B.st->notebooks().size() == 1);
+    assert(B.st->strokes(B.st->pages(bnb)[0].id).size() == 1);
+
+    freeDev(A);
+    freeDev(B);
+    printf("  write-resurrects-tombstone OK\n");
+}
+
 static void testBookByDigest()
 {
     Dev A = makeDev("device-a");
@@ -337,6 +376,7 @@ int main()
     testConvergence();
     testLww();
     testDeletePropagation();
+    testWriteResurrectsTombstonedPage();
     testBookByDigest();
     testTombstoneVsEdit();
     testMissingParent();

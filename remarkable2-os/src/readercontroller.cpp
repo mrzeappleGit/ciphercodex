@@ -544,7 +544,8 @@ QVariantMap ReaderController::webdavConfig()
     return {{QStringLiteral("url"), url},
             {QStringLiteral("user"), user},
             {QStringLiteral("configured"),  // password present but never returned
-             !url.isEmpty() && !user.isEmpty() && !pass.isEmpty()}};
+             !url.isEmpty() && !user.isEmpty() && !pass.isEmpty()},
+            {QStringLiteral("syncing"), m_syncing}};  // an auto-sync may already be in flight
 }
 
 void ReaderController::setWebdavConfig(const QString &url, const QString &user, const QString &pass)
@@ -614,9 +615,18 @@ void ReaderController::syncNow()
     connect(engine, &SyncEngine::finished, this,
             [this](bool ok, const QVariantMap &summary) {
                 m_syncing = false;
-                if (ok) {
+                if (!ok)  // auto-sync fails with no UI open — leave a trace in shell.log
+                    qWarning("webdav sync failed: %s",
+                             qPrintable(summary.value(QStringLiteral("error")).toString()));
+                // Gate cache/view refresh on what actually CHANGED, not on ok: the merge
+                // commits before the final snapshot PUT, so rows can land even when the run
+                // reports failure — and a no-change run (routine now that auto-sync fires on
+                // every Home return) must not reload the open page or wipe its undo history.
+                if (summary.value(QStringLiteral("entities")).toInt()
+                        + summary.value(QStringLiteral("tombstones")).toInt()
+                        + summary.value(QStringLiteral("booksDown")).toInt() > 0) {
                     invalidate();  // merged rows landed on the worker connection; drop stale cache
-                    emit syncedDataChanged();  // an open notebook page may now be stale vs the DB
+                    emit syncedDataChanged();
                 }
                 emit syncFinished(ok, summary);
             });

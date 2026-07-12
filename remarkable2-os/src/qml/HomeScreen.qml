@@ -82,7 +82,7 @@ Item {
 
     Component {
         id: nbListComp
-        NotebookListScreen { pen: home.pen; controller: home.controller }
+        NotebookListScreen { pen: home.pen; controller: home.controller; reader: home.reader }
     }
 
     Component {

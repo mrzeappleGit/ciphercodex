@@ -886,8 +886,11 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
     }
     stats.booksNeeded = int(stats.missingDigests.size());
 
-    if (!tx.commit())
-        return MergeStats{};  // rolled back — report nothing applied
+    // Earlier per-table segments are already committed (Tx::restart), so a failed FINAL
+    // commit rolls back only the last segment. Still return the tallied stats: an overcount
+    // merely triggers a spurious view reload, while zeros would hide durably-merged rows from
+    // open views forever (their local copies now win LWW, so no later run re-reports them).
+    tx.commit();
     return stats;
 }
 

@@ -59,6 +59,11 @@ Item {
 
     Component.onCompleted: reload()
     StackView.onActivated: reload()  // highlights may have changed while reading
+    Connections {
+        target: kept.reader
+        // a sync started from Home merged rows while this list was open
+        function onSyncedDataChanged() { kept.reload() }
+    }
 
     component Btn: Rectangle {
         id: b

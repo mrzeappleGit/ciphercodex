@@ -27,9 +27,17 @@ Raw finish(QNetworkReply *reply)
     const QVariant code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     raw.body = reply->readAll();
     // A stall/abort AFTER the 200 header (truncated body — a timed-out PROPFIND listing or a
-    // half-downloaded book) leaves a valid status code but a non-NoError reply. Treat that as a
-    // transport failure so callers don't accept a partial listing or a truncated file as success.
-    if (code.isValid() && reply->error() == QNetworkReply::NoError) {
+    // half-downloaded book) leaves a valid status code but an INTERRUPTED reply. Only that class
+    // is a transport failure; Qt also maps every 4xx/5xx status to a reply error
+    // (405 -> ContentOperationNotPermitted etc.), and those must surface as their HTTP code —
+    // mkcol's 405-means-exists and fail()'s "HTTP 401" depend on it.
+    const auto rerr = reply->error();
+    const bool interrupted = rerr == QNetworkReply::RemoteHostClosedError
+        || rerr == QNetworkReply::TimeoutError
+        || rerr == QNetworkReply::OperationCanceledError
+        || rerr == QNetworkReply::TemporaryNetworkFailureError
+        || rerr == QNetworkReply::NetworkSessionFailedError;
+    if (code.isValid() && !interrupted) {
         raw.httpCode = code.toInt();
     } else {
         raw.transportError = code.isValid()

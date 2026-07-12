@@ -55,6 +55,7 @@ private:
     void onStrokeFinished(const StrokeData &s);
     void onStrokesErased(const QVector<qint64> &ids);
     void onStrokesSplit(const QVector<qint64> &removedIds, const QVector<StrokeData> &fragments);
+    void onPenUp(); // runs a reload deferred by an in-flight stroke
     void pushUndo(Op op);
     bool apply(const Op &op, bool undoing);
     void resyncCanvas(); // storage failed mid-op: re-load truth from DB
@@ -66,4 +67,5 @@ private:
     qint64 m_pageId = -1;
     QVector<Op> m_undo, m_redo;   // per page, cleared on openPage
     qint64 m_undoPoints = 0;      // retained StrokePoints across m_undo, memory bound
+    bool m_reloadPending = false; // sync finished mid-stroke; reload at pen-up instead
 };

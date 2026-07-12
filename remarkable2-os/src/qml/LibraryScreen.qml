@@ -24,6 +24,11 @@ Item {
 
     Component.onCompleted: reload()
     StackView.onActivated: reload()  // progress/last-opened changed while a book was open
+    Connections {
+        target: lib.reader
+        // a sync started from Home merged rows while this list was open
+        function onSyncedDataChanged() { lib.reload() }
+    }
 
     component Btn: Rectangle {
         id: b

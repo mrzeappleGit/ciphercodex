@@ -79,6 +79,7 @@ void NotebookController::openPage(qint64 pageId, InkItem *canvas, PenReader *pen
     m_undo.clear();
     m_redo.clear();
     m_undoPoints = 0;
+    m_reloadPending = false; // any deferred reload belonged to the previous page
     emit undoChanged();
     connect(canvas, &InkItem::strokeFinished, this, &NotebookController::onStrokeFinished,
             Qt::UniqueConnection);
@@ -91,6 +92,11 @@ void NotebookController::openPage(qint64 pageId, InkItem *canvas, PenReader *pen
         connect(pen, &PenReader::penDown, canvas, &InkItem::penDown, Qt::UniqueConnection);
         connect(pen, &PenReader::penMove, canvas, &InkItem::penMove, Qt::UniqueConnection);
         connect(pen, &PenReader::penUp, canvas, &InkItem::penUp, Qt::UniqueConnection);
+        // Queued (NOT direct): runs on the next event-loop pass, after the canvas's direct penUp
+        // slot has finished the stroke and onStrokeFinished committed it — regardless of
+        // connection order, which UniqueConnection freezes across page re-opens.
+        connect(pen, &PenReader::penUp, this, &NotebookController::onPenUp,
+                static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
     }
     canvas->setStrokes(m_storage->strokes(pageId));
 }
@@ -105,11 +111,23 @@ void NotebookController::reloadOpenPage()
 {
     if (!m_canvas || !m_storage || m_pageId < 0)
         return;  // nothing open
+    if (m_canvas->penActive()) {
+        m_reloadPending = true;  // setStrokes would destroy the stroke mid-draw; do it at pen-up
+        return;
+    }
     resyncCanvas();  // pull the merged truth back onto the visible page
     m_undo.clear();  // history references strokes the merge may have replaced
     m_redo.clear();
     m_undoPoints = 0;
     emit undoChanged();
+}
+
+void NotebookController::onPenUp()
+{
+    if (!m_reloadPending)
+        return;
+    m_reloadPending = false;
+    reloadOpenPage();
 }
 
 void NotebookController::onStrokeFinished(const StrokeData &s)

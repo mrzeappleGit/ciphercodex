@@ -8,6 +8,7 @@ Item {
 
     required property var pen
     required property var controller
+    required property var reader  // only for onSyncedDataChanged below
 
     property var items: []
 
@@ -15,6 +16,11 @@ Item {
 
     Component.onCompleted: reload()
     StackView.onActivated: reload()  // page counts change while a notebook is open
+    Connections {
+        target: nbList.reader
+        // a sync started from Home merged rows while this list was open
+        function onSyncedDataChanged() { nbList.reload() }
+    }
 
     component Btn: Rectangle {
         id: b
