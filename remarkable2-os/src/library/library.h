@@ -62,6 +62,19 @@ public:
                        const QString &label);
     void deleteBookmark(qint64 id);
 
+    // settings key/value store (used for kosync config, typography, device_id).
+    QString setting(const QString &key, const QString &def = QString());  // def if key absent
+    void setSetting(const QString &key, const QString &value);            // upsert
+
+    QString digestOf(qint64 bookId);  // "" if no such book
+    BookRow bookById(qint64 id);      // .id == -1 if no such book
+
+    // Conditional sync marker: stamp synced_at = updatedAt only while updated_at is unchanged,
+    // so a save that landed during an in-flight push stays dirty (mirrors Android markSynced).
+    void markSynced(qint64 bookId, qint64 updatedAt);
+    // Dirty rows to push: synced_at IS NULL OR synced_at < updated_at.
+    QVector<qint64> dirtyProgressBookIds();
+
 private:
     ImportResult importFile(const QString &srcPath);
     void reconcileOrphans();  // delete book files with no DB row (crash between rename + commit)

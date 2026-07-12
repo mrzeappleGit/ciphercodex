@@ -448,3 +448,80 @@ void Library::deleteBookmark(qint64 id)
     if (q.done())
         tx.commit();
 }
+
+QString Library::setting(const QString &key, const QString &def)
+{
+    Stmt q(m_storage->handle(), "SELECT value FROM settings WHERE key = ?");
+    bindText(q.s, 1, key.toUtf8());
+    return q.row() ? colText(q.s, 0) : def;
+}
+
+void Library::setSetting(const QString &key, const QString &value)
+{
+    sqlite3 *db = m_storage->handle();
+    Tx tx(db);
+    if (!tx.active)
+        return;
+    Stmt q(db, "INSERT INTO settings(key, value) VALUES(?, ?)"
+               "  ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+    bindText(q.s, 1, key.toUtf8());
+    bindText(q.s, 2, value.toUtf8());
+    if (q.done())
+        tx.commit();
+}
+
+QString Library::digestOf(qint64 bookId)
+{
+    Stmt q(m_storage->handle(), "SELECT digest FROM books WHERE id = ?");
+    sqlite3_bind_int64(q.s, 1, bookId);
+    return q.row() ? colText(q.s, 0) : QString();
+}
+
+BookRow Library::bookById(qint64 id)
+{
+    BookRow b;
+    b.id = -1;  // not-found sentinel
+    Stmt q(m_storage->handle(),
+           "SELECT id, title, author, file_path, digest, cover_path, size_bytes, format,"
+           "  added_at, last_opened_at FROM books WHERE id = ?");
+    sqlite3_bind_int64(q.s, 1, id);
+    if (q.row()) {
+        b.id = sqlite3_column_int64(q.s, 0);
+        b.title = colText(q.s, 1);
+        b.author = colText(q.s, 2);
+        b.filePath = colText(q.s, 3);
+        b.digest = colText(q.s, 4);
+        b.coverPath = colText(q.s, 5);
+        b.sizeBytes = sqlite3_column_int64(q.s, 6);
+        b.format = sqlite3_column_int(q.s, 7);
+        b.addedAt = sqlite3_column_int64(q.s, 8);
+        b.lastOpenedAt = colInt64OrZero(q.s, 9);
+    }
+    return b;
+}
+
+void Library::markSynced(qint64 bookId, qint64 updatedAt)
+{
+    sqlite3 *db = m_storage->handle();
+    Tx tx(db);
+    if (!tx.active)
+        return;
+    // synced_at = updatedAt (>= updated_at => clean per progressDirty), gated on the row still
+    // being the pushed version; a concurrent newer save (different updated_at) matches nothing.
+    Stmt q(db, "UPDATE progress SET synced_at = ? WHERE book_id = ? AND updated_at = ?");
+    sqlite3_bind_int64(q.s, 1, updatedAt);
+    sqlite3_bind_int64(q.s, 2, bookId);
+    sqlite3_bind_int64(q.s, 3, updatedAt);
+    if (q.done())
+        tx.commit();
+}
+
+QVector<qint64> Library::dirtyProgressBookIds()
+{
+    QVector<qint64> out;
+    Stmt q(m_storage->handle(),
+           "SELECT book_id FROM progress WHERE synced_at IS NULL OR synced_at < updated_at");
+    while (q.row())
+        out.append(sqlite3_column_int64(q.s, 0));
+    return out;
+}

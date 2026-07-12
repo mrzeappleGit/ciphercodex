@@ -63,5 +63,18 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W 2>/dev/null || pwd):/work" -w /w
         -lQt6Core -l:libsqlite3.so.0 -l:libm.so.6 -lpthread -ldl \
         $LINK -o "$BUILD/test_library"
     "$BUILD/test_library"
+
+    # epub built-text goldens: XhtmlMapper + buildChapterText + resolvePath/spine numbering.
+    # Qt6Core only (QZipReader/QZipWriter are Q_CORE_EXPORT symbols in libQt6Core; the private
+    # headers live at QtCore/<ver>/QtCore/private, reachable via -I .../QtCore/<ver>).
+    QTPRIV=$(ls -d "$SYS/usr/include/QtCore"/6.*/ 2>/dev/null | head -1)
+    g++ -std=c++17 -g -fPIC \
+        src/epub/epubdocument.cpp tests/test_epub_text.cpp \
+        -Isrc \
+        -I"$SYS/usr/include" -I"$SYS/usr/include/QtCore" -I"$QTPRIV" \
+        -L"$SYS/usr/lib" -L"$SYS/lib" \
+        -lQt6Core -l:libm.so.6 -lpthread -ldl \
+        $LINK -o "$BUILD/test_epub_text"
+    "$BUILD/test_epub_text"
 '
 echo "All host tests passed."

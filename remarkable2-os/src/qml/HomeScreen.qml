@@ -71,7 +71,10 @@ Item {
         }
         Tile { width: parent.width; label: "KEPT"; tag: "PHASE 3" }
         Tile { width: parent.width; label: "STATS"; tag: "PHASE 3" }
-        Tile { width: parent.width; label: "SETTINGS"; tag: "PHASE 2" }
+        Tile {
+            width: parent.width; label: "SETTINGS"
+            onActivated: home.StackView.view.push(settingsComp)
+        }
     }
 
     Component {
@@ -82,5 +85,10 @@ Item {
     Component {
         id: libListComp
         LibraryScreen { reader: home.reader }
+    }
+
+    Component {
+        id: settingsComp
+        SettingsScreen { reader: home.reader }
     }
 }

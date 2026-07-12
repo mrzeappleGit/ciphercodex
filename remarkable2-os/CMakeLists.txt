@@ -17,12 +17,16 @@ add_library(ccx-reader STATIC
     src/library/digest.h    src/library/digest.cpp
     src/library/library.h   src/library/library.cpp
     src/pdf/pdfdocument.h   src/pdf/pdfdocument.cpp
+    src/epub/epubdocument.h src/epub/epubdocument.cpp
+    src/epub/epubrender.h   src/epub/epubrender.cpp
     src/sync/kosync.h       src/sync/kosync.cpp
     src/sync/kosyncclient.cpp
 )
 target_include_directories(ccx-reader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_definitions(ccx-reader PRIVATE CCX_HAVE_PDFIUM) # library's PDF cover/title path
-target_link_libraries(ccx-reader PUBLIC Qt6::Core Qt6::Gui Qt6::Network ccx-storage ${PDFIUM_LIB})
+# CorePrivate: QZipReader for EPUB containers.
+target_link_libraries(ccx-reader PUBLIC
+    Qt6::Core Qt6::CorePrivate Qt6::Gui Qt6::Network ccx-storage ${PDFIUM_LIB})
 
 qt_add_executable(ciphercodex-shell
     src/main.cpp
@@ -32,6 +36,7 @@ qt_add_executable(ciphercodex-shell
     src/notebookcontroller.h src/notebookcontroller.cpp
     src/readercontroller.h src/readercontroller.cpp
     src/pdf/pdfview.h src/pdf/pdfview.cpp
+    src/epub/epubview.h src/epub/epubview.cpp
 )
 qt_add_qml_module(ciphercodex-shell
     URI CipherCodex
@@ -44,9 +49,11 @@ qt_add_qml_module(ciphercodex-shell
         src/qml/LibraryScreen.qml
         src/qml/BookDetailScreen.qml
         src/qml/PdfReaderScreen.qml
+        src/qml/EpubReaderScreen.qml
+        src/qml/SettingsScreen.qml
 )
-# src/pdf on the path so the generated QML type registration finds pdfview.h by basename
-target_include_directories(ciphercodex-shell PRIVATE src src/pdf)
+# src/pdf + src/epub on the path so generated QML type registration finds the headers by basename
+target_include_directories(ciphercodex-shell PRIVATE src src/pdf src/epub)
 # GuiPrivate: qpa/qwindowsysteminterface.h — pen->mouse synthesis for UI chrome
 target_link_libraries(ciphercodex-shell PRIVATE Qt6::Quick Qt6::GuiPrivate ccx-storage ccx-reader ${CMAKE_DL_LIBS})
 

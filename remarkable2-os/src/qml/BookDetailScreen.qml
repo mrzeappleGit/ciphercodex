@@ -9,7 +9,6 @@ Item {
     required property var reader
     property var book: ({})           // set via StackView.push
     property bool confirming: false
-    property bool epubNote: false
 
     readonly property bool isEpub: detail.book.format === 1
 
@@ -19,14 +18,27 @@ Item {
         return bytes + " B"
     }
 
+    // startPage < 0 => RESUME (saved position); 0 => READ FROM START.
     function openAt(startPage) {
-        if (detail.isEpub) { detail.epubNote = true; return }
         const p = detail.reader.openProgress(detail.book.id) // marks opened
+        const resume = startPage < 0
+        if (detail.isEpub) {
+            const pull = detail.reader.pullOnOpen(detail.book.id)  // network on open (user action)
+            detail.StackView.view.push(epubReaderComp, {
+                bookId: detail.book.id,
+                filePath: detail.book.filePath,
+                title: detail.book.title,
+                startSpine: resume && p.exists ? p.spineIndex : 0,
+                startCharOffset: resume && p.exists ? (p.charOffset || 0) : 0,
+                syncPull: pull
+            })
+            return
+        }
         detail.StackView.view.push(readerComp, {
             bookId: detail.book.id,
             filePath: detail.book.filePath,
             title: detail.book.title,
-            startPage: startPage < 0 ? p.page : startPage
+            startPage: resume ? p.page : startPage
         })
     }
 
@@ -141,12 +153,6 @@ Item {
                     font { pixelSize: 48; bold: true }
                 }
             }
-
-            Text {
-                visible: detail.epubNote
-                text: "EPUB reader — next update"
-                font { pixelSize: 30; bold: true }
-            }
         }
     }
 
@@ -181,5 +187,10 @@ Item {
     Component {
         id: readerComp
         PdfReaderScreen { reader: detail.reader }
+    }
+
+    Component {
+        id: epubReaderComp
+        EpubReaderScreen { reader: detail.reader }
     }
 }

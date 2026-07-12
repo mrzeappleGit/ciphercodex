@@ -1,6 +1,11 @@
 #include "readercontroller.h"
 
+#include <QDateTime>
+#include <QNetworkAccessManager>
+#include <QUuid>
+
 #include <algorithm>
+#include <cmath>
 
 #include "library/library.h"
 
@@ -9,6 +14,7 @@ static constexpr double FINISHED_THRESHOLD = 0.98;
 
 ReaderController::ReaderController(QObject *parent) : QObject(parent)
 {
+    m_nam = new QNetworkAccessManager(this);
     const QString dir = qEnvironmentVariable("CCX_DATA_DIR", QStringLiteral("/home/root/ciphercodex"));
     QString err;
     m_storage = Storage::open(dir, &err);
@@ -158,6 +164,7 @@ QVariantMap ReaderController::openProgress(qint64 id)
     const int page = p.exists ? p.spineIndex : 0;
     return {{QStringLiteral("spineIndex"), page},
             {QStringLiteral("page"), page}, // PDF: page == spine_index
+            {QStringLiteral("charOffset"), p.exists ? p.charOffset : 0}, // EPUB resume
             {QStringLiteral("percentage"), p.exists ? p.percentage : 0.0},
             {QStringLiteral("exists"), p.exists}};
 }
@@ -171,6 +178,14 @@ void ReaderController::saveProgress(qint64 id, int page, int pageCount)
     invalidate();  // percentage/state may have changed
 }
 
+void ReaderController::saveProgress(qint64 id, int spine, int charOffset, double percentage)
+{
+    if (!m_library)
+        return;
+    m_library->saveProgress(id, spine, charOffset, percentage);  // EPUB: real charOffset + whole-book pct
+    invalidate();
+}
+
 QVariantList ReaderController::bookmarks(qint64 id)
 {
     QVariantList out;
@@ -178,7 +193,9 @@ QVariantList ReaderController::bookmarks(qint64 id)
         return out;
     for (const Bookmark &b : m_library->bookmarks(id))
         out.append(QVariantMap{{QStringLiteral("id"), b.id},
-                               {QStringLiteral("page"), b.spineIndex}, // PDF: page == spine_index
+                               {QStringLiteral("page"), b.spineIndex},     // PDF: page == spine_index
+                               {QStringLiteral("spineIndex"), b.spineIndex}, // EPUB
+                               {QStringLiteral("charOffset"), b.charOffset},
                                {QStringLiteral("percentage"), b.percentage},
                                {QStringLiteral("label"), b.label}});
     return out;
@@ -192,8 +209,210 @@ qint64 ReaderController::addBookmark(qint64 id, int page, int pageCount, const Q
     return m_library->addBookmark(id, page, 0, pct, label);
 }
 
+qint64 ReaderController::addBookmark(qint64 id, int spine, int charOffset, double percentage,
+                                     const QString &label)
+{
+    if (!m_library)
+        return -1;
+    return m_library->addBookmark(id, spine, charOffset, percentage, label);
+}
+
 void ReaderController::deleteBookmark(qint64 id)
 {
     if (m_library)
         m_library->deleteBookmark(id);
+}
+
+QString ReaderController::setting(const QString &key, const QString &def)
+{
+    return m_library ? m_library->setting(key, def) : def;
+}
+
+void ReaderController::setSetting(const QString &key, const QString &value)
+{
+    if (m_library)
+        m_library->setSetting(key, value);
+}
+
+// ---- kosync device integration ----
+
+QString ReaderController::deviceId()
+{
+    QString id = m_library->setting(QStringLiteral("device_id"));
+    if (id.isEmpty()) {
+        id = QUuid::createUuid().toString(QUuid::WithoutBraces).remove(QLatin1Char('-'));
+        m_library->setSetting(QStringLiteral("device_id"), id);
+    }
+    return id;
+}
+
+ccx::kosync::Account ReaderController::account()
+{
+    return {m_library->setting(QStringLiteral("server_url")),
+            m_library->setting(QStringLiteral("username")),
+            m_library->setting(QStringLiteral("user_key"))};
+}
+
+bool ReaderController::syncUsable()
+{
+    return m_library
+        && m_library->setting(QStringLiteral("sync_enabled")) == QLatin1String("1")
+        && !m_library->setting(QStringLiteral("username")).isEmpty()
+        && !m_library->setting(QStringLiteral("user_key")).isEmpty()
+        && !m_library->setting(QStringLiteral("server_url")).isEmpty();
+}
+
+QVariantMap ReaderController::syncConfig()
+{
+    if (!m_library)
+        return {};
+    const QString server = m_library->setting(QStringLiteral("server_url"));
+    const QString username = m_library->setting(QStringLiteral("username"));
+    const QString userKey = m_library->setting(QStringLiteral("user_key"));
+    return {{QStringLiteral("enabled"),
+             m_library->setting(QStringLiteral("sync_enabled")) == QLatin1String("1")},
+            {QStringLiteral("serverUrl"), server},  // QML reads .serverUrl
+            {QStringLiteral("username"), username},
+            {QStringLiteral("deviceName"), m_library->setting(QStringLiteral("device_name"))},
+            {QStringLiteral("configured"),  // user_key present, never returned
+             !server.isEmpty() && !username.isEmpty() && !userKey.isEmpty()}};
+}
+
+void ReaderController::setSyncConfig(const QString &server, const QString &username,
+                                     const QString &password, const QString &deviceName)
+{
+    if (!m_library)
+        return;
+    m_library->setSetting(QStringLiteral("server_url"), server.trimmed());
+    m_library->setSetting(QStringLiteral("username"), username);
+    // Store md5hex(password), never the raw password.
+    m_library->setSetting(QStringLiteral("user_key"), ccx::kosync::userKey(password));
+    m_library->setSetting(QStringLiteral("device_name"), deviceName);
+    deviceId();  // ensure a persisted device_id exists
+    m_library->setSetting(QStringLiteral("sync_enabled"), QStringLiteral("1"));
+}
+
+void ReaderController::setSyncEnabled(bool enabled)
+{
+    if (m_library)
+        m_library->setSetting(QStringLiteral("sync_enabled"),
+                              enabled ? QStringLiteral("1") : QStringLiteral("0"));
+}
+
+QVariantMap ReaderController::testConnection()
+{
+    if (!m_library)
+        return {{QStringLiteral("ok"), false}, {QStringLiteral("message"), QStringLiteral("No library")}};
+    ccx::kosync::KosyncClient client(m_nam);
+    const ccx::kosync::Result r = client.authorize(account());
+    return {{QStringLiteral("ok"), r.ok},
+            {QStringLiteral("message"), r.ok ? QStringLiteral("Connected") : r.message}};
+}
+
+QVariantMap ReaderController::registerUser()
+{
+    if (!m_library)
+        return {{QStringLiteral("ok"), false}, {QStringLiteral("message"), QStringLiteral("No library")}};
+    ccx::kosync::KosyncClient client(m_nam);
+    const ccx::kosync::Result r = client.registerUser(account());
+    return {{QStringLiteral("ok"), r.ok},
+            {QStringLiteral("message"), r.ok ? QStringLiteral("Registered") : r.message}};
+}
+
+QVariantMap ReaderController::pullOnOpen(qint64 bookId)
+{
+    if (!syncUsable())
+        return {{QStringLiteral("state"), QStringLiteral("Disabled")}};
+    const QString digest = m_library->digestOf(bookId);
+    if (digest.isEmpty())
+        return {{QStringLiteral("state"), QStringLiteral("Failed")},
+                {QStringLiteral("message"), QStringLiteral("No such book")}};
+
+    ccx::kosync::KosyncClient client(m_nam);
+    const ccx::kosync::Result r = client.getProgress(account(), digest);
+    if (!r.ok)
+        return {{QStringLiteral("state"), QStringLiteral("Failed")},
+                {QStringLiteral("message"), r.message}};
+    if (!r.remote.exists)
+        return {{QStringLiteral("state"), QStringLiteral("NoRemote")}};
+
+    const ccx::kosync::RemoteProgress &record = r.remote;
+    const Library::Progress local = m_library->progress(bookId);
+
+    // Our own last push echoed back — only short-circuit while local progress still exists (a
+    // delete + re-import wants our own remote restored). device_id is the identity; the
+    // user-editable device NAME must not participate.
+    if (local.exists && record.deviceId.compare(deviceId(), Qt::CaseInsensitive) == 0)
+        return {{QStringLiteral("state"), QStringLiteral("UpToDate")}};
+
+    bool remoteNewer;
+    if (!local.exists)
+        remoteNewer = true;
+    else if (record.timestamp >= 0)
+        remoteNewer = record.timestamp * 1000 > local.updatedAt + 2000;  // 2s slack: whole-second, drift
+    else
+        remoteNewer = record.percentage > local.percentage
+            && std::abs(record.percentage - local.percentage) > 0.0005;
+    if (!remoteNewer)
+        return {{QStringLiteral("state"), QStringLiteral("UpToDate")}};
+
+    // Our own encoding first; else a KOReader xpointer spine (positioned by percentage, no offset).
+    int spine = -1, charOffset = -1;
+    if (const std::optional<ccx::kosync::Pos> decoded =
+            ccx::kosync::ProgressCodec::decode(record.progress)) {
+        spine = decoded->spineIndex;
+        charOffset = decoded->charOffset;
+    } else if (const std::optional<int> fs =
+                   ccx::kosync::ProgressCodec::foreignSpine(record.progress)) {
+        spine = *fs;
+    }
+    return {{QStringLiteral("state"), QStringLiteral("RemoteNewer")},
+            {QStringLiteral("spine"), spine},
+            {QStringLiteral("charOffset"), charOffset},
+            {QStringLiteral("percentage"), record.percentage},
+            {QStringLiteral("device"), record.device}};
+}
+
+void ReaderController::pushProgress(qint64 bookId, int spine, int charOffset, double percentage)
+{
+    if (!syncUsable())
+        return;
+    const QString digest = m_library->digestOf(bookId);
+    if (digest.isEmpty())
+        return;
+    const Library::Progress local = m_library->progress(bookId);
+
+    ccx::kosync::RemoteProgress p;
+    p.document = digest;
+    p.progress = ccx::kosync::ProgressCodec::encode(spine, charOffset);
+    p.percentage = percentage;
+    p.device = m_library->setting(QStringLiteral("device_name"));
+    p.deviceId = deviceId().toUpper();  // wire convention: uppercase hex
+
+    ccx::kosync::KosyncClient client(m_nam);
+    const ccx::kosync::Result r = client.updateProgress(account(), p);
+    if (r.ok && local.exists)
+        m_library->markSynced(bookId, local.updatedAt);  // conditional on updated_at
+}
+
+void ReaderController::pushProgress(qint64 bookId)
+{
+    if (!m_library)
+        return;
+    const Library::Progress p = m_library->progress(bookId);
+    if (p.exists)
+        pushProgress(bookId, p.spineIndex, p.charOffset, p.percentage);
+}
+
+void ReaderController::syncAllDirty()
+{
+    if (!syncUsable())
+        return;
+    for (const qint64 bookId : m_library->dirtyProgressBookIds()) {
+        const Library::Progress p = m_library->progress(bookId);
+        if (p.exists)
+            pushProgress(bookId, p.spineIndex, p.charOffset, p.percentage);
+    }
+    m_library->setSetting(QStringLiteral("last_sync_at"),
+                          QString::number(QDateTime::currentMSecsSinceEpoch()));
 }
