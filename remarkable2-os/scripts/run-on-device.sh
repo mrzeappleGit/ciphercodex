@@ -8,4 +8,8 @@ export QT_QPA_EVDEV_TOUCHSCREEN_PARAMETERS="${CCX_TOUCH-inverty}"
 export QT_QUICK_BACKEND=epaper
 cd /home/root/ciphercodex
 ./ciphercodex-shell -platform epaper > shell.log 2>&1
+echo "$(date) exit=$?" >> shell-exits.log
+# frequent dev stop/start cycles trip xochitl's 4-per-10min start limit; without this
+# systemd refuses the restart and the OS recovery reboots the whole device
+systemctl reset-failed xochitl 2>/dev/null
 systemctl start xochitl

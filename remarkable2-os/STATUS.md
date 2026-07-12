@@ -1,32 +1,29 @@
 # STATUS
 
-Updated: 2026-07-11 (late)
+Updated: 2026-07-12
 
-## Done — Phase 0 nearly complete
+## Phase 0 — COMPLETE (hardware proofs on physical rM2, OS 3.27.3.0)
 
-- Device audited, updated to OS 3.27.3.0, SSH key auth, full `/home` backup (2.03 GB, verified).
-- Toolchain: official SDK 3.27.0.97 in Docker image `ccx-rm2-sdk:3.27.0.97`; `scripts/build.sh`
-  cross-compiles; `scripts/deploy.sh` deploys + launches detached (xochitl always returns).
-- Hello screen v3 proven on hardware:
-  - Display via stock epaper QPA + qsgepaper backend (pure Qt Quick).
-  - Marker via raw evdev `PenReader` (QPA doesn't deliver stylus); calib=1 transform verified.
-  - Ink via `InkItem` (QQuickPaintedItem + dirty rects) — custom scenegraph geometry is NOT
-    rendered by qsgepaper (CLOSED lib; we only run on top of it).
-  - Perceived pen latency: parity with stock (owner test).
-  - Pressure→width works (squared curve); tilt values stream; palm makes no marks.
-  - Touch calibrated: `inverty` (docs' `rotate=180:invertx` is wrong for this device).
-  - CLEAR/EXIT buttons work; EXIT returns to stock UI via detached run script.
-- Hardware audit: `docs/hardware-audit.md` — measured pen/touch ranges, battery sysfs, licenses.
+- Toolchain: official SDK 3.27.0.97 in Docker (`ccx-rm2-sdk:3.27.0.97`); build/deploy/restore
+  scripts working end to end from Windows host.
+- Display: stock epaper QPA + qsgepaper (pure Qt Quick). Custom scenegraph geometry is dropped
+  by the backend — ink renders via QQuickPaintedItem dirty-rect image updates.
+- Marker: raw evdev PenReader (QPA delivers touch only). Transform calib=1 verified; pressure
+  0–4095 with visible squared width curve; tilt streams; hover distance available.
+- Touch: `inverty` transform verified with on-screen probe. Buttons work.
+- Palm rejection baseline: pen-only ink → palm cannot draw.
+- Perceived pen latency: parity with stock (owner assessment).
+- Suspend/resume under our shell: passes (power-button wake, ink continues).
+- Exit path: clean quit → detached launcher restores xochitl (with `reset-failed` guard against
+  the 4-starts/10-min limit that otherwise triggers a recovery reboot).
+- Full `/home` backup on host; restore-stock script; audit in `docs/hardware-audit.md`.
 
-## Open Phase 0 items
+Deferred within Phase 0 (non-blocking): scripted glass-to-ink latency number, Marker Plus
+eraser hardware test (no eraser hardware available), input-event replay harness.
 
-- Suspend/resume test (power button behavior under our shell; wake without xochitl).
-- Scripted glass-to-ink latency measurement (currently perceived-parity only).
-- Marker Plus eraser untested (owner's Marker lacks eraser end); code path implemented.
-- Input-event replay harness (recording exists via input-probe).
+## Next: Phase 1 — notebook vertical slice
 
-## Next executable step
-
-Phase 1 notebook vertical slice: SQLite stroke journal (per-stroke WAL transactions),
-notebook/page model, reopen-after-restart, then the forced-power-loss durability test
-(kill -9 mid-writing + hard power cycle; all completed strokes must survive).
+Home screen, notebook list, one notebook/page, pencil + eraser tools, undo/redo,
+per-stroke SQLite WAL journal (autosave), reopen, suspend/resume, PDF export.
+Gate: forced-power-loss durability test — all completed strokes survive kill -9 +
+hard power cycle.

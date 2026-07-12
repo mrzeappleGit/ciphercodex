@@ -123,4 +123,16 @@ Touch (`event2`, pt_mt): 32 slots, `ABS_MT_POSITION` 1404×1872 (matches panel p
 - [x] Pressure→width verified visually (squared curve)
 - [ ] Marker Plus eraser: owner's Marker has no eraser end — BTN_TOOL_RUBBER handling implemented
       but untested on hardware; retest when a Marker Plus is available
-- [ ] Suspend/resume behavior (power button, `systemctl suspend`)
+- [x] Suspend/resume: `systemctl suspend` + power-button wake under our shell — shell survives,
+      ink continues, screen intact (verified 2026-07-11)
+
+## Operational gotchas (learned the hard way)
+
+- `xochitl.service` allows 4 starts per 10 min (`StartLimitBurst=4`). Exceeding it (rapid dev
+  cycles) makes systemd refuse the restart and the OS recovery **reboots the device**. Launcher
+  must `systemctl reset-failed xochitl` before starting it.
+- xochitl's ~10 s startup splash looks like a device reboot; check `uptime` before concluding
+  anything rebooted.
+- Raw-evdev pen events bypass Qt's input system entirely: the pen cannot press QML buttons.
+  The real shell must hit-test pen-down against interactive chrome (or synthesize touch events)
+  — hello screen leaves this unhandled by design.
