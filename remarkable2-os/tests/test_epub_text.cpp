@@ -139,6 +139,51 @@ static void testSkippedTags()
     assert(b.charCount == 2);
 }
 
+// ---- 9. malformed chapter: undefined entity -> empty placeholder ---------------------
+// &rarr; is NOT in the HtmlEntities table, so substituteEntities leaves it verbatim and
+// QXmlStreamReader raises a not-well-formed error on the undeclared entity. Android's
+// XhtmlMapper.parse THROWS on that, and the reader renders a placeholder whose built text
+// is empty (charCount 0). The port must DISCARD the "first" paragraph parsed before the
+// error and return an empty BuiltChapter — not "first" (which is what a best-effort partial
+// build would leak). Empty text keeps the kosync offset space identical across devices.
+static void testMalformedChapter()
+{
+    const BuiltChapter b = buildBody(QStringLiteral("<p>first</p><p>bad &rarr; here</p>"));
+    assert(b.text.isEmpty());
+    assert(b.charCount == 0);
+    assert(b.blockRanges.isEmpty() && b.blockKinds.isEmpty());
+}
+
+// ---- 10. CDATA: entity refs inside CDATA are literal ---------------------------------
+// By XML rules text in "<![CDATA[ ... ]]>" is literal — "&nbsp;" is NOT resolved. Android
+// registers entities on the parser (so CDATA is never touched); the port must skip the pre-
+// substitution over CDATA spans. The 8 literal chars "a&nbsp;b" (no collapsible whitespace)
+// survive verbatim — NOT collapsed to "a b" (that would be the wrong 3-char result).
+static void testCdataLiteral()
+{
+    const BuiltChapter b = buildBody(QStringLiteral("<![CDATA[a&nbsp;b]]>"));
+    assert(b.text == QStringLiteral("a&nbsp;b"));  // 8 chars: a & n b s p ; b
+    assert(b.charCount == 8);
+}
+
+// ---- 11. windows-1252 decode of 0x80-0x9F -------------------------------------------
+// A doc declared encoding="windows-1252" with raw bytes 0x93/0x94/0x97: cp1252 maps these
+// to U+201C/U+201D/U+2014 (curly double quotes + em dash), NOT the C1 control chars a naive
+// Latin-1 decode would yield. None are collapsible whitespace, so "a“b”c—d" (7 code units)
+// is the built text. Bytes are split across string literals so \x.. escapes don't swallow
+// the following hex-digit letter.
+static void testWindows1252()
+{
+    const QByteArray raw = QByteArray(
+        "<?xml version=\"1.0\" encoding=\"windows-1252\"?>"
+        "<body><p>a\x93" "b\x94" "c\x97" "d</p></body>");
+    const BuiltChapter b = buildChapterFromXhtml(raw, 0);
+    const QString expected = QStringLiteral("a") + QChar(0x201C) + QLatin1Char('b') +
+                             QChar(0x201D) + QLatin1Char('c') + QChar(0x2014) + QLatin1Char('d');
+    assert(b.text == expected);
+    assert(b.charCount == 7);
+}
+
 // ---- bonus: inline spans, links, anchors (style-bit / href ranges) -------------------
 static void testSpansLinksAnchors()
 {
@@ -287,6 +332,9 @@ int main()
     testLineBreak();
     testHeading();
     testSkippedTags();
+    testMalformedChapter();
+    testCdataLiteral();
+    testWindows1252();
     testSpansLinksAnchors();
     testResolvePath();
     testSpineNumbering(tmp.path());

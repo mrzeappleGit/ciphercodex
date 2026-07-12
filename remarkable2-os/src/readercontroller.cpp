@@ -319,17 +319,27 @@ QVariantMap ReaderController::registerUser()
             {QStringLiteral("message"), r.ok ? QStringLiteral("Registered") : r.message}};
 }
 
-QVariantMap ReaderController::pullOnOpen(qint64 bookId)
+void ReaderController::pullOnOpen(qint64 bookId)
 {
-    if (!syncUsable())
-        return {{QStringLiteral("state"), QStringLiteral("Disabled")}};
+    if (!syncUsable()) {
+        emit pullReady(bookId, {{QStringLiteral("state"), QStringLiteral("Disabled")}});
+        return;
+    }
     const QString digest = m_library->digestOf(bookId);
-    if (digest.isEmpty())
-        return {{QStringLiteral("state"), QStringLiteral("Failed")},
-                {QStringLiteral("message"), QStringLiteral("No such book")}};
+    if (digest.isEmpty()) {
+        emit pullReady(bookId, {{QStringLiteral("state"), QStringLiteral("Failed")},
+                                {QStringLiteral("message"), QStringLiteral("No such book")}});
+        return;
+    }
+    // Async: the reader opens immediately; the JUMP/STAY prompt appears if/when the server answers.
+    ccx::kosync::KosyncClient(m_nam).getProgressAsync(
+        account(), digest, [this, bookId](const ccx::kosync::Result &r) {
+            emit pullReady(bookId, resolvePull(bookId, r));
+        });
+}
 
-    ccx::kosync::KosyncClient client(m_nam);
-    const ccx::kosync::Result r = client.getProgress(account(), digest);
+QVariantMap ReaderController::resolvePull(qint64 bookId, const ccx::kosync::Result &r)
+{
     if (!r.ok)
         return {{QStringLiteral("state"), QStringLiteral("Failed")},
                 {QStringLiteral("message"), r.message}};
@@ -380,7 +390,7 @@ void ReaderController::pushProgress(qint64 bookId, int spine, int charOffset, do
     const QString digest = m_library->digestOf(bookId);
     if (digest.isEmpty())
         return;
-    const Library::Progress local = m_library->progress(bookId);
+    const qint64 updatedAt = m_library->progress(bookId).updatedAt;
 
     ccx::kosync::RemoteProgress p;
     p.document = digest;
@@ -389,10 +399,13 @@ void ReaderController::pushProgress(qint64 bookId, int spine, int charOffset, do
     p.device = m_library->setting(QStringLiteral("device_name"));
     p.deviceId = deviceId().toUpper();  // wire convention: uppercase hex
 
-    ccx::kosync::KosyncClient client(m_nam);
-    const ccx::kosync::Result r = client.updateProgress(account(), p);
-    if (r.ok && local.exists)
-        m_library->markSynced(bookId, local.updatedAt);  // conditional on updated_at
+    // Fire-and-forget: never blocks the reading path. markSynced (conditional on updated_at) runs
+    // when the PUT returns, so a save that landed mid-push stays dirty and is retried.
+    ccx::kosync::KosyncClient(m_nam).updateProgressAsync(
+        account(), p, [this, bookId, updatedAt](bool ok) {
+            if (ok)
+                m_library->markSynced(bookId, updatedAt);
+        });
 }
 
 void ReaderController::pushProgress(qint64 bookId)

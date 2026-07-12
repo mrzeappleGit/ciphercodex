@@ -19,6 +19,7 @@ Item {
     property var bmItems: []
     property var searchHits: []
     property bool searching: false
+    property bool searchTruncated: false  // hit the result cap; show a "capped" note
     // ready gates progress saves: the goToLocation seek at open (and its locationChanged)
     // must not persist over the saved position before we've settled.
     property bool ready: false
@@ -37,12 +38,17 @@ Item {
     property int margins: 90
     property bool justify: false
 
+    // Local save only — cheap SQLite upsert, runs on every settled turn. Network push is NOT here
+    // (it must never fire on the reading hot path); it happens once on leave via pushNow().
     function saveNow() {
-        if (epubReader.ready && epubView.spineCount > 0) {
+        if (epubReader.ready && epubView.spineCount > 0)
             epubReader.reader.saveProgress(epubReader.bookId, epubView.spineIndex,
                                            epubReader.charOffset, epubView.percentage)
-            epubReader.reader.pushProgress(epubReader.bookId)  // fire-and-forget, dirty-retry
-        }
+    }
+    // Fire-and-forget async push; only on leaving the reader.
+    function pushNow() {
+        if (epubReader.ready && epubView.spineCount > 0)
+            epubReader.reader.pushProgress(epubReader.bookId)
     }
     function reloadBookmarks() { epubReader.bmItems = epubReader.reader.bookmarks(epubReader.bookId) }
     function seekTo(frac) {
@@ -84,12 +90,22 @@ Item {
         epubView.goToLocation(epubReader.startSpine, epubReader.startCharOffset)
         epubReader.reloadBookmarks()
         epubReader.ready = true    // only now do turns persist
-        if (epubReader.syncPull && epubReader.syncPull.state === "RemoteNewer")
-            epubReader.showSyncPrompt = true
+        epubReader.reader.pullOnOpen(epubReader.bookId)  // async -> onPullReady shows the prompt
+        epubReader.reader.syncAllDirty()                 // drain any push that failed offline earlier
     }
     // Debounce: a scrubber/turn burst emits many locationChanged; save once it settles (fsync-heavy).
     Timer { id: saveTimer; interval: 400; onTriggered: epubReader.saveNow() }
-    Component.onDestruction: { saveTimer.stop(); epubReader.saveNow() }
+    Component.onDestruction: { saveTimer.stop(); epubReader.saveNow(); epubReader.pushNow() }
+
+    Connections {
+        target: epubReader.reader
+        function onPullReady(bookId, result) {
+            if (bookId === epubReader.bookId && result.state === "RemoteNewer") {
+                epubReader.syncPull = result
+                epubReader.showSyncPrompt = true
+            }
+        }
+    }
 
     Connections {
         target: epubView
@@ -101,7 +117,10 @@ Item {
             epubReader.searchHits = epubReader.searchHits.concat(
                 [{ spine: spine, charOffset: charOffset, snippet: snippet }])
         }
-        function onSearchFinished(total, canceled) { epubReader.searching = false }
+        function onSearchFinished(canceled, truncated) {
+            epubReader.searching = false
+            epubReader.searchTruncated = truncated
+        }
         function onLinkActivated(href) {
             const r = epubView.follow(href)   // footnote => {footnote:true,text}; jump => navigates + pushes stack
             if (r && r.footnote) epubReader.footnoteText = r.text
@@ -360,8 +379,16 @@ Item {
                 onTapped: epubReader.searching ? epubView.cancelSearch() : epubReader.runSearch(searchField.text)
             }
         }
+        Text {
+            id: capNote
+            visible: epubReader.searchTruncated
+            anchors { top: searchRow.bottom; topMargin: 12; horizontalCenter: parent.horizontalCenter }
+            text: "showing first " + epubReader.searchHits.length + " matches"
+            color: "#6B6B6B"; font.pixelSize: 20
+        }
         ListView {
-            anchors { top: searchRow.bottom; topMargin: 16; left: parent.left; right: parent.right
+            anchors { top: capNote.visible ? capNote.bottom : searchRow.bottom; topMargin: 16
+                      left: parent.left; right: parent.right
                       bottom: parent.bottom; leftMargin: 16; rightMargin: 16; bottomMargin: 16 }
             clip: true
             spacing: 8
@@ -527,7 +554,11 @@ Item {
                 Btn {
                     label: "JUMP"
                     onTapped: {
-                        epubView.goToLocation(epubReader.syncPull.spine, epubReader.syncPull.charOffset)
+                        // spine<0 = foreign xpointer with no offset: land near the remote percentage
+                        if (epubReader.syncPull.spine < 0)
+                            epubReader.seekTo(epubReader.syncPull.percentage)
+                        else
+                            epubView.goToLocation(epubReader.syncPull.spine, epubReader.syncPull.charOffset)
                         epubReader.showSyncPrompt = false
                     }
                 }

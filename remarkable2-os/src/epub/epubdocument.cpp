@@ -142,10 +142,32 @@ const QHash<QString, QString> &entitySubst()
     return t;
 }
 
+// Windows-1252 decode. Qt6 QStringConverter has no cp1252 codec, and Latin-1 is WRONG for
+// bytes 0x80-0x9F: cp1252 puts the smart quotes / en-em dashes / etc. there, not C1 control
+// chars, so mapping them as Latin-1 would drift the offset space vs Android's named-charset
+// decode. Decode 0x00-0x7F and 0xA0-0xFF as Latin-1 (byte == code point) and the 32 bytes
+// 0x80-0x9F via the standard cp1252 table; the five undefined slots (0x81 0x8D 0x8F 0x90
+// 0x9D) map to U+FFFD (one code unit, so no offset drift).
+QString decodeCp1252(const QByteArray &bytes)
+{
+    static const char16_t hi[32] = {
+        0x20AC, 0xFFFD, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,  // 0x80-0x87
+        0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0xFFFD, 0x017D, 0xFFFD,  // 0x88-0x8F
+        0xFFFD, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,  // 0x90-0x97
+        0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0xFFFD, 0x017E, 0x0178,  // 0x98-0x9F
+    };
+    QString out;
+    out.reserve(bytes.size());
+    for (unsigned char b : bytes)
+        out.append(QChar(b >= 0x80 && b <= 0x9F ? hi[b - 0x80] : char16_t(b)));
+    return out;
+}
+
 // Decode raw bytes to a QString, honoring a UTF BOM or an XML `encoding=` declaration.
-// EPUB content is effectively UTF-8/UTF-16; legacy single-byte encodings map to Latin-1.
-// Feeding QXmlStreamReader a QString makes it treat input as already-Unicode and skip its
-// own byte decoding, so entity substitution below is encoding-safe.
+// EPUB content is effectively UTF-8/UTF-16; windows-1252 uses the correct table above and
+// other legacy single-byte encodings map to Latin-1. Feeding QXmlStreamReader a QString
+// makes it treat input as already-Unicode and skip its own byte decoding, so entity
+// substitution below is encoding-safe.
 QString decodeXml(const QByteArray &bytes)
 {
     if (auto enc = QStringConverter::encodingForData(bytes)) {  // BOM present
@@ -153,6 +175,7 @@ QString decodeXml(const QByteArray &bytes)
         return dec.decode(bytes);
     }
     QStringConverter::Encoding e = QStringConverter::Utf8;  // default
+    bool cp1252 = false;
     const QByteArray head = bytes.left(256).toLower();
     int i = head.indexOf("encoding");
     if (i >= 0) {
@@ -170,13 +193,16 @@ QString decodeXml(const QByteArray &bytes)
                 const QByteArray name = head.mid(q1 + 1, q2 - q1 - 1);
                 if (name.contains("utf-16"))
                     e = QStringConverter::Utf16;
-                else if (name.contains("8859-1") || name.contains("latin1") ||
-                         name.contains("1252"))  // cp1252 ~ Latin-1 (differ 0x80-0x9F). ponytail: rare in EPUB.
+                else if (name.contains("1252"))
+                    cp1252 = true;  // windows-1252/cp1252: correct 0x80-0x9F via table above
+                else if (name.contains("8859-1") || name.contains("latin1"))
                     e = QStringConverter::Latin1;
-                // else default Utf8 (utf-8, us-ascii, unknown)
+                // else default Utf8 (utf-8, us-ascii, unknown/undecodable: acceptable UTF-8 fallback)
             }
         }
     }
+    if (cp1252)
+        return decodeCp1252(bytes);
     QStringDecoder dec(e);
     return dec.decode(bytes);
 }
@@ -185,8 +211,10 @@ QString decodeXml(const QByteArray &bytes)
 // Leaves the XML-predefined five and numeric refs (&#..;) for the parser. Unknown named
 // entities are left as-is so the parser errors on them, exactly as Kotlin's undefined-
 // entity path throws.
-// ponytail: substitutes inside comments/CDATA too; comments are ignored, script/style are
-// SkippedTags, and a named entity as literal visible CDATA text is vanishingly rare.
+// CDATA spans are copied through unchanged: by XML rules entity refs inside "<![CDATA[ ]]>"
+// are literal, not resolved, matching Android where entities register on the parser rather
+// than in a pre-pass. (ponytail: XML comments are still substituted, but comment text is
+// dropped by the parser anyway, and script/style are SkippedTags.)
 QString substituteEntities(const QString &in)
 {
     if (!in.contains('&'))
@@ -197,6 +225,13 @@ QString substituteEntities(const QString &in)
     int i = 0;
     while (i < n) {
         const QChar c = in[i];
+        if (c == '<' && QStringView{in}.mid(i).startsWith(QLatin1String("<![CDATA["))) {
+            const int end = in.indexOf(QLatin1String("]]>"), i + 9);  // 9 == len("<![CDATA[")
+            const int span = end < 0 ? n : end + 3;                   // no close: copy to EOF
+            out.append(QStringView{in}.mid(i, span - i));
+            i = span;
+            continue;
+        }
         if (c != '&') {
             out.append(c);
             ++i;
@@ -946,8 +981,16 @@ BuiltChapter buildChapterFromXhtml(const QByteArray &xhtml, int spineIndex,
 {
     bool ok = true;
     const MappedChapter mc = readBlocks(prepareXml(xhtml), resolveImage, &ok);
-    // ok is informational: a well-formed doc parses fully (byte-identical); a malformed one
-    // yields whatever blocks were emitted before the error (best-effort placeholder text).
+    // A malformed doc (undefined entity outside the table, or any ill-formed XML) makes
+    // Android's XhtmlMapper.parse THROW; the reader renders a placeholder whose built text
+    // is empty (charCount 0). Match that exactly: DISCARD the partial blocks parsed before
+    // the error and return an empty BuiltChapter — the same shape the missing-entry path
+    // produces — so the offset space stays identical across devices.
+    if (!ok) {
+        BuiltChapter bc;
+        bc.spineIndex = spineIndex;
+        return bc;
+    }
     return buildChapterText(spineIndex, mc);
 }
 

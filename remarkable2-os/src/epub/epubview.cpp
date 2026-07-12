@@ -267,24 +267,24 @@ void EpubView::updateCanReturn()
 
 void EpubView::startSearch(const QString &query)
 {
-    cancelSearch();  // supersede any running scan
+    cancelSearch(false);  // supersede any running scan silently (no stray searchFinished)
     m_searchQuery = query.trimmed();
     m_searchSpine = 0;
     m_searchHits = 0;
     if (!m_doc || m_searchQuery.size() < kMinSearchLen) {
-        emit searchFinished(false);
+        emit searchFinished(false, false);
         return;
     }
     m_searchTimer.start();
 }
 
-void EpubView::cancelSearch()
+void EpubView::cancelSearch(bool emitSignal)
 {
-    if (m_searchTimer.isActive()) {
-        m_searchTimer.stop();
-        emit searchFinished(true);
-    }
+    const bool wasRunning = m_searchTimer.isActive();
+    m_searchTimer.stop();
     m_searchQuery.clear();
+    if (wasRunning && emitSignal)
+        emit searchFinished(true, false);
 }
 
 void EpubView::searchStep()
@@ -295,7 +295,7 @@ void EpubView::searchStep()
     }
     if (m_searchSpine >= m_doc->spineCount()) {
         m_searchTimer.stop();
-        emit searchFinished(false);
+        emit searchFinished(false, false);
         return;
     }
     const int spine = m_searchSpine++;
@@ -309,14 +309,15 @@ void EpubView::searchStep()
         emit searchHit(spine, idx, snippetFor(text, idx, qlen));
         if (++m_searchHits >= kMaxSearchHits) {
             m_searchTimer.stop();
-            emit searchFinished(false);
+            m_searchQuery.clear();
+            emit searchFinished(false, true);  // truncated at the cap
             return;
         }
         from = idx + qlen;
     }
     if (m_searchSpine >= m_doc->spineCount()) {
         m_searchTimer.stop();
-        emit searchFinished(false);
+        emit searchFinished(false, false);
     }
 }
 
@@ -346,16 +347,26 @@ void EpubView::paint(QPainter *painter)
     const EpubRenderer::Page pg = r->page(m_pageInSpine);
     if (!pg.imageZipPath.isEmpty()) {
         // Standalone image page: draw the bitmap fit inside the content box, centered.
-        QImage img;
-        if (!img.loadFromData(m_doc->imageBytes(pg.imageZipPath)))
-            return;
         const QRectF box(m_marginPx, m_marginPx, qMax<qreal>(1, width() - 2 * m_marginPx),
                          qMax<qreal>(1, height() - 2 * m_marginPx));
-        const QImage scaled = img.scaled(box.size().toSize(), Qt::KeepAspectRatio,
-                                         Qt::SmoothTransformation);
-        const qreal x = box.x() + (box.width() - scaled.width()) / 2;
-        const qreal y = box.y() + (box.height() - scaled.height()) / 2;
-        painter->drawImage(QPointF(x, y), scaled);
+        // Cache the decoded+scaled image: re-decoding a multi-MB JPEG every paint (each turn +
+        // any repaint) would stall the GUI thread on the armv7 device.
+        const QSize boxSize = box.size().toSize();
+        if (m_imgCachePath != pg.imageZipPath || m_imgCache.size() != boxSize) {
+            QImage img;
+            if (!img.loadFromData(m_doc->imageBytes(pg.imageZipPath))) {
+                m_imgCache = QImage();
+                m_imgCachePath.clear();
+                return;
+            }
+            m_imgCache = img.scaled(boxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            m_imgCachePath = pg.imageZipPath;
+        }
+        if (m_imgCache.isNull())
+            return;
+        const qreal x = box.x() + (box.width() - m_imgCache.width()) / 2;
+        const qreal y = box.y() + (box.height() - m_imgCache.height()) / 2;
+        painter->drawImage(QPointF(x, y), m_imgCache);
         return;
     }
     r->render(painter, m_pageInSpine, QSizeF(width(), height()));

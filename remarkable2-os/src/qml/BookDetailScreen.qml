@@ -23,14 +23,14 @@ Item {
         const p = detail.reader.openProgress(detail.book.id) // marks opened
         const resume = startPage < 0
         if (detail.isEpub) {
-            const pull = detail.reader.pullOnOpen(detail.book.id)  // network on open (user action)
+            // The reader opens immediately and calls pullOnOpen itself (async): the JUMP/STAY
+            // prompt appears when the server answers, never blocking the open.
             detail.StackView.view.push(epubReaderComp, {
                 bookId: detail.book.id,
                 filePath: detail.book.filePath,
                 title: detail.book.title,
                 startSpine: resume && p.exists ? p.spineIndex : 0,
-                startCharOffset: resume && p.exists ? (p.charOffset || 0) : 0,
-                syncPull: pull
+                startCharOffset: resume && p.exists ? (p.charOffset || 0) : 0
             })
             return
         }

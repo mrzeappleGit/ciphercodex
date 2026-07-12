@@ -21,9 +21,17 @@ Item {
     // resume seek) must not persist over the saved position before we've settled.
     property bool ready: false
 
+    property var syncPull: null
+    property bool showSyncPrompt: false
+
+    // Local save only on turn; network push happens once on leave (never on the hot path).
     function saveNow() {
         if (pdfReader.ready && pdfView.pageCount > 0)
             pdfReader.reader.saveProgress(pdfReader.bookId, pdfView.pageIndex, pdfView.pageCount)
+    }
+    function pushNow() {
+        if (pdfReader.ready && pdfView.pageCount > 0)
+            pdfReader.reader.pushProgress(pdfReader.bookId)
     }
     function reloadBookmarks() { pdfReader.bmItems = pdfReader.reader.bookmarks(pdfReader.bookId) }
     function seekTo(frac) {
@@ -43,10 +51,56 @@ Item {
             pdfView.goToPage(pdfReader.startPage)
         pdfReader.reloadBookmarks()
         pdfReader.ready = true    // only now do page changes persist
+        pdfReader.reader.pullOnOpen(pdfReader.bookId)  // async -> onPullReady
+        pdfReader.reader.syncAllDirty()
     }
     // Debounce: a scrubber drag emits many pageChanged; save once it settles (fsync-heavy).
     Timer { id: saveTimer; interval: 400; onTriggered: pdfReader.saveNow() }
-    Component.onDestruction: { saveTimer.stop(); pdfReader.saveNow() }
+    Component.onDestruction: { saveTimer.stop(); pdfReader.saveNow(); pdfReader.pushNow() }
+
+    Connections {
+        target: pdfReader.reader
+        function onPullReady(bookId, result) {
+            if (bookId === pdfReader.bookId && result.state === "RemoteNewer") {
+                pdfReader.syncPull = result
+                pdfReader.showSyncPrompt = true
+            }
+        }
+    }
+
+    // Sync JUMP/STAY prompt (PDF: spine is the page index).
+    Rectangle {
+        visible: pdfReader.showSyncPrompt
+        anchors.centerIn: parent
+        width: 620; height: 220
+        color: "white"; border { color: "black"; width: 6 }
+        z: 10
+        Column {
+            anchors.centerIn: parent
+            spacing: 30
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: pdfReader.syncPull
+                      ? "SYNC // " + pdfReader.syncPull.device + " @ "
+                        + Math.round(pdfReader.syncPull.percentage * 100) + "%"
+                      : ""
+                font { pixelSize: 28; bold: true }
+            }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 40
+                Btn {
+                    label: "JUMP"
+                    onTapped: {
+                        if (pdfReader.syncPull.spine >= 0) pdfView.goToPage(pdfReader.syncPull.spine)
+                        else pdfReader.seekTo(pdfReader.syncPull.percentage)
+                        pdfReader.showSyncPrompt = false
+                    }
+                }
+                Btn { label: "STAY"; onTapped: pdfReader.showSyncPrompt = false }
+            }
+        }
+    }
 
     Connections {
         target: pdfView

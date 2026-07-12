@@ -2,6 +2,7 @@
 
 #include <QString>
 
+#include <functional>
 #include <optional>
 
 // Forward-declared so host tests can include this header and link only kosync.cpp
@@ -66,16 +67,23 @@ struct Result {
     RemoteProgress remote;
 };
 
-// ---- Network client (kosyncclient.cpp; Qt6Network). One blocking call each. ----
+// ---- Network client (kosyncclient.cpp; Qt6Network) ----
+// register/authorize block (Settings screen, explicit user wait). getProgress/updateProgress have
+// async variants used on the reading path so the GUI thread never blocks on the network.
 
 class KosyncClient {
 public:
     explicit KosyncClient(QNetworkAccessManager *nam);
 
-    Result registerUser(const Account &a);  // POST /users/create, no auth
-    Result authorize(const Account &a);      // GET  /users/auth
-    Result getProgress(const Account &a, const QString &document);  // GET /syncs/progress/{doc}
-    Result updateProgress(const Account &a, const RemoteProgress &p);  // PUT /syncs/progress
+    Result registerUser(const Account &a);  // POST /users/create, no auth (blocking)
+    Result authorize(const Account &a);      // GET  /users/auth (blocking)
+
+    // Non-blocking. The callback runs on the GUI thread when the reply finishes; the client may be
+    // a temporary — these own the reply and only touch `nam`, so they outlive the KosyncClient.
+    void getProgressAsync(const Account &a, const QString &document,
+                          std::function<void(Result)> done);
+    void updateProgressAsync(const Account &a, const RemoteProgress &p,
+                             std::function<void(bool ok)> done);
 
 private:
     QNetworkAccessManager *m_nam;

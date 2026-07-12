@@ -51,13 +51,18 @@ public:
     Q_INVOKABLE void setSyncEnabled(bool enabled);
     Q_INVOKABLE QVariantMap testConnection();  // {ok,message} — GET /users/auth
     Q_INVOKABLE QVariantMap registerUser();    // {ok,message} — POST /users/create
-    // {state: Disabled|Failed|NoRemote|UpToDate|RemoteNewer, spine, charOffset, percentage, device}.
-    // spine/charOffset are -1 when absent (foreign xpointer has no offset -> jump by percentage).
-    Q_INVOKABLE QVariantMap pullOnOpen(qint64 bookId);
-    // Fire-and-forget PUT on turn/close/suspend; marks the local row synced on success.
+    // Async: kicks off GET /syncs/progress and emits pullReady(bookId, result) when it returns —
+    // never blocks the GUI thread. result = {state: Disabled|Failed|NoRemote|UpToDate|RemoteNewer,
+    // spine, charOffset, percentage, device}; spine/charOffset are -1 when absent (foreign xpointer
+    // has no offset -> jump by percentage). Disabled fires synchronously (no network).
+    Q_INVOKABLE void pullOnOpen(qint64 bookId);
+    // Fire-and-forget async PUT; marks the local row synced on success. Never blocks.
     Q_INVOKABLE void pushProgress(qint64 bookId, int spine, int charOffset, double percentage);
     Q_INVOKABLE void pushProgress(qint64 bookId);  // push the current saved local row
     Q_INVOKABLE void syncAllDirty();  // push every dirty progress row (dirty-retry)
+
+signals:
+    void pullReady(qint64 bookId, QVariantMap result);
 
 private:
     QVariantList allBooksWithPct();  // cached; invalidated on any mutation
@@ -66,6 +71,7 @@ private:
     bool syncUsable();                 // enabled + server + username + user_key all present
     ccx::kosync::Account account();    // from the settings table
     QString deviceId();                // persisted device_id (UUIDv4, dashes stripped); created once
+    QVariantMap resolvePull(qint64 bookId, const ccx::kosync::Result &r);  // remoteNewer logic
 
     Storage *m_storage = nullptr;
     Library *m_library = nullptr;

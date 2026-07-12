@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHash>
+#include <QImage>
 #include <QList>
 #include <QPair>
 #include <QPointF>
@@ -64,7 +65,8 @@ public:
     // Chunked, cancelable whole-book search on the GUI event loop (one chapter per tick):
     // emits searchHit per match, then searchFinished. Never blocks the UI.
     Q_INVOKABLE void startSearch(const QString &query);
-    Q_INVOKABLE void cancelSearch();
+    Q_INVOKABLE void cancelSearch() { cancelSearch(true); }
+    void cancelSearch(bool emitSignal);  // internal supersede uses emitSignal=false (silent)
 
 signals:
     void sourceChanged();
@@ -78,7 +80,7 @@ signals:
     // A tapped internal link in the reading area; QML decides (footnote popup vs jump) via follow().
     void linkActivated(const QString &href);
     void searchHit(int spine, int charOffset, const QString &snippet);
-    void searchFinished(bool canceled);
+    void searchFinished(bool canceled, bool truncated);  // truncated: hit the result cap
 
 protected:
     void mousePressEvent(QMouseEvent *e) override;
@@ -107,6 +109,8 @@ private:
     int m_bodyPx = 22;
     double m_lineSpacing = 1.4;
     int m_marginPx = 40;
+    QImage m_imgCache;        // decoded+scaled standalone-image page, keyed by path+size
+    QString m_imgCachePath;
     bool m_justify = false;
 
     QHash<int, std::shared_ptr<EpubRenderer>> m_renderers;  // spine -> renderer

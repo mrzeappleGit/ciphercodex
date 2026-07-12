@@ -100,6 +100,44 @@ QByteArray jsonBody(const QJsonObject &obj)
     return QJsonDocument(obj).toJson(QJsonDocument::Compact);
 }
 
+// Parse a GET /syncs/progress reply body into a Result (shared by sync + async paths).
+Result parseGetProgress(const Raw &raw, const QString &document)
+{
+    if (raw.httpCode != 200)
+        return errorFrom(raw);
+    const QJsonObject obj = QJsonDocument::fromJson(raw.body).object();
+    Result r;
+    r.ok = true;
+    r.httpCode = 200;
+    if (!obj.contains(QStringLiteral("percentage"))) {  // "no record" = 200 with empty object
+        r.remote.exists = false;
+        return r;
+    }
+    RemoteProgress &p = r.remote;
+    p.exists = true;
+    p.document = obj.value(QStringLiteral("document")).toString(document);
+    p.progress = obj.value(QStringLiteral("progress")).toString();
+    p.percentage = obj.value(QStringLiteral("percentage")).toDouble();
+    p.device = obj.value(QStringLiteral("device")).toString();
+    p.deviceId = obj.value(QStringLiteral("device_id")).toString();
+    p.timestamp = obj.contains(QStringLiteral("timestamp"))
+        ? qint64(obj.value(QStringLiteral("timestamp")).toDouble()) : -1;
+    return r;
+}
+
+// Read a finished reply into Raw (non-blocking: caller connected to finished already).
+Raw readFinished(QNetworkReply *reply)
+{
+    Raw raw;
+    const QVariant code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+    raw.body = reply->readAll();
+    if (code.isValid())
+        raw.httpCode = code.toInt();
+    else
+        raw.transportError = reply->errorString();
+    return raw;
+}
+
 }  // namespace
 
 KosyncClient::KosyncClient(QNetworkAccessManager *nam) : m_nam(nam) {}
@@ -126,43 +164,8 @@ Result KosyncClient::authorize(const Account &a)
     return errorFrom(raw);
 }
 
-Result KosyncClient::getProgress(const Account &a, const QString &document)
+static QJsonObject updateBody(const RemoteProgress &p)
 {
-    QNetworkRequest req = request(
-        buildUrl(a, {QStringLiteral("syncs"), QStringLiteral("progress"), document}));
-    addAuth(req, a);
-    const Raw raw = finish(m_nam->get(req));
-    if (raw.httpCode != 200)
-        return errorFrom(raw);
-
-    const QJsonObject obj = QJsonDocument::fromJson(raw.body).object();
-    Result r;
-    r.ok = true;
-    r.httpCode = 200;
-    // "No record" is a 200 with an empty object: detected by the absent
-    // percentage field, never by status.
-    if (!obj.contains(QStringLiteral("percentage"))) {
-        r.remote.exists = false;
-        return r;
-    }
-    RemoteProgress &p = r.remote;
-    p.exists = true;
-    p.document = obj.value(QStringLiteral("document")).toString(document);
-    p.progress = obj.value(QStringLiteral("progress")).toString();
-    p.percentage = obj.value(QStringLiteral("percentage")).toDouble();
-    p.device = obj.value(QStringLiteral("device")).toString();
-    p.deviceId = obj.value(QStringLiteral("device_id")).toString();
-    p.timestamp = obj.contains(QStringLiteral("timestamp"))
-        ? qint64(obj.value(QStringLiteral("timestamp")).toDouble()) : -1;
-    return r;
-}
-
-Result KosyncClient::updateProgress(const Account &a, const RemoteProgress &p)
-{
-    QNetworkRequest req = request(
-        buildUrl(a, {QStringLiteral("syncs"), QStringLiteral("progress")}));
-    addAuth(req, a);
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     QJsonObject body{
         {QStringLiteral("document"), p.document},
         {QStringLiteral("progress"), p.progress},
@@ -172,10 +175,38 @@ Result KosyncClient::updateProgress(const Account &a, const RemoteProgress &p)
         body.insert(QStringLiteral("device"), p.device);
     if (!p.deviceId.isEmpty())
         body.insert(QStringLiteral("device_id"), p.deviceId);
-    const Raw raw = finish(m_nam->put(req, jsonBody(body)));
-    if (raw.httpCode == 200)
-        return Result{true, 200, QString(), {}};
-    return errorFrom(raw);
+    return body;
+}
+
+void KosyncClient::getProgressAsync(const Account &a, const QString &document,
+                                    std::function<void(Result)> done)
+{
+    QNetworkRequest req = request(
+        buildUrl(a, {QStringLiteral("syncs"), QStringLiteral("progress"), document}));
+    addAuth(req, a);
+    QNetworkReply *reply = m_nam->get(req);
+    QObject::connect(reply, &QNetworkReply::finished, reply, [reply, document, done]() {
+        const Raw raw = readFinished(reply);
+        reply->deleteLater();
+        if (done)
+            done(parseGetProgress(raw, document));
+    });
+}
+
+void KosyncClient::updateProgressAsync(const Account &a, const RemoteProgress &p,
+                                       std::function<void(bool)> done)
+{
+    QNetworkRequest req = request(
+        buildUrl(a, {QStringLiteral("syncs"), QStringLiteral("progress")}));
+    addAuth(req, a);
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    QNetworkReply *reply = m_nam->put(req, jsonBody(updateBody(p)));
+    QObject::connect(reply, &QNetworkReply::finished, reply, [reply, done]() {
+        const Raw raw = readFinished(reply);
+        reply->deleteLater();
+        if (done)
+            done(raw.httpCode == 200);
+    });
 }
 
 }  // namespace ccx::kosync
