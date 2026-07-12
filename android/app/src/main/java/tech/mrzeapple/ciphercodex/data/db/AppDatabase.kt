@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BookmarkEntity::class, HighlightEntity::class,
         CollectionEntity::class, BookCollectionCrossRef::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -97,9 +97,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val nowMs = System.currentTimeMillis()
+                // guid-carrying tables: (table, updatedAt backfill expression)
+                listOf(
+                    "books" to "COALESCE(lastOpenedAt, addedAt)",
+                    "bookmarks" to "createdAt",
+                    "highlights" to "createdAt",
+                    "collections" to "createdAt",
+                    "reading_sessions" to "endedAt",
+                ).forEach { (t, backfill) ->
+                    db.execSQL("ALTER TABLE `$t` ADD COLUMN `guid` TEXT NOT NULL DEFAULT ''")
+                    db.execSQL("ALTER TABLE `$t` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("ALTER TABLE `$t` ADD COLUMN `deleted` INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("UPDATE `$t` SET guid = lower(hex(randomblob(16))), updatedAt = $backfill")
+                    db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_${t}_guid` ON `$t` (`guid`)")
+                }
+                db.execSQL("ALTER TABLE `book_collections` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `book_collections` ADD COLUMN `deleted` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE `book_collections` SET updatedAt = $nowMs")
+                db.execSQL("ALTER TABLE `progress` ADD COLUMN `deleted` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "ciphercodex.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build()
     }
 }

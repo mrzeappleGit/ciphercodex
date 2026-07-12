@@ -5,10 +5,11 @@ import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import tech.mrzeapple.ciphercodex.sync.Guids
 
 @Entity(
     tableName = "books",
-    indices = [Index(value = ["digest"], unique = true)],
+    indices = [Index(value = ["digest"], unique = true), Index(value = ["guid"], unique = true)],
 )
 data class BookEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -23,11 +24,14 @@ data class BookEntity(
     val sizeBytes: Long,
     val addedAt: Long,
     val lastOpenedAt: Long?,
+    @ColumnInfo(defaultValue = "''") val guid: String = Guids.new(),
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
 
 /** One contiguous stretch of active reading of one book. Sessions shorter
  *  than 15s with no page turns are discarded, not stored. */
-@Entity(tableName = "reading_sessions")
+@Entity(tableName = "reading_sessions", indices = [Index(value = ["guid"], unique = true)])
 data class ReadingSessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val bookId: Long,
@@ -36,13 +40,16 @@ data class ReadingSessionEntity(
     val pagesTurned: Int,
     val startPercentage: Float,
     val endPercentage: Float,
+    @ColumnInfo(defaultValue = "''") val guid: String = Guids.new(),
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
 
 /** A user-saved position within a book. Mirrors the firmware's BookmarkEntry;
  *  kept local (kosync carries progress only) until an annotation transport exists. */
 @Entity(
     tableName = "bookmarks",
-    indices = [Index(value = ["bookId"])],
+    indices = [Index(value = ["bookId"]), Index(value = ["guid"], unique = true)],
 )
 data class BookmarkEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -54,13 +61,16 @@ data class BookmarkEntity(
     /** Short snippet of the bookmarked page; may be blank. */
     val label: String,
     val createdAt: Long,
+    @ColumnInfo(defaultValue = "''") val guid: String = Guids.new(),
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
 
 /** A highlighted range within a book, char offsets into the chapter's built
  *  text (stable across typography). Local-only until an annotation transport exists. */
 @Entity(
     tableName = "highlights",
-    indices = [Index(value = ["bookId", "spineIndex"])],
+    indices = [Index(value = ["bookId", "spineIndex"]), Index(value = ["guid"], unique = true)],
 )
 data class HighlightEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -74,6 +84,9 @@ data class HighlightEntity(
     val note: String? = null,
     /** Index into the highlight-tint palette (0 = default cyan). */
     @ColumnInfo(defaultValue = "0") val colorId: Int = 0,
+    @ColumnInfo(defaultValue = "''") val guid: String = Guids.new(),
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
 
 /** A highlight joined with its book's title/author, for the KEPT screen. */
@@ -84,11 +97,14 @@ data class HighlightWithBook(
 )
 
 /** A user-created shelf. Books join via [BookCollectionCrossRef] (many-to-many). */
-@Entity(tableName = "collections")
+@Entity(tableName = "collections", indices = [Index(value = ["guid"], unique = true)])
 data class CollectionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val createdAt: Long,
+    @ColumnInfo(defaultValue = "''") val guid: String = Guids.new(),
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
 
 @Entity(
@@ -99,6 +115,8 @@ data class CollectionEntity(
 data class BookCollectionCrossRef(
     val collectionId: Long,
     val bookId: Long,
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
 
 @Entity(tableName = "progress")
@@ -112,4 +130,5 @@ data class ProgressEntity(
     val updatedAt: Long,
     /** updatedAt value that was last pushed successfully; null or < updatedAt means dirty. */
     val syncedAt: Long?,
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
