@@ -10,7 +10,7 @@ class SnapshotJsonTest {
      *  (points_b64 blobs) that Android must skip without error. */
     private val rm2Snapshot = """
     {"deviceId":"aabb01","generatedAt":1752300000000,
-     "books":[{"digest":"d1","guid":"g-b1","title":"Dune","author":"Herbert","format":"epub",
+     "books":[{"digest":"d1","guid":"g-b1","title":"Dune","author":"Herbert","format":1,
                "addedAt":1,"lastOpenedAt":2,"deleted":0,"updatedAt":10}],
      "progress":[{"bookDigest":"d1","spineIndex":3,"charOffset":120,"percentage":0.25,"deleted":0,"updatedAt":11}],
      "bookmarks":[{"guid":"g-m1","bookDigest":"d1","spineIndex":1,"charOffset":5,"percentage":0.1,
@@ -33,6 +33,7 @@ class SnapshotJsonTest {
         assertEquals("aabb01", s.deviceId)
         assertEquals(1, s.books.size)
         assertEquals("d1", s.books[0].digest)
+        assertEquals(1, s.books[0].format)
         assertEquals(0.25f, s.progress[0].percentage, 1e-6f)
         assertEquals("g-m1", s.bookmarks[0].guid)
         assertEquals("fear", s.highlights[0].text)

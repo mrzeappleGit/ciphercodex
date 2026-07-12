@@ -110,7 +110,7 @@ class WebDavSyncManager(
             // --- books (by digest; epub only; filePath/coverPath stay local) ---
             val localBooks = sync.allBooks().associateBy { it.digest }.toMutableMap()
             for ((digest, r) in m.books) {
-                if (r.format != "epub") continue
+                if (r.format != 1) continue
                 val local = localBooks[digest]
                 if (local == null) {
                     if (r.deleted == 1) continue // nothing local to tombstone; don't import a corpse
@@ -227,7 +227,7 @@ class WebDavSyncManager(
             deviceId = deviceId,
             generatedAt = System.currentTimeMillis(),
             books = books.map { SnapBook(digest = it.digest, guid = it.guid, title = it.title,
-                author = it.author, format = "epub", addedAt = it.addedAt,
+                author = it.author, format = 1, addedAt = it.addedAt,
                 lastOpenedAt = it.lastOpenedAt, deleted = d(it.deleted), updatedAt = it.updatedAt) },
             progress = sync.allProgress().mapNotNull { p ->
                 val digest = digestById[p.bookId] ?: return@mapNotNull null

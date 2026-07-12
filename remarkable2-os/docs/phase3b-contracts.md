@@ -24,7 +24,7 @@ snapshot serialize/merge/apply, and an off-GUI-thread engine. Endpoint is a plai
 
 ```json
 { "deviceId": "<hex>", "generatedAt": 0,
-  "books":       [{ "digest","guid","title","author","format","addedAt","lastOpenedAt","deleted","updatedAt" }],
+  "books":       [{ "digest","guid","title","author","format" (int, 1=epub 0=pdf, per shipped rM2 syncstore),"addedAt","lastOpenedAt","deleted","updatedAt" }],
   "progress":    [{ "bookDigest","spineIndex","charOffset","percentage","deleted","updatedAt" }],
   "bookmarks":   [{ "guid","bookDigest","spineIndex","charOffset","percentage","label","createdAt","deleted","updatedAt" }],
   "highlights":  [{ "guid","bookDigest","spineIndex","startChar","endChar","text","note","colorId","createdAt","deleted","updatedAt" }],

@@ -6,7 +6,7 @@ import kotlinx.serialization.json.Json
 // Field names are the frozen phase3b contract — do not rename.
 @Serializable data class SnapBook(
     val digest: String, val guid: String = "", val title: String = "",
-    val author: String? = null, val format: String = "epub",
+    val author: String? = null, val format: Int = 1, // 1 = epub, 0 = pdf (matches rM2 syncstore)
     val addedAt: Long = 0, val lastOpenedAt: Long? = null,
     val deleted: Int = 0, val updatedAt: Long = 0,
 )
