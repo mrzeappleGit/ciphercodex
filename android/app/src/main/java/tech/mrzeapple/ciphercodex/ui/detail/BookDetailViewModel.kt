@@ -73,7 +73,7 @@ class BookDetailViewModel(application: Application, private val bookId: Long) :
     fun setInShelf(collectionId: Long, inShelf: Boolean) {
         viewModelScope.launch {
             if (inShelf) dao.addBookToCollection(BookCollectionCrossRef(collectionId, bookId))
-            else dao.removeBookFromCollection(collectionId, bookId)
+            else dao.removeBookFromCollection(collectionId, bookId, System.currentTimeMillis())
         }
     }
 

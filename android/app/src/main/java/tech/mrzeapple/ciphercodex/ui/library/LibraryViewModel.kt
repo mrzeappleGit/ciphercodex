@@ -121,8 +121,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun deleteCollection(collectionId: Long) {
         viewModelScope.launch {
-            dao.deleteCollectionMembers(collectionId)
-            dao.deleteCollection(collectionId)
+            val now = System.currentTimeMillis()
+            dao.deleteCollectionMembers(collectionId, now)
+            dao.deleteCollection(collectionId, now)
         }
         if (_selectedCollection.value == collectionId) _selectedCollection.value = null
     }
@@ -130,7 +131,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun setBookInCollection(bookId: Long, collectionId: Long, inShelf: Boolean) {
         viewModelScope.launch {
             if (inShelf) dao.addBookToCollection(BookCollectionCrossRef(collectionId, bookId))
-            else dao.removeBookFromCollection(collectionId, bookId)
+            else dao.removeBookFromCollection(collectionId, bookId, System.currentTimeMillis())
         }
     }
 

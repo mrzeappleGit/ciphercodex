@@ -86,10 +86,12 @@ class BookRepository(
             if (!opened) return@withContext fail(temp, "Could not open the selected file.")
 
             val digest = Digests.partialMd5(temp)
-            dao.bookByDigest(digest)?.let { existing ->
+            val existing = dao.bookByDigest(digest)
+            if (existing != null && !existing.deleted && existing.filePath.isNotEmpty() && File(existing.filePath).exists()) {
                 temp.delete()
                 return@withContext ImportResult.Duplicate(existing.id)
             }
+            // tombstoned or metadata-only row: re-attach the file below and revive it
 
             val fallbackTitle = displayName(uri)
             val title: String
@@ -114,19 +116,32 @@ class BookRepository(
             val dest = File(booksDir(), "$digest.epub")
             moveFile(temp, dest)
 
-            val id = dao.insert(
-                BookEntity(
-                    title = title,
-                    author = author,
-                    filePath = dest.absolutePath,
-                    digest = digest,
-                    coverPath = coverPath,
-                    sizeBytes = dest.length(),
-                    addedAt = System.currentTimeMillis(),
-                    lastOpenedAt = null,
+            if (existing != null) {
+                dao.update(
+                    existing.copy(
+                        filePath = dest.absolutePath,
+                        coverPath = coverPath ?: existing.coverPath,
+                        sizeBytes = dest.length(),
+                        deleted = false,
+                        updatedAt = System.currentTimeMillis(),
+                    )
                 )
-            )
-            ImportResult.Imported(id)
+                ImportResult.Imported(existing.id)
+            } else {
+                val id = dao.insert(
+                    BookEntity(
+                        title = title,
+                        author = author,
+                        filePath = dest.absolutePath,
+                        digest = digest,
+                        coverPath = coverPath,
+                        sizeBytes = dest.length(),
+                        addedAt = System.currentTimeMillis(),
+                        lastOpenedAt = null,
+                    )
+                )
+                ImportResult.Imported(id)
+            }
         } catch (e: Exception) {
             fail(temp, "Import failed: ${e.readable()}")
         }
@@ -135,12 +150,13 @@ class BookRepository(
     override suspend fun deleteBook(bookId: Long) {
         withContext(Dispatchers.IO) {
             val book = dao.bookById(bookId) ?: return@withContext
-            dao.deleteProgressFor(bookId)
-            dao.deleteBookmarksFor(bookId)
-            dao.deleteHighlightsFor(bookId)
-            dao.deleteBookCollectionsFor(bookId)
-            statsDao.deleteSessionsFor(bookId)
-            dao.delete(book)
+            val now = System.currentTimeMillis()
+            dao.deleteProgressFor(bookId, now)
+            dao.deleteBookmarksFor(bookId, now)
+            dao.deleteHighlightsFor(bookId, now)
+            dao.deleteBookCollectionsFor(bookId, now)
+            statsDao.deleteSessionsFor(bookId, now)
+            dao.softDeleteBook(bookId, now)
             File(book.filePath).delete()
             book.coverPath?.let { File(it).delete() }
         }
@@ -152,7 +168,8 @@ class BookRepository(
     override suspend fun markOpened(bookId: Long) {
         withContext(Dispatchers.IO) {
             val book = dao.bookById(bookId) ?: return@withContext
-            dao.update(book.copy(lastOpenedAt = System.currentTimeMillis()))
+            val now = System.currentTimeMillis()
+            dao.update(book.copy(lastOpenedAt = now, updatedAt = now))
         }
     }
 

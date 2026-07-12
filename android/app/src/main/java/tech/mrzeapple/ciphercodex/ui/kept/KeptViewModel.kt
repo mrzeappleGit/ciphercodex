@@ -20,10 +20,12 @@ class KeptViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun delete(id: Long) {
-        viewModelScope.launch { dao.deleteHighlight(id) }
+        viewModelScope.launch { dao.deleteHighlight(id, System.currentTimeMillis()) }
     }
 
     fun updateAnnotation(id: Long, note: String?, colorId: Int) {
-        viewModelScope.launch { dao.setHighlightAnnotation(id, note, colorId.coerceIn(0, HighlightPalette.lastIndex)) }
+        viewModelScope.launch {
+            dao.setHighlightAnnotation(id, note, colorId.coerceIn(0, HighlightPalette.lastIndex), System.currentTimeMillis())
+        }
     }
 }

@@ -574,7 +574,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
     }
 
     fun deleteBookmark(id: Long) {
-        viewModelScope.launch(Dispatchers.IO) { dao.deleteBookmark(id) }
+        viewModelScope.launch(Dispatchers.IO) { dao.deleteBookmark(id, System.currentTimeMillis()) }
     }
 
     fun addHighlight(spineIndex: Int, startChar: Int, endChar: Int, text: String, colorId: Int = 0) {
@@ -595,7 +595,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
     }
 
     fun deleteHighlight(id: Long) {
-        viewModelScope.launch(Dispatchers.IO) { dao.deleteHighlight(id) }
+        viewModelScope.launch(Dispatchers.IO) { dao.deleteHighlight(id, System.currentTimeMillis()) }
     }
 
     fun setTheme(theme: ReadingTheme) {
