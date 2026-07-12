@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="/qt/qml/CipherCodex">/work/build-rm2/CipherCodex</file>
+
+  </qresource>
+</RCC>

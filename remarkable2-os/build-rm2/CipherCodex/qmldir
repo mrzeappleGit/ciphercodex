@@ -1,0 +1,5 @@
+module CipherCodex
+typeinfo ciphercodex-shell.qmltypes
+prefer :/qt/qml/CipherCodex/
+Main 1.0 src/Main.qml
+

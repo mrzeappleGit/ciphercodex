@@ -1,0 +1,14 @@
+-rootPath
+/work
+-cmake-output
+-output-file
+/work/build-rm2/.qt/qml_imports/ciphercodex-shell_conf.cmake
+-importPath
+/work/build-rm2/CipherCodex
+-importPath
+/work/build-rm2
+-importPath
+/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/lib/qml
+-qrcFiles
+/work/build-rm2/.qt/rcc/qmake_CipherCodex.qrc
+/work/build-rm2/.qt/rcc/ciphercodex-shell_raw_qml_0.qrc

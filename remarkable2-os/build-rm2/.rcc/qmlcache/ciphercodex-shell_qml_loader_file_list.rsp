@@ -1,0 +1,5 @@
+--resource
+/work/build-rm2/.qt/rcc/qmake_CipherCodex.qrc
+--resource
+/work/build-rm2/.qt/rcc/ciphercodex-shell_raw_qml_0.qrc
+/qt/qml/CipherCodex/src/Main.qml

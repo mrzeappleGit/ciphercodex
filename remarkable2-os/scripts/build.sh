@@ -23,7 +23,8 @@ RUN wget -q "$SDK_URL" -O /tmp/sdk.sh && chmod +x /tmp/sdk.sh \
 EOF
 fi
 
-docker run --rm -v "$(pwd -W 2>/dev/null || pwd):/work" -w /work "$IMAGE" bash -c '
+# MSYS_NO_PATHCONV: stop Git Bash rewriting /work into a Windows path
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W 2>/dev/null || pwd):/work" -w /work "$IMAGE" bash -c '
     set -e
     source /opt/codex-sdk/environment-setup-*
     cmake -S . -B build-rm2 -G Ninja

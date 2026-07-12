@@ -1,0 +1,8 @@
+set(qml_import_scanner_imports_count 6)
+set(qml_import_scanner_import_0 "CLASSNAME;QtQuick2Plugin;LINKTARGET;Qt6::qtquick2plugin;NAME;QtQuick;PATH;/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/lib/qml/QtQuick;PLUGIN;qtquick2plugin;PLUGINISOPTIONAL;;PREFER;:/qt-project.org/imports/QtQuick/;RELATIVEPATH;QtQuick;TYPE;module;")
+set(qml_import_scanner_import_1 "CLASSNAME;QtQmlPlugin;LINKTARGET;Qt6::qmlplugin;NAME;QtQml;PATH;/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/lib/qml/QtQml;PLUGIN;qmlplugin;PLUGINISOPTIONAL;;PREFER;:/qt-project.org/imports/QtQml/;RELATIVEPATH;QtQml;TYPE;module;")
+set(qml_import_scanner_import_2 "NAME;QML;PATH;/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/lib/qml/QML;PREFER;:/qt-project.org/imports/QML/;RELATIVEPATH;QML;TYPE;module;")
+set(qml_import_scanner_import_3 "CLASSNAME;QtQmlModelsPlugin;LINKTARGET;Qt6::modelsplugin;NAME;QtQml.Models;PATH;/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/lib/qml/QtQml/Models;PLUGIN;modelsplugin;PLUGINISOPTIONAL;;PREFER;:/qt-project.org/imports/QtQml/Models/;RELATIVEPATH;QtQml/Models;TYPE;module;")
+set(qml_import_scanner_import_4 "CLASSNAME;QtQmlWorkerScriptPlugin;LINKTARGET;Qt6::workerscriptplugin;NAME;QtQml.WorkerScript;PATH;/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/lib/qml/QtQml/WorkerScript;PLUGIN;workerscriptplugin;PLUGINISOPTIONAL;;PREFER;:/qt-project.org/imports/QtQml/WorkerScript/;RELATIVEPATH;QtQml/WorkerScript;TYPE;module;")
+set(qml_import_scanner_import_5 "COMPONENTS;/work/build-rm2/CipherCodex/src/Main.qml;NAME;CipherCodex;PATH;/work/build-rm2/CipherCodex;PREFER;:/qt/qml/CipherCodex/;RELATIVEPATH;CipherCodex;TYPE;module;")
+

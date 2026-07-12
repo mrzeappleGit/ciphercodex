@@ -78,11 +78,42 @@ measure.
   "REMOTE HOST IDENTIFICATION HAS CHANGED" warning after every update; fix with
   `ssh-keygen -R 10.11.99.1`. Key-based root auth persists (`/home` survives updates).
 
+## Measured input ranges (input-probe on device, OS 3.27.3.0)
+
+Pen (`event1`, Wacom I2C):
+
+| Axis | Range | Notes |
+|---|---|---|
+| ABS_X | 0–20966, res 100 pts/mm | runs along the panel's long (portrait-vertical) axis |
+| ABS_Y | 0–15725, res 100 pts/mm | runs along the short axis |
+| ABS_PRESSURE | 0–4095 | 4,096 levels confirmed |
+| ABS_DISTANCE | 0–255 | hover height — proximity/palm-rejection signal |
+| ABS_TILT_X/Y | −9000–9000 | |
+
+Tool keys: `BTN_TOOL_PEN`, `BTN_TOOL_RUBBER` (Marker Plus eraser) arrive on proximity.
+
+Touch (`event2`, pt_mt): 32 slots, `ABS_MT_POSITION` 1404×1872 (matches panel portrait),
+`ABS_MT_PRESSURE` 0–255, plus touch major/minor/orientation.
+
+**Pen→screen transform (verified on device, `PenReader` calib=1):**
+`screen_x = ABS_Y / 15725 × width`, `screen_y = (1 − ABS_X / 20966) × height` (portrait).
+
+## Display/render constraints learned in Phase 0
+
+- The epaper QPA delivers **touch but not stylus** events to Qt — pen must be read directly
+  from evdev (SDK docs say the same; confirmed on device).
+- `libqsgepaper.so` (scenegraph backend, **CLOSED license** — run on top of it, never link it)
+  contains the userspace SWTCON driver + waveform tables and renders only its own node types:
+  custom `QSGGeometryNode`/materials draw **nothing**; text, rectangles, and image nodes work.
+  Ink therefore renders via `QQuickPaintedItem` (image node) with per-segment dirty rects.
+- Backend auto-selects waveforms by scanning content (`epimageutils::scanForContentType`).
+
 ## Open items
 
 - [x] Re-audit after OS update — done 2026-07-11 (3.27.3.0, Qt 6.8.2, epaper plugin present, LGPL)
 - [x] Battery sysfs path and fields
-- [ ] Measure pen ABS ranges + eraser/tool events with input-probe
-- [ ] Measure touch ABS ranges
+- [x] Measure pen ABS ranges + eraser/tool events
+- [x] Measure touch ABS ranges
+- [x] Pen coordinate transform calibrated (calib=1)
 - [ ] Suspend/resume behavior (power button, `systemctl suspend`)
-- [ ] Pen-to-ink latency through epaper QPA vs stock xochitl
+- [ ] Pen-to-ink latency through epaper QPA vs stock xochitl (quantified measurement)
