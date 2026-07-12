@@ -1,20 +1,20 @@
 # Hardware audit — reMarkable 2 (CipherCodex target device)
 
-Audited 2026-07-11 over USB SSH (10.11.99.1). Items marked **[re-verify]** must be re-checked
-after the pending OS update; pen/touch ranges get measured with `input-probe` in Phase 0.
+Audited 2026-07-11 over USB SSH (10.11.99.1), first on OS 3.16.2.3, re-audited after updating the
+device to 3.27.3.0. Pen/touch ABS ranges get measured with `input-probe` in Phase 0.
 
 ## OS and platform
 
 | Item | Observed |
 |---|---|
-| OS version | 3.16.2.3 **[re-verify — update in progress]** |
-| Kernel | Linux 5.4.70-v1.5.1-rm11x armv7l (SMP PREEMPT) |
+| OS version | 3.27.3.0 (updated 2026-07-11 from 3.16.2.3 via stock updater) |
+| Kernel | Linux 5.4.70-v1.6.3-rm11x armv7l (SMP PREEMPT) |
 | SoC | Freescale i.MX7 Dual, ARMv7 rev 5 |
-| RAM | 994 900 kB total (~807 MB available at idle under stock) |
-| Rootfs | `/dev/root` 255.7 MB, **95 % full** — never install here |
-| User storage | `/dev/mmcblk2p4` on `/home`, ext4, 6.6 GB, 4.3 GB free |
+| RAM | 1 027 664 kB total (~847 MB available at idle under stock) |
+| Rootfs | `/dev/root` ~256 MB, ~95 % full — never install here |
+| User storage | `/dev/mmcblk2p4` on `/home`, ext4, 6.6 GB, 4.3 GB free (survived update) |
 | Boot config | `/dev/mmcblk2p1` vfat on `/var/lib/uboot` (A/B slot switching lives here) |
-| Qt on device | 6.5.2 (`/usr/lib/libQt6*.so.6.5.2`) **[re-verify]** |
+| Qt on device | 6.8.2 (`/usr/lib/libQt6Core.so.6.8.2`; was 6.5.2 on OS 3.16) |
 | Shell | BusyBox v1.35.0 (head/sort/etc. are BusyBox variants) |
 
 ## Display
@@ -42,8 +42,9 @@ measure.
 
 ## Power / battery
 
-- `/sys/class/power_supply/` enumeration returned empty over non-interactive BusyBox shell
-  **[re-verify with input-probe deploy session — likely max77818 battery]**.
+- `/sys/class/power_supply/max77818_battery` — `type=Battery`, `capacity` (percent), `status`
+  (Charging/Discharging/Full). Verified live: capacity=68, status=Charging.
+- `/sys/class/power_supply/max77818-charger` — `type=USB`, `status` shows charger presence.
 
 ## Network / services
 
@@ -64,16 +65,24 @@ measure.
 
 ## SDK / toolchain
 
-- Official per-version SDKs (x86_64 Linux self-extracting, Qt 6.5 + sysroot + cross gcc):
+- Official per-version SDKs (x86_64 Linux self-extracting, Qt + sysroot + cross gcc):
   `https://storage.googleapis.com/remarkable-codex-toolchain/<os-version>/rm2/...`
-- No SDK exists for 3.16.x → device being updated to latest (3.27.0.97 listed as newest rm2).
 - Anonymous bucket listing is denied; exact URLs come from https://developer.remarkable.com/links.
+- No SDK published for 3.27.3.0 (probed bucket directly: 404). Pinned **3.27.0.97 /
+  remarkable-production-image-5.7.119** — same 3.27 line, Qt 6.8. Recorded deviation: SDK is
+  three patch releases behind the device OS.
+
+## Update / host-key note
+
+- The OS update regenerated the device's dropbear host keys — expect an SSH
+  "REMOTE HOST IDENTIFICATION HAS CHANGED" warning after every update; fix with
+  `ssh-keygen -R 10.11.99.1`. Key-based root auth persists (`/home` survives updates).
 
 ## Open items
 
-- [ ] Re-audit after OS update (version, Qt, epaper plugin still present + LGPL)
+- [x] Re-audit after OS update — done 2026-07-11 (3.27.3.0, Qt 6.8.2, epaper plugin present, LGPL)
+- [x] Battery sysfs path and fields
 - [ ] Measure pen ABS ranges + eraser/tool events with input-probe
 - [ ] Measure touch ABS ranges
-- [ ] Battery sysfs path and fields
 - [ ] Suspend/resume behavior (power button, `systemctl suspend`)
 - [ ] Pen-to-ink latency through epaper QPA vs stock xochitl
