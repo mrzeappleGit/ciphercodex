@@ -16,6 +16,7 @@ import tech.mrzeapple.ciphercodex.data.db.BookDao
 import tech.mrzeapple.ciphercodex.data.db.BookEntity
 import tech.mrzeapple.ciphercodex.data.db.ProgressEntity
 import tech.mrzeapple.ciphercodex.data.db.StatsDao
+import tech.mrzeapple.ciphercodex.data.db.SyncDao
 import tech.mrzeapple.ciphercodex.epub.Epub
 import tech.mrzeapple.ciphercodex.epub.EpubParseException
 import tech.mrzeapple.ciphercodex.sync.Digests
@@ -25,6 +26,7 @@ class BookRepository(
     private val context: Context,
     private val dao: BookDao,
     private val statsDao: StatsDao,
+    private val syncDao: SyncDao,
 ) : LibraryRepository {
 
     private val importMutex = Mutex()
@@ -189,6 +191,21 @@ class BookRepository(
                 )
             )
         }
+    }
+
+    override suspend fun attachBookFile(digest: String, file: File): Boolean = withContext(Dispatchers.IO) {
+        if (Digests.partialMd5(file) != digest) { file.delete(); return@withContext false }
+        val coverPath = runCatching {
+            Epub.open(file).use { doc ->
+                doc.coverImageBytes()?.let { bytes ->
+                    File(coversDir(), "$digest.img").apply { writeBytes(bytes) }.absolutePath
+                }
+            }
+        }.getOrNull()
+        val dest = File(booksDir(), "$digest.epub")
+        moveFile(file, dest)
+        syncDao.attachBookFile(digest, dest.absolutePath, coverPath, dest.length())
+        true
     }
 
     /** Deletes temps orphaned by a process kill mid-import. Safe to run at

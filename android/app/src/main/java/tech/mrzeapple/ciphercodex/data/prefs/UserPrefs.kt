@@ -58,6 +58,12 @@ data class Settings(
     val librarySort: LibrarySort,
     /** High-contrast ink-on-paper chrome for color e-ink (Boox Kaleido). */
     val einkMode: Boolean,
+    /** WebDAV endpoint base URL, always trailing-slash-terminated when non-empty. */
+    val webdavUrl: String,
+    val webdavUser: String,
+    val webdavPass: String,
+    /** Wall-clock millis of the last WebDAV sync attempt; 0 = never. */
+    val webdavLastSyncAt: Long,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -86,6 +92,10 @@ class UserPrefs(private val context: Context) {
         val lastSyncAt = longPreferencesKey("last_sync_at")
         val librarySort = stringPreferencesKey("library_sort")
         val einkMode = booleanPreferencesKey("eink_mode")
+        val webdavUrl = stringPreferencesKey("webdav_url")
+        val webdavUser = stringPreferencesKey("webdav_user")
+        val webdavPass = stringPreferencesKey("webdav_pass")
+        val webdavLastSyncAt = longPreferencesKey("webdav_last_sync_at")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -115,6 +125,10 @@ class UserPrefs(private val context: Context) {
             librarySort = LibrarySort.entries.firstOrNull { it.name == p[Keys.librarySort] }
                 ?: LibrarySort.RECENT,
             einkMode = p[Keys.einkMode] ?: false,
+            webdavUrl = p[Keys.webdavUrl] ?: "",
+            webdavUser = p[Keys.webdavUser] ?: "",
+            webdavPass = p[Keys.webdavPass] ?: "",
+            webdavLastSyncAt = p[Keys.webdavLastSyncAt] ?: 0L,
         )
     }
 
@@ -149,6 +163,14 @@ class UserPrefs(private val context: Context) {
     suspend fun setLastSyncAt(value: Long) = context.dataStore.edit { it[Keys.lastSyncAt] = value }
     suspend fun setLibrarySort(value: LibrarySort) = context.dataStore.edit { it[Keys.librarySort] = value.name }
     suspend fun setEinkMode(value: Boolean) = context.dataStore.edit { it[Keys.einkMode] = value }
+
+    suspend fun setWebdavUrl(value: String) = context.dataStore.edit {
+        val t = value.trim()
+        it[Keys.webdavUrl] = if (t.isEmpty() || t.endsWith("/")) t else "$t/"
+    }
+    suspend fun setWebdavUser(value: String) = context.dataStore.edit { it[Keys.webdavUser] = value.trim() }
+    suspend fun setWebdavPass(value: String) = context.dataStore.edit { it[Keys.webdavPass] = value }
+    suspend fun setWebdavLastSyncAt(value: Long) = context.dataStore.edit { it[Keys.webdavLastSyncAt] = value }
 
     companion object {
         const val DEFAULT_SERVER = "https://sync.koreader.rocks"

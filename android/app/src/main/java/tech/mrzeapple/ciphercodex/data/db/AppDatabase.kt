@@ -19,6 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 abstract class AppDatabase : RoomDatabase() {
     abstract fun bookDao(): BookDao
     abstract fun statsDao(): StatsDao
+    abstract fun syncDao(): SyncDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {

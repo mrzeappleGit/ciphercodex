@@ -18,7 +18,10 @@ class CipherCodexApp : Application() {
     val prefs: UserPrefs by lazy { UserPrefs(this) }
     val kosync: KosyncApi by lazy { KosyncClient() }
     val syncManager: SyncManager by lazy { KosyncSyncManager(prefs, database.bookDao(), kosync) }
-    val repository: LibraryRepository by lazy { BookRepository(this, database.bookDao(), database.statsDao()) }
+    val repository: LibraryRepository by lazy {
+        BookRepository(this, database.bookDao(), database.statsDao(), database.syncDao())
+    }
+    // webdavSync (WebDavSyncManager) wiring arrives in Task 7 Step 2.
 
     override fun onCreate() {
         super.onCreate()

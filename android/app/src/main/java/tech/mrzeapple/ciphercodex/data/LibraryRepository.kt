@@ -4,6 +4,7 @@ import android.net.Uri
 import kotlinx.coroutines.flow.Flow
 import tech.mrzeapple.ciphercodex.data.db.BookEntity
 import tech.mrzeapple.ciphercodex.epub.EpubDocument
+import java.io.File
 
 data class BookWithProgress(
     val book: BookEntity,
@@ -39,4 +40,8 @@ interface LibraryRepository {
     suspend fun markOpened(bookId: Long)
 
     suspend fun saveProgress(bookId: Long, spineIndex: Int, charOffset: Int, percentage: Float)
+
+    /** Attach a sync-downloaded epub to its merged metadata-only row. Verifies the
+     *  digest matches before accepting; extracts the cover. */
+    suspend fun attachBookFile(digest: String, file: File): Boolean
 }

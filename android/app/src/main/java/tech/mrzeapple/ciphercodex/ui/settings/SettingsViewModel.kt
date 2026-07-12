@@ -212,6 +212,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             lastSyncAt = 0L,
             librarySort = LibrarySort.RECENT,
             einkMode = false,
+            webdavUrl = "",
+            webdavUser = "",
+            webdavPass = "",
+            webdavLastSyncAt = 0L,
         )
     }
 }
