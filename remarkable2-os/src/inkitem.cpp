@@ -37,7 +37,7 @@ void InkItem::paint(QPainter *painter)
 void InkItem::drawSegment(const QPointF &from, const QPointF &to, qreal pressure)
 {
     ensureBuffer();
-    const qreal w = 1.5 + pressure * 4.0;
+    const qreal w = 1.0 + pressure * pressure * 10.0; // squared: light touch stays fine, lean gets bold
     QPainter p(&m_buffer);
     p.setRenderHint(QPainter::Antialiasing, false); // 1-bit-ish ink, faster on e-ink
     p.setPen(QPen(Qt::black, w, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));

@@ -102,6 +102,8 @@ Touch (`event2`, pt_mt): 32 slots, `ABS_MT_POSITION` 1404×1872 (matches panel p
 
 - The epaper QPA delivers **touch but not stylus** events to Qt — pen must be read directly
   from evdev (SDK docs say the same; confirmed on device).
+- Touch transform: `QT_QPA_EVDEV_TOUCHSCREEN_PARAMETERS=inverty` (verified with an on-screen
+  touch-position probe; the SDK-documented `rotate=180:invertx` mirrors X on this device/OS).
 - `libqsgepaper.so` (scenegraph backend, **CLOSED license** — run on top of it, never link it)
   contains the userspace SWTCON driver + waveform tables and renders only its own node types:
   custom `QSGGeometryNode`/materials draw **nothing**; text, rectangles, and image nodes work.
@@ -115,5 +117,10 @@ Touch (`event2`, pt_mt): 32 slots, `ABS_MT_POSITION` 1404×1872 (matches panel p
 - [x] Measure pen ABS ranges + eraser/tool events
 - [x] Measure touch ABS ranges
 - [x] Pen coordinate transform calibrated (calib=1)
+- [x] Touch transform calibrated (inverty)
+- [x] Pen-to-ink latency: perceived parity with stock xochitl (owner test, hello v3 painted-item
+      path). Quantified glass-to-ink measurement still to be scripted.
+- [x] Pressure→width verified visually (squared curve)
+- [ ] Marker Plus eraser: owner's Marker has no eraser end — BTN_TOOL_RUBBER handling implemented
+      but untested on hardware; retest when a Marker Plus is available
 - [ ] Suspend/resume behavior (power button, `systemctl suspend`)
-- [ ] Pen-to-ink latency through epaper QPA vs stock xochitl (quantified measurement)

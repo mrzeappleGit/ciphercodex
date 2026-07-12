@@ -44,6 +44,30 @@ Window {
         anchors { top: header.bottom; left: parent.left; right: parent.right; bottom: footer.top }
     }
 
+    // Touch calibration probe: ring shows where Qt thinks your finger is.
+    PointHandler {
+        id: touchProbe
+        acceptedDevices: PointerDevice.TouchScreen
+        target: Rectangle {
+            parent: root.contentItem
+            visible: touchProbe.active
+            x: touchProbe.point.position.x - 30
+            y: touchProbe.point.position.y - 30
+            width: 60; height: 60; radius: 30
+            color: "transparent"
+            border { color: "black"; width: 6 }
+        }
+        onPointChanged: if (active) touchInfo.text =
+            "touch " + Math.round(point.position.x) + "," + Math.round(point.position.y)
+    }
+    Text {
+        id: touchInfo
+        anchors { bottom: footer.top; bottomMargin: 10; horizontalCenter: parent.horizontalCenter }
+        font.pixelSize: 28
+        color: "black"
+        text: "touch: tap anywhere"
+    }
+
     // Touch draws nothing; it only proves palm rejection state and taps buttons.
     Text {
         id: info

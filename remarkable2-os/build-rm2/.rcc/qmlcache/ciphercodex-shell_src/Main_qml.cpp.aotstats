@@ -6,7 +6,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 17,
-                        "durationMicroseconds": 140,
+                        "durationMicroseconds": 134,
                         "errorMessage": "",
                         "functionName": "visibility",
                         "line": 9
@@ -14,7 +14,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 12,
-                        "durationMicroseconds": 54,
+                        "durationMicroseconds": 48,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 10
@@ -22,7 +22,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 13,
-                        "durationMicroseconds": 38,
+                        "durationMicroseconds": 34,
                         "errorMessage": "",
                         "functionName": "height",
                         "line": 11
@@ -30,7 +30,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 21,
-                        "durationMicroseconds": 28,
+                        "durationMicroseconds": 16,
                         "errorMessage": "Cannot retrieve a non-object type by ID: ink",
                         "functionName": "onPenDown",
                         "line": 16
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 21,
-                        "durationMicroseconds": 66,
+                        "durationMicroseconds": 45,
                         "errorMessage": "",
                         "functionName": "onPenDown",
                         "line": 16
@@ -46,7 +46,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 21,
-                        "durationMicroseconds": 10,
+                        "durationMicroseconds": 8,
                         "errorMessage": "Cannot retrieve a non-object type by ID: ink",
                         "functionName": "onPenMove",
                         "line": 17
@@ -54,7 +54,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 21,
-                        "durationMicroseconds": 42,
+                        "durationMicroseconds": 38,
                         "errorMessage": "",
                         "functionName": "onPenMove",
                         "line": 17
@@ -62,7 +62,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 18,
-                        "durationMicroseconds": 7,
+                        "durationMicroseconds": 5,
                         "errorMessage": "Cannot retrieve a non-object type by ID: ink",
                         "functionName": "onPenUp",
                         "line": 18
@@ -70,7 +70,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 18,
-                        "durationMicroseconds": 17,
+                        "durationMicroseconds": 15,
                         "errorMessage": "",
                         "functionName": "onPenUp",
                         "line": 18
@@ -78,7 +78,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 16,
-                        "durationMicroseconds": 66,
+                        "durationMicroseconds": 46,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 24
@@ -86,7 +86,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 29,
-                        "durationMicroseconds": 111,
+                        "durationMicroseconds": 64,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 27
@@ -94,7 +94,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 74,
-                        "durationMicroseconds": 95,
+                        "durationMicroseconds": 59,
                         "errorMessage": "",
                         "functionName": "verticalCenter",
                         "line": 27
@@ -102,7 +102,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 24,
-                        "durationMicroseconds": 134,
+                        "durationMicroseconds": 145,
                         "errorMessage": "Cannot generate efficient code for storing an array in a non-sequence type",
                         "functionName": "model",
                         "line": 30
@@ -110,7 +110,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 48,
-                        "durationMicroseconds": 113,
+                        "durationMicroseconds": 110,
                         "errorMessage": "Cannot access value for name modelData",
                         "functionName": "height",
                         "line": 31
@@ -118,7 +118,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 99,
-                        "durationMicroseconds": 68,
+                        "durationMicroseconds": 113,
                         "errorMessage": "",
                         "functionName": "verticalCenter",
                         "line": 31
@@ -126,7 +126,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 31,
-                        "durationMicroseconds": 27,
+                        "durationMicroseconds": 35,
                         "errorMessage": "",
                         "functionName": "centerIn",
                         "line": 35
@@ -165,99 +165,163 @@
                     },
                     {
                         "codegenSuccessfull": true,
-                        "column": 24,
-                        "durationMicroseconds": 168,
+                        "column": 26,
+                        "durationMicroseconds": 45,
                         "errorMessage": "",
-                        "functionName": "top",
+                        "functionName": "acceptedDevices",
                         "line": 50
                     },
                     {
                         "codegenSuccessfull": true,
-                        "column": 72,
-                        "durationMicroseconds": 95,
+                        "column": 25,
+                        "durationMicroseconds": 555,
                         "errorMessage": "",
-                        "functionName": "horizontalCenter",
-                        "line": 50
+                        "functionName": "onPointChanged",
+                        "line": 60
                     },
                     {
-                        "codegenSuccessfull": false,
-                        "column": 26,
-                        "durationMicroseconds": 797,
-                        "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
-                        "functionName": "onTriggered",
+                        "codegenSuccessfull": true,
+                        "column": 21,
+                        "durationMicroseconds": 46,
+                        "errorMessage": "",
+                        "functionName": "parent",
+                        "line": 52
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 22,
+                        "durationMicroseconds": 37,
+                        "errorMessage": "",
+                        "functionName": "visible",
+                        "line": 53
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 16,
+                        "durationMicroseconds": 116,
+                        "errorMessage": "",
+                        "functionName": "x",
+                        "line": 54
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 16,
+                        "durationMicroseconds": 109,
+                        "errorMessage": "",
+                        "functionName": "y",
                         "line": 55
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 99,
+                        "durationMicroseconds": 110,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 65
                     },
                     {
                         "codegenSuccessfull": true,
-                        "column": 60,
-                        "durationMicroseconds": 66,
+                        "column": 75,
+                        "durationMicroseconds": 85,
                         "errorMessage": "",
                         "functionName": "horizontalCenter",
                         "line": 65
                     },
                     {
                         "codegenSuccessfull": true,
+                        "column": 24,
+                        "durationMicroseconds": 62,
+                        "errorMessage": "",
+                        "functionName": "top",
+                        "line": 74
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 72,
+                        "durationMicroseconds": 58,
+                        "errorMessage": "",
+                        "functionName": "horizontalCenter",
+                        "line": 74
+                    },
+                    {
+                        "codegenSuccessfull": false,
+                        "column": 26,
+                        "durationMicroseconds": 752,
+                        "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
+                        "functionName": "onTriggered",
+                        "line": 79
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 27,
+                        "durationMicroseconds": 89,
+                        "errorMessage": "",
+                        "functionName": "bottom",
+                        "line": 89
+                    },
+                    {
+                        "codegenSuccessfull": true,
+                        "column": 60,
+                        "durationMicroseconds": 60,
+                        "errorMessage": "",
+                        "functionName": "horizontalCenter",
+                        "line": 89
+                    },
+                    {
+                        "codegenSuccessfull": true,
                         "column": 38,
-                        "durationMicroseconds": 27,
+                        "durationMicroseconds": 25,
                         "errorMessage": "",
                         "functionName": "centerIn",
-                        "line": 70
+                        "line": 94
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 36,
-                        "durationMicroseconds": 12,
+                        "durationMicroseconds": 11,
                         "errorMessage": "Cannot retrieve a non-object type by ID: ink",
                         "functionName": "onTapped",
-                        "line": 71
+                        "line": 95
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 52,
-                        "durationMicroseconds": 127,
+                        "durationMicroseconds": 82,
                         "errorMessage": "",
                         "functionName": "text",
-                        "line": 75
+                        "line": 99
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 38,
-                        "durationMicroseconds": 30,
+                        "durationMicroseconds": 24,
                         "errorMessage": "",
                         "functionName": "centerIn",
-                        "line": 75
+                        "line": 99
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 36,
-                        "durationMicroseconds": 186,
+                        "durationMicroseconds": 165,
                         "errorMessage": "",
                         "functionName": "onTapped",
-                        "line": 76
+                        "line": 100
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 38,
-                        "durationMicroseconds": 27,
+                        "durationMicroseconds": 24,
                         "errorMessage": "",
                         "functionName": "centerIn",
-                        "line": 80
+                        "line": 104
                     },
                     {
                         "codegenSuccessfull": true,
                         "column": 36,
-                        "durationMicroseconds": 72,
+                        "durationMicroseconds": 65,
                         "errorMessage": "",
                         "functionName": "onTapped",
-                        "line": 81
+                        "line": 105
                     }
                 ],
                 "filepath": "/work/src/Main.qml"

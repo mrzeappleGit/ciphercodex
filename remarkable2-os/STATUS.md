@@ -1,30 +1,32 @@
 # STATUS
 
-Updated: 2026-07-11
+Updated: 2026-07-11 (late)
 
-## Done
+## Done — Phase 0 nearly complete
 
-- Device audited over USB SSH (see `docs/hardware-audit.md`); SSH key auth installed.
-- Full `/home` backup taken and verified (`device-backups/rm2-home-2026-07-11.tar`, 2.03 GB).
-- Design approved and committed (`docs/superpowers/specs/2026-07-11-remarkable2-os-design.md`).
-- Architecture: Qt 6.5 Qt Quick shell on the stock LGPL `epaper` QPA plugin. Confirmed present
-  on device.
-- Phase 0 scaffold: hello-screen app (`src/main.cpp`, `src/Main.qml`), evdev audit tool
-  (`src/tools/input_probe.c`), Docker SDK build script, deploy + restore-stock scripts.
+- Device audited, updated to OS 3.27.3.0, SSH key auth, full `/home` backup (2.03 GB, verified).
+- Toolchain: official SDK 3.27.0.97 in Docker image `ccx-rm2-sdk:3.27.0.97`; `scripts/build.sh`
+  cross-compiles; `scripts/deploy.sh` deploys + launches detached (xochitl always returns).
+- Hello screen v3 proven on hardware:
+  - Display via stock epaper QPA + qsgepaper backend (pure Qt Quick).
+  - Marker via raw evdev `PenReader` (QPA doesn't deliver stylus); calib=1 transform verified.
+  - Ink via `InkItem` (QQuickPaintedItem + dirty rects) — custom scenegraph geometry is NOT
+    rendered by qsgepaper (CLOSED lib; we only run on top of it).
+  - Perceived pen latency: parity with stock (owner test).
+  - Pressure→width works (squared curve); tilt values stream; palm makes no marks.
+  - Touch calibrated: `inverty` (docs' `rotate=180:invertx` is wrong for this device).
+  - CLEAR/EXIT buttons work; EXIT returns to stock UI via detached run script.
+- Hardware audit: `docs/hardware-audit.md` — measured pen/touch ranges, battery sysfs, licenses.
 
-## In progress
+## Open Phase 0 items
 
-- Device OS update to latest (was 3.16.2.3 — no matching SDK exists for it). Watcher armed.
-
-## Blockers
-
-- SDK download URL pends the post-update OS version (`scripts/sdk-version.env` empty until then).
+- Suspend/resume test (power button behavior under our shell; wake without xochitl).
+- Scripted glass-to-ink latency measurement (currently perceived-parity only).
+- Marker Plus eraser untested (owner's Marker lacks eraser end); code path implemented.
+- Input-event replay harness (recording exists via input-probe).
 
 ## Next executable step
 
-1. When device reports new version: re-audit, fill `sdk-version.env` from
-   https://developer.remarkable.com/links, run `scripts/build.sh`, then `scripts/deploy.sh`.
-2. On-device: run `input-probe /dev/input/event1 10` while using the Marker (pressure/tilt/eraser)
-   and record ranges in the audit doc.
-3. Verify hello screen: display refresh, touch draw, Marker draw (does the QPA deliver stylus
-   pressure to Qt?), EXIT returns to xochitl.
+Phase 1 notebook vertical slice: SQLite stroke journal (per-stroke WAL transactions),
+notebook/page model, reopen-after-restart, then the forced-power-loss durability test
+(kill -9 mid-writing + hard power cycle; all completed strokes must survive).
