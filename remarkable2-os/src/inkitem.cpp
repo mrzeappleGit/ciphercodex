@@ -1,5 +1,7 @@
 #include "inkitem.h"
 
+#include "epscreenmode.h"
+
 #include <QPainter>
 #include <QPen>
 
@@ -17,14 +19,33 @@ static qreal distSqToSegment(const QPointF &p, const QPointF &a, const QPointF &
     return QPointF::dotProduct(d, d);
 }
 
-static qreal strokeWidth(qreal pressure)
+// Marker pressure saturates near max during normal writing (measured on device: a firm
+// hand pins ABS_PRESSURE at ~3900/4095), so a plain squared curve compresses all variation
+// into the top and looks constant. Remap the [floor..1] band across the width range instead.
+// ponytail: floor/min/max are hardware-feel knobs — env-tunable for on-device A/B, then baked.
+qreal inkStrokeWidth(qreal pressure)
 {
-    return 1.0 + pressure * pressure * 10.0; // squared: light touch stays fine, lean gets bold
+    static const qreal floor = qEnvironmentVariableIsSet("CCX_PEN_FLOOR")
+        ? qEnvironmentVariable("CCX_PEN_FLOOR").toDouble() : 0.35;
+    static const qreal maxW = qEnvironmentVariableIsSet("CCX_PEN_MAXW")
+        ? qEnvironmentVariable("CCX_PEN_MAXW").toDouble() : 9.0;
+    static const qreal minW = 1.0;
+    const qreal p = qBound(0.0, (pressure - floor) / (1.0 - floor), 1.0);
+    return minW + p * p * (maxW - minW); // gentle curve within the usable band
 }
 
 InkItem::InkItem(QQuickItem *parent) : QQuickPaintedItem(parent)
 {
     setOpaquePainting(true);
+    // linear texture filtering / mipmaps gray out every ink edge in the compositor, which
+    // makes the epaper backend classify updates as "grays" (slow) instead of mono
+    setSmooth(false);
+    setAntialiasing(false);
+    setMipmap(false);
+    // Pen(0) waveform by default (verified stock-parity latency on device 2026-07-12);
+    // CCX_SCREENMODE overrides for A/B, -1 disables and reverts to the slow grays waveform.
+    if (qEnvironmentVariableIsSet("CCX_SCREENMODE"))
+        m_screenModeVal = qEnvironmentVariableIntValue("CCX_SCREENMODE");
 }
 
 // Normalization denominator for y: the full 1404x1872 page, not the (toolbar-clipped)
@@ -56,9 +77,20 @@ void InkItem::ensureBuffer()
     m_buffer = fresh;
 }
 
+void InkItem::ensureScreenMode()
+{
+    if (m_screenModeVal < 0 || m_screenMode || width() < 1 || height() < 1 || !window())
+        return;
+    // Pen(0) waveform over the ink region: the low-latency path xochitl uses while writing.
+    m_screenMode = epscreenmode::attachScreenMode(this, m_screenModeVal);
+}
+
 void InkItem::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
     QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
+    ensureScreenMode();
+    if (m_screenMode)
+        m_screenMode->setSize(newGeometry.size());
     if (newGeometry.size() != oldGeometry.size() && !m_strokes.isEmpty()) {
         renderAll(); // normalized->pixel mapping changed
         update();
@@ -69,6 +101,7 @@ void InkItem::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometr
 
 void InkItem::paint(QPainter *painter)
 {
+    ensureScreenMode(); // window() is guaranteed live here; geometryChange may fire too early
     if (!m_buffer.isNull())
         painter->drawImage(0, 0, m_buffer);
 }
@@ -77,7 +110,7 @@ QRect InkItem::drawSegment(const QPointF &from, const QPointF &to, qreal pressur
                            const QColor &color)
 {
     ensureBuffer();
-    const qreal w = strokeWidth(pressure);
+    const qreal w = inkStrokeWidth(pressure);
     QPainter p(&m_buffer);
     p.setRenderHint(QPainter::Antialiasing, false); // 1-bit-ish ink, faster on e-ink
     p.setPen(QPen(color, w, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
@@ -98,7 +131,7 @@ QRect InkItem::paintStroke(QPainter &p, const StrokeData &s, const QColor &color
     QPointF prev(s.pts[0].x * w, s.pts[0].y * ph);
     for (int i = 0; i < s.pts.size(); ++i) {
         const QPointF cur(s.pts[i].x * w, s.pts[i].y * ph);
-        const qreal sw = strokeWidth(s.pts[i].pressure / 4095.0);
+        const qreal sw = inkStrokeWidth(s.pts[i].pressure / 4095.0);
         pen.setWidthF(sw);
         p.setPen(pen);
         p.drawLine(prev, cur);

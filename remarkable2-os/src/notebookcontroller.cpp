@@ -265,8 +265,7 @@ bool NotebookController::exportNotebookPdf(qint64 notebookId, const QString &out
             QPointF prev(s.pts[0].x * PDF_W, s.pts[0].y * PDF_H);
             for (int i = 0; i < s.pts.size(); ++i) {
                 const QPointF cur(s.pts[i].x * PDF_W, s.pts[i].y * PDF_H);
-                const qreal pr = s.pts[i].pressure / 4095.0;
-                p.setPen(QPen(Qt::black, 1.0 + pr * pr * 10.0,
+                p.setPen(QPen(Qt::black, inkStrokeWidth(s.pts[i].pressure / 4095.0),
                               Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
                 p.drawLine(prev, cur);
                 prev = cur;

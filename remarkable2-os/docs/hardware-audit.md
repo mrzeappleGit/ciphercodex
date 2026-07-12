@@ -98,6 +98,33 @@ Touch (`event2`, pt_mt): 32 slots, `ABS_MT_POSITION` 1404×1872 (matches panel p
 **Pen→screen transform (verified on device, `PenReader` calib=1):**
 `screen_x = ABS_Y / 15725 × width`, `screen_y = (1 − ABS_X / 20966) × height` (portrait).
 
+## Ink latency solved (Phase 1)
+
+Stock-parity pen latency requires the backend's fast pen waveform, which is NOT auto-selected:
+our black-on-white ink was classified "grays" (slow 16-level GC16) on 100% of updates.
+
+- `libqsgepaper.so` exports **`EPScreenModeItem`** (a QQuickItem; LICENSE CLOSED). Placing one as
+  a child of the ink canvas, sized to cover it, with `mode = Pen(0)` tags that screen region for
+  the fast handwriting waveform — the same mechanism xochitl uses. Verified on device: updates
+  flipped from "grays" to "pen update" (1529 pen vs 8 grays in a writing session), latency became
+  stock-parity ("perfect" per owner).
+- Mode enum (read live from the plugin metaobject, `CCX_PROBE_SCREENMODE`):
+  Pen=0, Mono=1, Animation=2, UI=3, Content=4, Sleep=5.
+- We reach the class by dlsym at runtime (already loaded via `QT_QUICK_BACKEND=epaper`); no copy,
+  no static link. All isolated in `src/epscreenmode.cpp`, which degrades gracefully to the slow
+  waveform if a future OS drops the symbols. This is the project's one closed-ABI dependency.
+- Also required: ink item `smooth=false`, `antialiasing=false`, `mipmap=false` so the compositor
+  keeps ink genuinely 2-level (any gray edge pixel would re-trip the "grays" classifier).
+- The screen-mode item must be reachable in the render tree (z=1, in front of the opaque canvas)
+  and attached only once `window()` is live — do it in `paint()`, not `geometryChange` (too early).
+
+## Pen pressure
+
+- The Marker saturates ABS_PRESSURE near max (~3900/4095) under a normal firm hand. A plain
+  squared width curve compresses all variation into the top and looks constant. `inkStrokeWidth()`
+  remaps a `[floor..1]` band (floor 0.35 default, env-tunable `CCX_PEN_FLOOR`/`CCX_PEN_MAXW`)
+  across the width range so variation is visible where people actually write.
+
 ## Display/render constraints learned in Phase 0
 
 - The epaper QPA delivers **touch but not stylus** events to Qt — pen must be read directly

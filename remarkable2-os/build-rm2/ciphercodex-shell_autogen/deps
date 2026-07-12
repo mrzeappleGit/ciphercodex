@@ -1013,6 +1013,8 @@ ciphercodex-shell_autogen/timestamp: \
 	/work/build-rm2/CMakeFiles/3.31.10/CMakeCXXCompiler.cmake \
 	/work/build-rm2/CMakeFiles/3.31.10/CMakeSystem.cmake \
 	/work/build-rm2/ciphercodex-shell_autogen/moc_predefs.h \
+	/work/src/epscreenmode.cpp \
+	/work/src/epscreenmode.h \
 	/work/src/inkitem.cpp \
 	/work/src/inkitem.h \
 	/work/src/main.cpp \

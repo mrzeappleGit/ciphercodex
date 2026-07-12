@@ -6,7 +6,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 17,
-                        "durationMicroseconds": 143,
+                        "durationMicroseconds": 122,
                         "errorMessage": "",
                         "functionName": "visibility",
                         "line": 8
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 40,
-                        "durationMicroseconds": 44,
+                        "durationMicroseconds": 43,
                         "errorMessage": "",
                         "functionName": "pen",
                         "line": 26

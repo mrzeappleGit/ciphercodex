@@ -8,5 +8,10 @@
   copied or linked into this codebase.
 - **Xochitl** is proprietary; nothing from it is copied, linked, or reverse-engineered. Our shell
   only start/stops its systemd service.
+- **libqsgepaper.so** (epaper scenegraph backend, LICENSE: CLOSED, ships with reMarkable OS): we
+  do **not** copy, static-link, or redistribute it. At runtime we resolve its already-loaded,
+  exported `EPScreenModeItem` symbols by name (`dlsym`) to request the fast pen waveform — the
+  documented-in-community, xochitl-equivalent mechanism. This is interoperation with the on-device
+  library, isolated in `src/epscreenmode.cpp`, with graceful fallback if the symbols are absent.
 - Planned (later phases, recorded when added): MuPDF (AGPL-3.0) for PDF rendering; SQLite
   (public domain).

@@ -14,6 +14,7 @@ qt_add_executable(ciphercodex-shell
     src/main.cpp
     src/penreader.h src/penreader.cpp
     src/inkitem.h src/inkitem.cpp
+    src/epscreenmode.h src/epscreenmode.cpp
     src/notebookcontroller.h src/notebookcontroller.cpp
 )
 qt_add_qml_module(ciphercodex-shell
@@ -27,7 +28,7 @@ qt_add_qml_module(ciphercodex-shell
 )
 target_include_directories(ciphercodex-shell PRIVATE src)
 # GuiPrivate: qpa/qwindowsysteminterface.h — pen->mouse synthesis for UI chrome
-target_link_libraries(ciphercodex-shell PRIVATE Qt6::Quick Qt6::GuiPrivate ccx-storage)
+target_link_libraries(ciphercodex-shell PRIVATE Qt6::Quick Qt6::GuiPrivate ccx-storage ${CMAKE_DL_LIBS})
 
 # Standalone evdev probe for the hardware audit — no Qt, prints ABS ranges and live events.
 add_executable(input-probe src/tools/input_probe.c)

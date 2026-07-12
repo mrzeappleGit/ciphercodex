@@ -9,6 +9,10 @@
 
 class QPainter;
 
+// Pressure(0..1) -> stroke width in px. Shared by live ink, re-render, and PDF export
+// so a stroke looks identical everywhere. Defined in inkitem.cpp.
+qreal inkStrokeWidth(qreal pressure);
+
 // Renders pen strokes into an image buffer with per-segment dirty-rect updates.
 // qsgepaper (the epaper scenegraph backend) drops custom QSGGeometry/materials but
 // renders image nodes, so QQuickPaintedItem is the supported path (verified on device:
@@ -61,6 +65,7 @@ private:
     };
 
     void ensureBuffer();
+    void ensureScreenMode();  // attach fast e-paper waveform over the canvas (best-effort)
     qreal pageHeight() const;
     QRectF pixelBounds(const QRectF &normBounds) const;
     QRect drawSegment(const QPointF &from, const QPointF &to, qreal pressure,
@@ -87,4 +92,6 @@ private:
     QSet<qint64> m_pendingErase;
     QVector<QPointF> m_erasePath; // area-eraser swath centerline, item pixels
     QRectF m_eraseBounds;
+    QQuickItem *m_screenMode = nullptr; // EPScreenModeItem tagging our region; may stay null
+    int m_screenModeVal = 0;            // Pen(0) by default; -1 disables the attach
 };

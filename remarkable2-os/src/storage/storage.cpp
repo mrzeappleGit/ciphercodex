@@ -174,10 +174,14 @@ Storage *Storage::open(const QString &dbDir, QString *error)
     sqlite3_busy_timeout(db, 5000);
     // synchronous=FULL required: NORMAL can lose the last WAL commits on hard
     // power-cut, which fails the Phase 1 crash-safety gate.
+    // CCX_SYNC_NORMAL: dev-only latency A/B knob — NEVER ship enabled.
+    const bool devSyncNormal = qEnvironmentVariableIsSet("CCX_SYNC_NORMAL");
+    if (devSyncNormal)
+        qWarning("storage: DEV MODE synchronous=NORMAL — power-cut durability is OFF");
     if (!exec(db, "PRAGMA journal_mode=WAL")
-        || !exec(db, "PRAGMA synchronous=FULL")
+        || !exec(db, devSyncNormal ? "PRAGMA synchronous=NORMAL" : "PRAGMA synchronous=FULL")
         || !exec(db, "PRAGMA foreign_keys=ON")
-        || !durabilityPragmasHeld(db)
+        || !(devSyncNormal || durabilityPragmasHeld(db))
         || !migrate(db)) {
         if (error)
             *error = QString::fromUtf8(sqlite3_errmsg(db));

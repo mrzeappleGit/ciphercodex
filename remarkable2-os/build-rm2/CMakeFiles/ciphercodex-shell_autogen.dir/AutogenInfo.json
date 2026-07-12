@@ -698,6 +698,12 @@
 	"DEP_FILE_RULE_NAME" : "ciphercodex-shell_autogen/timestamp",
 	"HEADERS" : 
 	[
+		[
+			"/work/src/epscreenmode.h",
+			"MU",
+			"UVLADIE3JM/moc_epscreenmode.cpp",
+			null
+		],
 		[ "/work/src/inkitem.h", "MU", "UVLADIE3JM/moc_inkitem.cpp", null ],
 		[
 			"/work/src/notebookcontroller.h",
@@ -807,6 +813,7 @@
 	"SETTINGS_FILE" : "/work/build-rm2/CMakeFiles/ciphercodex-shell_autogen.dir/AutogenUsed.txt",
 	"SOURCES" : 
 	[
+		[ "/work/src/epscreenmode.cpp", "MU", null ],
 		[ "/work/src/inkitem.cpp", "MU", null ],
 		[ "/work/src/main.cpp", "MU", null ],
 		[ "/work/src/notebookcontroller.cpp", "MU", null ],
