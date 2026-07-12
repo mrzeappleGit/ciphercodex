@@ -384,8 +384,10 @@ void ReaderController::setSyncConfig(const QString &server, const QString &usern
         return;
     m_library->setSetting(QStringLiteral("server_url"), server.trimmed());
     m_library->setSetting(QStringLiteral("username"), username);
-    // Store md5hex(password), never the raw password.
-    m_library->setSetting(QStringLiteral("user_key"), ccx::kosync::userKey(password));
+    // Empty password field = "unchanged" (never shown back; a blank field after load must not
+    // clobber the stored user_key). Store md5hex(password), never the raw password.
+    if (!password.isEmpty())
+        m_library->setSetting(QStringLiteral("user_key"), ccx::kosync::userKey(password));
     m_library->setSetting(QStringLiteral("device_name"), deviceName);
     deviceId();  // ensure a persisted device_id exists
     m_library->setSetting(QStringLiteral("sync_enabled"), QStringLiteral("1"));
@@ -556,7 +558,10 @@ void ReaderController::setWebdavConfig(const QString &url, const QString &user, 
     // device-local, redacted from logs) — see phase3-sync-design.md.
     m_library->setSetting(QStringLiteral("webdav_url"), base);
     m_library->setSetting(QStringLiteral("webdav_user"), user);
-    m_library->setSetting(QStringLiteral("webdav_pass"), pass);
+    // Empty password field = "unchanged" (it's never shown back, so a blank field on the
+    // settings screen after load must not clobber the stored one).
+    if (!pass.isEmpty())
+        m_library->setSetting(QStringLiteral("webdav_pass"), pass);
     deviceId();  // ensure a persisted device_id exists (it names this device's snapshot file)
 }
 

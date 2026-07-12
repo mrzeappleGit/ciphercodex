@@ -10,11 +10,30 @@ Item {
 
     property bool syncEnabled: false
     property string status: ""
+    property string davStatus: ""
+    property bool syncing: false
+
+    Connections {
+        target: settings.reader
+        function onSyncStarted() { settings.syncing = true; settings.davStatus = "syncing..." }
+        function onSyncProgress(step) { settings.davStatus = step }
+        function onSyncFinished(ok, summary) {
+            settings.syncing = false
+            settings.davStatus = ok
+                ? ("synced — up " + summary.booksUp + " / down " + summary.booksDown
+                   + " books, " + summary.entities + " items")
+                : ("sync failed: " + summary.error)
+        }
+    }
 
     // Persist the four fields, then run `action` (which uses the stored account).
     // No separate SAVE button: TEST / REGISTER / toggle each commit the config first.
     function commit() {
         settings.reader.setSyncConfig(serverField.text, userField.text, passField.text, deviceField.text)
+    }
+
+    function commitDav() {
+        settings.reader.setWebdavConfig(davUrlField.text, davUserField.text, davPassField.text)
     }
 
     Component.onCompleted: {
@@ -23,6 +42,9 @@ Item {
         userField.text = c.username ? c.username : ""
         deviceField.text = c.deviceName ? c.deviceName : ""
         settings.syncEnabled = c.enabled === true
+        const d = settings.reader.webdavConfig()
+        davUrlField.text = d.url ? d.url : ""
+        davUserField.text = d.user ? d.user : ""
     }
 
     component Btn: Rectangle {
@@ -95,8 +117,14 @@ Item {
         }
     }
 
+    Flickable {
+        anchors { top: header.bottom; left: parent.left; right: parent.right; bottom: parent.bottom
+                  topMargin: 50; leftMargin: 80; rightMargin: 40 }
+        contentHeight: form.height + 60
+        clip: true
     Column {
-        anchors { top: header.bottom; topMargin: 50; left: parent.left; leftMargin: 80 }
+        id: form
+        width: 820
         spacing: 30
 
         Row {
@@ -147,5 +175,38 @@ Item {
             text: settings.status
             font { pixelSize: 26; bold: true }
         }
+
+        // ---- WebDAV books + notes sync ----
+        Rectangle { width: 820; height: 4; color: "black" }
+        Text {
+            text: "BOOKS + NOTES SYNC (WebDAV)"
+            font { pixelSize: 34; letterSpacing: 4; bold: true }
+        }
+        Field { id: davUrlField; label: "WEBDAV URL"; placeholder: "https://host/dav/" }
+        Field { id: davUserField; label: "USERNAME"; placeholder: "user" }
+        Field { id: davPassField; label: "PASSWORD"; placeholder: "app password"; secret: true }
+        Row {
+            spacing: 30
+            Btn {
+                label: "TEST"
+                onTapped: {
+                    settings.commitDav()
+                    const r = settings.reader.testWebdav()
+                    settings.davStatus = r.ok ? "WEBDAV OK" : ("FAILED: " + r.message)
+                }
+            }
+            Btn {
+                label: settings.syncing ? "SYNCING..." : "SYNC NOW"
+                active: settings.syncing
+                onTapped: { if (!settings.syncing) { settings.commitDav(); settings.reader.syncNow() } }
+            }
+        }
+        Text {
+            visible: settings.davStatus !== ""
+            text: settings.davStatus
+            width: 820; wrapMode: Text.WordWrap
+            font { pixelSize: 26; bold: true }
+        }
+    }
     }
 }
