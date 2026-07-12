@@ -84,6 +84,7 @@ signals:
     void syncStarted();
     void syncProgress(const QString &step);
     void syncFinished(bool ok, const QVariantMap &summary);
+    void syncedDataChanged();  // a sync merged rows into the DB; open views should reload
 
 private:
     QVariantList allBooksWithPct();  // cached; invalidated on any mutation

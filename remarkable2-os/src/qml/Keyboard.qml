@@ -28,20 +28,24 @@ Item {
         ["A","S","D","F","G","H","J","K","L"],
         ["{shift}","Z","X","C","V","B","N","M","{bs}"]
     ]
+    // No {shift} here: shift is a letter-layer concern; a shift key in the symbols layer leaked its
+    // state back into the letters. The freed slot is a plain backtick.
     readonly property var symbolRows: [
         ["1","2","3","4","5","6","7","8","9","0"],
         ["@",".","/",":","-","_","~","#","&","?"],
         ["!","'","\"","(",")","+","=","%","*"],
-        ["{shift}",",",";","$","\\","|","<",">","{bs}"]
+        ["`",",",";","$","\\","|","<",">","{bs}"]
     ]
     readonly property var rows: symbols ? symbolRows : (shift ? lettersUpper : lettersLower)
 
-    function type(ch) {
+    // resetShift defaults true: a real character consumes the one-shot shift. Space passes false so
+    // it can't steal a pending shift meant for the next letter.
+    function type(ch, resetShift) {
         if (!target) return
         const p = target.cursorPosition
         target.insert(p, ch)
         target.cursorPosition = p + ch.length
-        if (shift && !symbols) shift = false   // one-shot shift, like a phone keyboard
+        if (resetShift !== false && shift && !symbols) shift = false   // one-shot shift, like a phone keyboard
     }
     function backspace() {
         if (!target) return
@@ -104,14 +108,15 @@ Item {
                 color: symTap.pressed ? "black" : "white"; border { color: "black"; width: 3 }
                 Text { anchors.centerIn: parent; text: kb.symbols ? "ABC" : "?123"
                        color: symTap.pressed ? "white" : "black"; font { pixelSize: 26; bold: true } }
-                TapHandler { id: symTap; onTapped: kb.symbols = !kb.symbols }
+                // Clear shift on layer switch so a one-shot shift never bleeds across layers.
+                TapHandler { id: symTap; onTapped: { kb.symbols = !kb.symbols; kb.shift = false } }
             }
             Rectangle {
                 width: 560; height: kb.keyH
                 color: spTap.pressed ? "black" : "white"; border { color: "black"; width: 3 }
                 Text { anchors.centerIn: parent; text: "space"
                        color: spTap.pressed ? "white" : "black"; font { pixelSize: 26; bold: true } }
-                TapHandler { id: spTap; onTapped: kb.type(" ") }
+                TapHandler { id: spTap; onTapped: kb.type(" ", false) }
             }
             Rectangle {
                 width: 220; height: kb.keyH

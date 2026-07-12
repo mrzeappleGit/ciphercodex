@@ -34,6 +34,9 @@ public:
     Q_INVOKABLE void openPage(qint64 pageId, InkItem *canvas, PenReader *pen);
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
+    // A background sync merged rows into the DB: reload the open page's strokes from truth and drop
+    // the now-dangling undo/redo history. No-op when no page is open.
+    Q_INVOKABLE void reloadOpenPage();
     Q_INVOKABLE bool exportNotebookPdf(qint64 notebookId, const QString &outPath);
 
 signals:

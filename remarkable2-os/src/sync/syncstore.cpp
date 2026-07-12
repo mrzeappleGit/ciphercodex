@@ -58,6 +58,14 @@ struct Tx {
         active = !exec(db, "COMMIT");
         return !active;
     }
+    // Commit the current segment and open a fresh one. Lets the merge release the single WAL
+    // write lock between tables so a concurrent pen-drawing write on the GUI connection can
+    // interleave instead of blocking (and timing out -> dropping ink). Each table stays atomic;
+    // the whole merge is idempotent, so a crash between segments just resumes on the next sync.
+    bool restart()
+    {
+        return commit() && (active = exec(db, "BEGIN IMMEDIATE"));
+    }
     ~Tx()
     {
         if (active)
@@ -185,6 +193,10 @@ qint64 bookIdForDigest(sqlite3 *db, const QByteArray &digest)
 QJsonObject SyncStore::exportSnapshot(const QString &deviceId)
 {
     sqlite3 *db = m_storage->handle();
+    // One deferred read transaction so all ~12 table reads see a SINGLE consistent WAL snapshot:
+    // a GUI write committed mid-export can't otherwise make children reference a parent not yet
+    // read (or vice versa). A read txn doesn't hold the write lock, so it never blocks the pen.
+    exec(db, "BEGIN");
     QJsonObject snap;
     snap.insert(QStringLiteral("deviceId"), deviceId);
     snap.insert(QStringLiteral("generatedAt"), now());
@@ -355,6 +367,7 @@ QJsonObject SyncStore::exportSnapshot(const QString &deviceId)
         }
         snap.insert(QStringLiteral("sessions"), a);
     }
+    exec(db, "COMMIT");  // close the consistent read snapshot
     return snap;
 }
 
@@ -457,6 +470,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
         tally(rDel);
     }
 
+    if (!tx.restart())
+        return stats;
     // collections by guid
     for (const QJsonObject &r : collections) {
         const QByteArray guid = jStr(r, "guid");
@@ -491,6 +506,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
         tally(rDel);
     }
 
+    if (!tx.restart())
+        return stats;
     // notebooks by guid
     for (const QJsonObject &r : notebooks) {
         const QByteArray guid = jStr(r, "guid");
@@ -525,6 +542,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
         tally(rDel);
     }
 
+    if (!tx.restart())
+        return stats;
     // pages by guid -> notebook guid; skip if the parent notebook is absent locally (orphan guard)
     for (const QJsonObject &r : pages) {
         const QByteArray guid = jStr(r, "guid");
@@ -562,6 +581,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
         tally(rDel);
     }
 
+    if (!tx.restart())
+        return stats;
     // strokes by guid -> page guid; base64 -> packed-points blob (empty for tombstones)
     for (const QJsonObject &r : strokes) {
         const QByteArray guid = jStr(r, "guid");
@@ -607,6 +628,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
         tally(rDel);
     }
 
+    if (!tx.restart())
+        return stats;
     // progress by book digest (one row per book); mint a guid on insert (snapshot carries none)
     for (const QJsonObject &r : progress) {
         const qint64 bookId = bookIdForDigest(db, jStr(r, "bookDigest"));
@@ -654,6 +677,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
         tally(rDel);
     }
 
+    if (!tx.restart())
+        return stats;
     // bookmarks by guid -> book digest
     for (const QJsonObject &r : bookmarks) {
         const QByteArray guid = jStr(r, "guid");
@@ -701,6 +726,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
         tally(rDel);
     }
 
+    if (!tx.restart())
+        return stats;
     // highlights by guid -> book digest (note is nullable)
     for (const QJsonObject &r : highlights) {
         const QByteArray guid = jStr(r, "guid");
@@ -752,6 +779,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
         tally(rDel);
     }
 
+    if (!tx.restart())
+        return stats;
     // reading_sessions by guid -> book digest
     for (const QJsonObject &r : sessions) {
         const QByteArray guid = jStr(r, "guid");
@@ -800,6 +829,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
     }
 
     // book_collections identity = (collection_id, book_id); mint a guid on insert (none on wire)
+    if (!tx.restart())
+        return stats;
     for (const QJsonObject &r : bookCollections) {
         const qint64 collectionId = idByGuid(db, "collections", jStr(r, "collectionGuid"));
         const qint64 bookId = bookIdForDigest(db, jStr(r, "bookDigest"));
@@ -861,20 +892,22 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
 }
 
 void SyncStore::attachBookFile(const QString &digest, const QString &filePath,
-                               const QString &coverPath)
+                               const QString &coverPath, qint64 sizeBytes)
 {
     sqlite3 *db = m_storage->handle();
     Tx tx(db);
     if (!tx.active)
         return;
-    // Local paths only — no updated_at bump (would spuriously win the next LWW round).
-    Stmt q(db, "UPDATE books SET file_path = ?, cover_path = ? WHERE digest = ?");
+    // Local, device-specific columns only (file_path/cover_path/size_bytes) — NOT synced, so no
+    // updated_at bump (that would spuriously win the next LWW round).
+    Stmt q(db, "UPDATE books SET file_path = ?, cover_path = ?, size_bytes = ? WHERE digest = ?");
     bindText(q.s, 1, filePath.toUtf8());
     if (coverPath.isEmpty())
         sqlite3_bind_null(q.s, 2);
     else
         bindText(q.s, 2, coverPath.toUtf8());
-    bindText(q.s, 3, digest.toUtf8());
+    sqlite3_bind_int64(q.s, 3, sizeBytes);
+    bindText(q.s, 4, digest.toUtf8());
     if (q.done())
         tx.commit();
 }

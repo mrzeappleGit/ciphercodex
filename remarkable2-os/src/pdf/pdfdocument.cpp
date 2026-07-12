@@ -4,11 +4,22 @@
 #include "pdfium/fpdf_text.h"
 #include "pdfium/fpdfview.h"
 
+#include <QMutex>
 #include <QSet>
 #include <QtGlobal>
 #include <QtMath>
 
 namespace {
+
+// PDFium is process-global and NOT thread-safe. Since the WebDAV sync worker renders covers for
+// freshly downloaded books off the GUI thread while a PdfView may be open on the GUI thread, every
+// entry point that touches FPDF_* is serialized behind this one lock. Recursive so the
+// renderThumbnail -> renderPage -> renderView chain (each locking) doesn't self-deadlock.
+QRecursiveMutex &pdfMutex()
+{
+    static QRecursiveMutex m;
+    return m;
+}
 
 // FPDFBookmark_GetTitle/FPDF_GetMetaText return UTF-16LE; QString::fromUtf16 assumes
 // host byte order. Both targets (armv7 device, x86_64 host) are LE — same assumption
@@ -66,6 +77,7 @@ void walkOutline(FPDF_DOCUMENT doc, FPDF_BOOKMARK bm, int level,
 
 PdfDocument *PdfDocument::open(const QString &path, QString *err)
 {
+    QMutexLocker locker(&pdfMutex());
     ensureLibrary();
     const QByteArray utf8 = path.toUtf8();
     FPDF_DOCUMENT doc = FPDF_LoadDocument(utf8.constData(), nullptr);
@@ -79,11 +91,13 @@ PdfDocument *PdfDocument::open(const QString &path, QString *err)
 
 PdfDocument::~PdfDocument()
 {
+    QMutexLocker locker(&pdfMutex());
     FPDF_CloseDocument(m_doc);
 }
 
 QSizeF PdfDocument::pageSizePt(int page) const
 {
+    QMutexLocker locker(&pdfMutex());
     if (page < 0 || page >= m_pageCount)
         return QSizeF();
     FS_SIZEF sz;
@@ -107,6 +121,7 @@ void PdfDocument::cachePut(const CacheEntry &e) const
 
 QImage PdfDocument::renderView(int page, const QSize &fullScaled, const QRect &srcIn) const
 {
+    QMutexLocker locker(&pdfMutex());
     if (page < 0 || page >= m_pageCount || fullScaled.width() <= 0 || fullScaled.height() <= 0)
         return QImage();
     // Clamp the requested region to the scaled page, and its area to the viewport ceiling.
@@ -167,6 +182,7 @@ QImage PdfDocument::renderThumbnail(int page, int maxDim) const
 
 QVector<PdfOutline> PdfDocument::outline() const
 {
+    QMutexLocker locker(&pdfMutex());
     QVector<PdfOutline> out;
     QSet<FPDF_BOOKMARK> seen;
     walkOutline(m_doc, FPDFBookmark_GetFirstChild(m_doc, nullptr), 0, seen, out);
@@ -175,6 +191,7 @@ QVector<PdfOutline> PdfDocument::outline() const
 
 int PdfDocument::searchPage(int page, const QString &q) const
 {
+    QMutexLocker locker(&pdfMutex());
     if (q.isEmpty() || page < 0 || page >= m_pageCount)
         return 0;
     FPDF_PAGE pg = FPDF_LoadPage(m_doc, page);
@@ -201,6 +218,7 @@ int PdfDocument::searchPage(int page, const QString &q) const
 
 QString PdfDocument::metaText(const QString &tag) const
 {
+    QMutexLocker locker(&pdfMutex());
     const QByteArray t = tag.toUtf8();
     return readUtf16([&](void *b, unsigned long n) {
         return FPDF_GetMetaText(m_doc, t.constData(), b, n);

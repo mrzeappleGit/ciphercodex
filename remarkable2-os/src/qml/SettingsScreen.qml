@@ -36,6 +36,19 @@ Item {
         settings.reader.setWebdavConfig(davUrlField.text, davUserField.text, davPassField.text)
     }
 
+    // Scroll `item` (a Field) into the Flickable's viewport. The keyboard shrinks the StackView
+    // (Main.qml anchors its bottom to keyboard.top), so flick.height already excludes the keyboard
+    // — we only keep the focused field inside [contentY, contentY+height]. Deferred via callLater so
+    // the height has settled after the keyboard appeared before we read it.
+    function ensureVisible(item) {
+        const yTop = item.mapToItem(flick.contentItem, 0, 0).y
+        const yBottom = yTop + item.height
+        if (yBottom > flick.contentY + flick.height)
+            flick.contentY = Math.min(yBottom - flick.height, Math.max(0, flick.contentHeight - flick.height))
+        else if (yTop < flick.contentY)
+            flick.contentY = Math.max(0, yTop)
+    }
+
     Component.onCompleted: {
         const c = settings.reader.syncConfig()   // password is never returned
         serverField.text = c.serverUrl ? c.serverUrl : ""
@@ -95,6 +108,8 @@ Item {
                 clip: true
                 echoMode: f.secret ? TextInput.Password : TextInput.Normal
                 font { pixelSize: 26; bold: true }
+                // Once focused (keyboard now up, Flickable height settled), scroll this field into view.
+                onActiveFocusChanged: if (activeFocus) Qt.callLater(settings.ensureVisible, f)
             }
         }
     }
@@ -118,6 +133,7 @@ Item {
     }
 
     Flickable {
+        id: flick
         anchors { top: header.bottom; left: parent.left; right: parent.right; bottom: parent.bottom
                   topMargin: 50; leftMargin: 80; rightMargin: 40 }
         contentHeight: form.height + 60

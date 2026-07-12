@@ -26,10 +26,16 @@ Raw finish(QNetworkReply *reply)
     Raw raw;
     const QVariant code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     raw.body = reply->readAll();
-    if (code.isValid())
+    // A stall/abort AFTER the 200 header (truncated body — a timed-out PROPFIND listing or a
+    // half-downloaded book) leaves a valid status code but a non-NoError reply. Treat that as a
+    // transport failure so callers don't accept a partial listing or a truncated file as success.
+    if (code.isValid() && reply->error() == QNetworkReply::NoError) {
         raw.httpCode = code.toInt();
-    else
-        raw.transportError = reply->errorString();
+    } else {
+        raw.transportError = code.isValid()
+            ? QStringLiteral("truncated response (%1): %2").arg(code.toInt()).arg(reply->errorString())
+            : reply->errorString();
+    }
     reply->deleteLater();
     return raw;
 }

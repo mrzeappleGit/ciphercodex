@@ -101,6 +101,17 @@ void NotebookController::resyncCanvas()
         m_canvas->setStrokes(m_storage->strokes(m_pageId));
 }
 
+void NotebookController::reloadOpenPage()
+{
+    if (!m_canvas || !m_storage || m_pageId < 0)
+        return;  // nothing open
+    resyncCanvas();  // pull the merged truth back onto the visible page
+    m_undo.clear();  // history references strokes the merge may have replaced
+    m_redo.clear();
+    m_undoPoints = 0;
+    emit undoChanged();
+}
+
 void NotebookController::onStrokeFinished(const StrokeData &s)
 {
     if (!m_storage || m_pageId < 0 || !m_canvas)

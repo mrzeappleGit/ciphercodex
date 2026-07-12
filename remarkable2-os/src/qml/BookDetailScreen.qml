@@ -11,6 +11,9 @@ Item {
     property bool confirming: false
 
     readonly property bool isEpub: detail.book.format === 1
+    // A book synced from a peer whose file never downloaded has an empty file_path ("ghost" book):
+    // opening it would hand the reader an empty path. Gate the read actions on the file being present.
+    readonly property bool downloaded: !!detail.book.filePath
 
     function humanSize(bytes) {
         if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + " MB"
@@ -51,11 +54,12 @@ Item {
         width: Math.max(90, t.implicitWidth + 48)
         height: 100
         color: b.dark ? "black" : "white"
-        border { color: b.inverted ? "white" : "black"; width: 4 }
+        // b.enabled is Item's built-in flag (default true); when false the item also stops the tap.
+        border { color: b.enabled ? (b.inverted ? "white" : "black") : "#999999"; width: 4 }
         Text {
             id: t
             anchors.centerIn: parent
-            color: b.dark ? "white" : "black"
+            color: b.enabled ? (b.dark ? "white" : "black") : "#999999"
             font { pixelSize: 28; bold: true }
         }
         TapHandler { id: btnTap; onTapped: b.tapped() }
@@ -156,12 +160,20 @@ Item {
         }
     }
 
+    Text {
+        visible: !detail.downloaded && !detail.confirming
+        anchors { bottom: parent.bottom; bottomMargin: 180; left: parent.left; leftMargin: 80 }
+        text: "NOT DOWNLOADED — SYNC AGAIN"
+        color: "#999999"
+        font { pixelSize: 26; bold: true }
+    }
+
     Row {
         anchors { bottom: parent.bottom; bottomMargin: 60; left: parent.left; leftMargin: 80 }
         spacing: 40
         visible: !detail.confirming
-        Btn { label: "RESUME"; onTapped: detail.openAt(-1) }
-        Btn { label: "READ FROM START"; onTapped: detail.openAt(0) }
+        Btn { label: "RESUME"; enabled: detail.downloaded; onTapped: detail.openAt(-1) }
+        Btn { label: "READ FROM START"; enabled: detail.downloaded; onTapped: detail.openAt(0) }
         Btn { label: "DELETE"; onTapped: detail.confirming = true }
     }
 

@@ -166,10 +166,13 @@ void SyncEngine::run(WebDavConfig cfg, QString deviceId, QString dataDir)
     if (!dav.list(QStringLiteral("state/"), &stateFiles, &err))
         return fail(QStringLiteral("list state: ") + err);
     QVector<QJsonObject> snapshots;
+    const QString ownSnapshot = deviceId + QStringLiteral(".json");
     for (const QString &raw : stateFiles) {
         const QString name = baseName(raw);
         if (!name.endsWith(QStringLiteral(".json")))
             continue;
+        if (name == ownSnapshot)
+            continue;  // our last-published snapshot; applyMerged drops it anyway — don't fetch it
         QByteArray body;
         if (!dav.get(QStringLiteral("state/") + name, &body, &err))
             continue;  // skip an unreadable peer snapshot; the others still merge
@@ -181,6 +184,7 @@ void SyncEngine::run(WebDavConfig cfg, QString deviceId, QString dataDir)
     // 4. Merge (LWW) into the local DB, then fetch+attach any book file the merged rows now need.
     emit progress(QStringLiteral("Merging"));
     const SyncStore::MergeStats stats = store.applyMerged(snapshots, deviceId);
+    snapshots.clear();  // release the peer JSON (each ~2MB) before building our own — 1GB device
     summary[QStringLiteral("entities")] = stats.entitiesApplied;
     summary[QStringLiteral("tombstones")] = stats.tombstonesApplied;
 
@@ -202,11 +206,11 @@ void SyncEngine::run(WebDavConfig cfg, QString deviceId, QString dataDir)
         if (!writeFileAtomic(filePath, body))
             continue;
         const int format = ext == QStringLiteral("epub") ? 1 : 0;
-        // PDFium is not thread-safe (see pdfdocument.h). ponytail: cover render runs on the sync
-        // worker because sync fires only when no reader is open; move to the GUI thread if that
-        // invariant ever breaks.
+        // renderCover touches PDFium off the GUI thread; PdfDocument now serializes all PDFium
+        // entry points behind a global mutex (pdfdocument.cpp), so this is safe concurrent with an
+        // open PdfView on the GUI thread.
         const QString coverPath = renderCover(format, filePath, digest, coversDir);
-        store.attachBookFile(digest, filePath, coverPath);
+        store.attachBookFile(digest, filePath, coverPath, body.size());
         ++booksDown;
     }
     summary[QStringLiteral("booksDown")] = booksDown;

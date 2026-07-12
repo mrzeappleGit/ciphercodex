@@ -390,7 +390,8 @@ void ReaderController::setSyncConfig(const QString &server, const QString &usern
         m_library->setSetting(QStringLiteral("user_key"), ccx::kosync::userKey(password));
     m_library->setSetting(QStringLiteral("device_name"), deviceName);
     deviceId();  // ensure a persisted device_id exists
-    m_library->setSetting(QStringLiteral("sync_enabled"), QStringLiteral("1"));
+    // NB: sync_enabled is owned solely by setSyncEnabled() (the SETTINGS toggle). Committing the
+    // config from TEST/REGISTER must not silently turn sync on when the UI toggle reads OFF.
 }
 
 void ReaderController::setSyncEnabled(bool enabled)
@@ -613,8 +614,10 @@ void ReaderController::syncNow()
     connect(engine, &SyncEngine::finished, this,
             [this](bool ok, const QVariantMap &summary) {
                 m_syncing = false;
-                if (ok)
+                if (ok) {
                     invalidate();  // merged rows landed on the worker connection; drop stale cache
+                    emit syncedDataChanged();  // an open notebook page may now be stale vs the DB
+                }
                 emit syncFinished(ok, summary);
             });
     // Kick run() once the worker's event loop is up; cfg/dev/dir copy into the worker thread.

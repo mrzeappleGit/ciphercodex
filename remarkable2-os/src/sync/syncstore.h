@@ -37,7 +37,8 @@ public:
 
     // Point a book row (matched by digest) at its now-local file + cover. Paths are device-local,
     // NOT synced, so this does not bump updated_at.
-    void attachBookFile(const QString &digest, const QString &filePath, const QString &coverPath);
+    void attachBookFile(const QString &digest, const QString &filePath, const QString &coverPath,
+                        qint64 sizeBytes);
 
     QStringList localBookDigestsWithFile();  // live books with a local file (upload candidates)
     QString filePathForDigest(const QString &digest);  // "" if unknown

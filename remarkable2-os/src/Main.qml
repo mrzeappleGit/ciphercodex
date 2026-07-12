@@ -14,6 +14,13 @@ Window {
     NotebookController { id: controller }
     ReaderController { id: reader }
 
+    // A WebDAV sync merged notebook rows into the DB: refresh the open page so it never shows
+    // stale strokes vs the merged truth. No-op when no page is open.
+    Connections {
+        target: reader
+        function onSyncedDataChanged() { controller.reloadOpenPage() }
+    }
+
     // The focused editable item, or null. Duck-typed: any TextInput/TextEdit exposes insert() +
     // cursorPosition. Drives the on-screen keyboard (the device has no hardware keys).
     readonly property Item kbTarget:
