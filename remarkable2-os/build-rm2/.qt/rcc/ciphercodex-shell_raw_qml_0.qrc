@@ -1,9 +1,0 @@
-<RCC>
-  <qresource prefix="/qt/qml/CipherCodex/">
-    <file alias="src/Main.qml">/work/src/Main.qml</file>
-    <file alias="src/qml/HomeScreen.qml">/work/src/qml/HomeScreen.qml</file>
-    <file alias="src/qml/NotebookListScreen.qml">/work/src/qml/NotebookListScreen.qml</file>
-    <file alias="src/qml/PageScreen.qml">/work/src/qml/PageScreen.qml</file>
-  </qresource>
-</RCC>
-

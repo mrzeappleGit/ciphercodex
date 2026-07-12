@@ -20,16 +20,48 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W 2>/dev/null || pwd):/work" -w /w
     cp "$TGT/usr/include/sqlite3.h" "$BUILD/"
     # Sysroot libs are glibc 2.38, container is 2.36 — link and run against the
     # sysroot glibc via its own dynamic linker + explicit libm.
+    LINK="-Wl,--dynamic-linker,$SYS/lib/ld-linux-x86-64.so.2 -Wl,-rpath,$SYS/usr/lib -Wl,-rpath,$SYS/lib"
     g++ -std=c++17 -g -fPIC \
         src/storage/storage.cpp tests/test_storage.cpp \
         -Isrc/storage -I"$BUILD" \
         -I"$SYS/usr/include" -I"$SYS/usr/include/QtCore" \
         -L"$SYS/usr/lib" -L"$SYS/lib" \
         -lQt6Core -l:libsqlite3.so.0 -l:libm.so.6 -lpthread -ldl \
-        -Wl,--dynamic-linker,"$SYS/lib/ld-linux-x86-64.so.2" \
-        -Wl,-rpath,"$SYS/usr/lib" -Wl,-rpath,"$SYS/lib" \
-        -o "$BUILD/test_storage"
+        $LINK -o "$BUILD/test_storage"
     "$BUILD/test_storage"
     bash tests/test_powerloss.sh "$BUILD/test_storage"
+
+    # v2 schema test: same deps as test_storage (Qt6Core + sqlite3).
+    g++ -std=c++17 -g -fPIC \
+        src/storage/storage.cpp tests/test_storage_v2.cpp \
+        -Isrc/storage -I"$BUILD" \
+        -I"$SYS/usr/include" -I"$SYS/usr/include/QtCore" \
+        -L"$SYS/usr/lib" -L"$SYS/lib" \
+        -lQt6Core -l:libsqlite3.so.0 -l:libm.so.6 -lpthread -ldl \
+        $LINK -o "$BUILD/test_storage_v2"
+    "$BUILD/test_storage_v2"
+
+    # kosync + digest pure-logic test: Qt6Core only, no sqlite, no Qt6Network
+    # (kosyncclient.cpp is intentionally excluded from the link).
+    g++ -std=c++17 -g -fPIC \
+        src/library/digest.cpp src/sync/kosync.cpp tests/test_kosync.cpp \
+        -Isrc/library -Isrc/sync \
+        -I"$SYS/usr/include" -I"$SYS/usr/include/QtCore" \
+        -L"$SYS/usr/lib" -L"$SYS/lib" \
+        -lQt6Core -l:libm.so.6 -lpthread -ldl \
+        $LINK -o "$BUILD/test_kosync"
+    "$BUILD/test_kosync"
+
+    # library core: import/dedupe/CRUD/progress/cascade. PDF cover path (CCX_HAVE_PDFIUM)
+    # is compiled out on host, so no PDFium/Qt6Gui needed; PDFs import with a filename title.
+    g++ -std=c++17 -g -fPIC \
+        src/storage/storage.cpp src/library/library.cpp src/library/digest.cpp \
+        tests/test_library.cpp \
+        -Isrc -Isrc/storage -Isrc/library -I"$BUILD" \
+        -I"$SYS/usr/include" -I"$SYS/usr/include/QtCore" \
+        -L"$SYS/usr/lib" -L"$SYS/lib" \
+        -lQt6Core -l:libsqlite3.so.0 -l:libm.so.6 -lpthread -ldl \
+        $LINK -o "$BUILD/test_library"
+    "$BUILD/test_library"
 '
 echo "All host tests passed."

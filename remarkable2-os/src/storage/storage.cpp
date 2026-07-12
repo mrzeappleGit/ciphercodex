@@ -121,6 +121,41 @@ const char *const kSchemaV1 =
     "CREATE INDEX strokes_page ON strokes(page_id);"
     "INSERT INTO schema_version(version) VALUES(1);";
 
+// Reader schema (Phase 2a). Positions are shared PDF/EPUB: for PDF
+// spine_index = 0-based page, char_offset = 0, percentage = (page+1)/pageCount.
+const char *const kSchemaV2 =
+    "CREATE TABLE books(id INTEGER PRIMARY KEY, title TEXT NOT NULL, author TEXT,"
+    "  file_path TEXT NOT NULL, digest TEXT NOT NULL, cover_path TEXT,"
+    "  size_bytes INTEGER NOT NULL, format INTEGER NOT NULL DEFAULT 0,"  // 0 pdf, 1 epub
+    "  added_at INTEGER NOT NULL, last_opened_at INTEGER);"
+    "CREATE UNIQUE INDEX books_digest ON books(digest);"
+    "CREATE TABLE progress(book_id INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,"
+    "  spine_index INTEGER NOT NULL, char_offset INTEGER NOT NULL, percentage REAL NOT NULL,"
+    "  updated_at INTEGER NOT NULL, synced_at INTEGER);"
+    "CREATE TABLE reading_sessions(id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL"
+    "  REFERENCES books(id) ON DELETE CASCADE, started_at INTEGER NOT NULL,"
+    "  ended_at INTEGER NOT NULL, pages_turned INTEGER NOT NULL,"
+    "  start_percentage REAL NOT NULL, end_percentage REAL NOT NULL);"
+    "CREATE INDEX reading_sessions_book ON reading_sessions(book_id);"
+    "CREATE TABLE bookmarks(id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL"
+    "  REFERENCES books(id) ON DELETE CASCADE, spine_index INTEGER NOT NULL,"
+    "  char_offset INTEGER NOT NULL, percentage REAL NOT NULL, label TEXT NOT NULL,"
+    "  created_at INTEGER NOT NULL);"
+    "CREATE INDEX bookmarks_book ON bookmarks(book_id);"
+    "CREATE TABLE highlights(id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL"
+    "  REFERENCES books(id) ON DELETE CASCADE, spine_index INTEGER NOT NULL,"
+    "  start_char INTEGER NOT NULL, end_char INTEGER NOT NULL, text TEXT NOT NULL,"
+    "  note TEXT, color_id INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);"
+    "CREATE INDEX highlights_book_spine ON highlights(book_id, spine_index);"
+    "CREATE TABLE collections(id INTEGER PRIMARY KEY, name TEXT NOT NULL,"
+    "  created_at INTEGER NOT NULL);"
+    "CREATE TABLE book_collections(collection_id INTEGER NOT NULL"
+    "  REFERENCES collections(id) ON DELETE CASCADE, book_id INTEGER NOT NULL"
+    "  REFERENCES books(id) ON DELETE CASCADE, PRIMARY KEY(collection_id, book_id));"
+    "CREATE INDEX book_collections_book ON book_collections(book_id);"
+    "CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+    "UPDATE schema_version SET version=2;";
+
 int schemaVersion(sqlite3 *db)
 {
     Stmt t(db, "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_version'");
@@ -132,13 +167,23 @@ int schemaVersion(sqlite3 *db)
 
 bool migrate(sqlite3 *db)
 {
-    const int v = schemaVersion(db);
-    if (v >= 1)
-        return true;  // future migrations chain here: if (v < 2) ...
-    Tx tx(db);
-    // if BEGIN failed, running the multi-statement schema would autocommit piecewise
-    // and a mid-way kill leaves tables without schema_version — a bricked DB
-    return tx.active && exec(db, kSchemaV1) && tx.commit();
+    int v = schemaVersion(db);
+    // Each step is one Tx: if BEGIN failed, running the multi-statement schema would
+    // autocommit piecewise and a mid-way kill leaves tables without schema_version — a
+    // bricked DB. A fresh DB (v==0) runs v1 then v2 in sequence.
+    if (v < 1) {
+        Tx tx(db);
+        if (!(tx.active && exec(db, kSchemaV1) && tx.commit()))
+            return false;
+        v = 1;
+    }
+    if (v < 2) {
+        Tx tx(db);
+        if (!(tx.active && exec(db, kSchemaV2) && tx.commit()))
+            return false;
+        v = 2;
+    }
+    return true;
 }
 
 // Make the directory entries themselves durable. SQLite fsyncs the WAL's directory,

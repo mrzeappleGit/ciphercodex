@@ -157,7 +157,7 @@ static int runAsserts()
     assert(sqlite3_step(q) == SQLITE_ROW);
     assert(sqlite3_column_int(q, 0) == 0);
     assert(sqlite3_column_int(q, 1) == 0);
-    assert(sqlite3_column_int(q, 2) == 1);
+    assert(sqlite3_column_int(q, 2) == 2);  // fresh DB now runs v1 then v2
     sqlite3_finalize(q);
     sqlite3_close(db);
 

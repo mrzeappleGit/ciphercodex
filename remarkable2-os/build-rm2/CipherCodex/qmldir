@@ -1,8 +1,0 @@
-module CipherCodex
-typeinfo ciphercodex-shell.qmltypes
-prefer :/qt/qml/CipherCodex/
-Main 1.0 src/Main.qml
-HomeScreen 1.0 src/qml/HomeScreen.qml
-NotebookListScreen 1.0 src/qml/NotebookListScreen.qml
-PageScreen 1.0 src/qml/PageScreen.qml
-

@@ -8,6 +8,7 @@ Item {
 
     required property var pen
     required property var controller
+    required property var reader
 
     component Tile: Rectangle {
         id: tile
@@ -60,7 +61,10 @@ Item {
     Column {
         anchors { top: header.bottom; topMargin: 60; left: parent.left; leftMargin: 80; right: parent.right; rightMargin: 80 }
         spacing: 40
-        Tile { width: parent.width; label: "LIBRARY"; tag: "PHASE 2" }
+        Tile {
+            width: parent.width; label: "LIBRARY"
+            onActivated: home.StackView.view.push(libListComp)
+        }
         Tile {
             width: parent.width; label: "NOTEBOOKS"
             onActivated: home.StackView.view.push(nbListComp)
@@ -73,5 +77,10 @@ Item {
     Component {
         id: nbListComp
         NotebookListScreen { pen: home.pen; controller: home.controller }
+    }
+
+    Component {
+        id: libListComp
+        LibraryScreen { reader: home.reader }
     }
 }

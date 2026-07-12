@@ -42,6 +42,10 @@ public:
                         bool keepAddIds);
     QVector<StrokeData> strokes(qint64 pageId);   // ordered by id
 
+    // Raw handle so ccx-reader (library/kosync) can prepare its own statements
+    // against the same connection (foreign_keys=ON, WAL, synchronous=FULL).
+    sqlite3 *handle() const { return m_db; }
+
 private:
     explicit Storage(sqlite3 *db) : m_db(db) {}
     sqlite3 *m_db;

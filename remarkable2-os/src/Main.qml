@@ -12,6 +12,7 @@ Window {
 
     PenReader { id: pen }
     NotebookController { id: controller }
+    ReaderController { id: reader }
 
     StackView {
         id: stack
@@ -23,6 +24,6 @@ Window {
         popExit: null
         replaceEnter: null
         replaceExit: null
-        initialItem: HomeScreen { pen: pen; controller: controller }
+        initialItem: HomeScreen { pen: pen; controller: controller; reader: reader }
     }
 }

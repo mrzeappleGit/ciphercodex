@@ -1,8 +1,0 @@
---resource
-/work/build-rm2/.qt/rcc/qmake_CipherCodex.qrc
---resource
-/work/build-rm2/.qt/rcc/ciphercodex-shell_raw_qml_0.qrc
-/qt/qml/CipherCodex/src/Main.qml
-/qt/qml/CipherCodex/src/qml/HomeScreen.qml
-/qt/qml/CipherCodex/src/qml/NotebookListScreen.qml
-/qt/qml/CipherCodex/src/qml/PageScreen.qml
