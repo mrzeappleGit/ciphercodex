@@ -70,8 +70,20 @@ public:
     Q_INVOKABLE void pushProgress(qint64 bookId);  // push the current saved local row
     Q_INVOKABLE void syncAllDirty();  // push every dirty progress row (dirty-retry)
 
+    // ---- WebDAV full sync (Phase 3b) ----
+    // Config lives in settings (webdav_url/webdav_user/webdav_pass; the app-password is stored
+    // plaintext, device-local, like the kosync creds). syncNow() runs the whole engine on a
+    // worker QThread and reports back via the sync* signals; the GUI never blocks on it.
+    Q_INVOKABLE QVariantMap webdavConfig();  // {url,user,configured}; the password is never returned
+    Q_INVOKABLE void setWebdavConfig(const QString &url, const QString &user, const QString &pass);
+    Q_INVOKABLE QVariantMap testWebdav();    // {ok,message} — blocking PROPFIND, explicit user tap
+    Q_INVOKABLE void syncNow();              // no-op if a run is already in flight
+
 signals:
     void pullReady(qint64 bookId, QVariantMap result);
+    void syncStarted();
+    void syncProgress(const QString &step);
+    void syncFinished(bool ok, const QVariantMap &summary);
 
 private:
     QVariantList allBooksWithPct();  // cached; invalidated on any mutation
@@ -88,4 +100,5 @@ private:
     QNetworkAccessManager *m_nam = nullptr;  // parented to this
     QVariantList m_cache;      // last allBooksWithPct() result
     bool m_cacheValid = false; // rebuilt only after import/delete/save/open/bookmark mutations
+    bool m_syncing = false;    // guards syncNow() against concurrent WebDAV runs
 };

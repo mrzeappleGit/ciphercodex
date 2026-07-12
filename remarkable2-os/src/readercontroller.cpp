@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QNetworkAccessManager>
+#include <QThread>
 #include <QUuid>
 
 #include <algorithm>
@@ -13,6 +14,8 @@
 #include <unistd.h>  // fsync
 
 #include "library/library.h"
+#include "sync/syncengine.h"
+#include "sync/webdav.h"
 
 // Matches the Android FINISHED_THRESHOLD: >=0.98 reads as finished.
 static constexpr double FINISHED_THRESHOLD = 0.98;
@@ -524,4 +527,97 @@ void ReaderController::syncAllDirty()
     }
     m_library->setSetting(QStringLiteral("last_sync_at"),
                           QString::number(QDateTime::currentMSecsSinceEpoch()));
+}
+
+// ---- WebDAV full sync (Phase 3b) ----
+
+QVariantMap ReaderController::webdavConfig()
+{
+    if (!m_library)
+        return {};
+    const QString url = m_library->setting(QStringLiteral("webdav_url"));
+    const QString user = m_library->setting(QStringLiteral("webdav_user"));
+    const QString pass = m_library->setting(QStringLiteral("webdav_pass"));
+    return {{QStringLiteral("url"), url},
+            {QStringLiteral("user"), user},
+            {QStringLiteral("configured"),  // password present but never returned
+             !url.isEmpty() && !user.isEmpty() && !pass.isEmpty()}};
+}
+
+void ReaderController::setWebdavConfig(const QString &url, const QString &user, const QString &pass)
+{
+    if (!m_library)
+        return;
+    // WebDavConfig.baseUrl must end with '/'; normalize once at store time (see phase3b-contracts).
+    QString base = url.trimmed();
+    if (!base.isEmpty() && !base.endsWith(QLatin1Char('/')))
+        base += QLatin1Char('/');
+    // The app-password is stored plaintext in the local DB, like the kosync creds (user-controlled,
+    // device-local, redacted from logs) — see phase3-sync-design.md.
+    m_library->setSetting(QStringLiteral("webdav_url"), base);
+    m_library->setSetting(QStringLiteral("webdav_user"), user);
+    m_library->setSetting(QStringLiteral("webdav_pass"), pass);
+    deviceId();  // ensure a persisted device_id exists (it names this device's snapshot file)
+}
+
+QVariantMap ReaderController::testWebdav()
+{
+    if (!m_library)
+        return {{QStringLiteral("ok"), false}, {QStringLiteral("message"), QStringLiteral("No library")}};
+    const QString url = m_library->setting(QStringLiteral("webdav_url"));
+    const QString user = m_library->setting(QStringLiteral("webdav_user"));
+    const QString pass = m_library->setting(QStringLiteral("webdav_pass"));
+    if (url.isEmpty() || user.isEmpty() || pass.isEmpty())
+        return {{QStringLiteral("ok"), false},
+                {QStringLiteral("message"), QStringLiteral("Not configured")}};
+    // Blocking PROPFIND on the GUI thread — tolerable for an explicit "Test" tap, exactly like
+    // kosync testConnection(); the non-blocking path is syncNow() on its own worker thread.
+    WebDavClient client(WebDavConfig{url, user, pass}, m_nam);
+    QString err;
+    const bool ok = client.testConnection(&err);
+    return {{QStringLiteral("ok"), ok},
+            {QStringLiteral("message"), ok ? QStringLiteral("Connected") : err}};
+}
+
+void ReaderController::syncNow()
+{
+    if (m_syncing || !m_library)
+        return;  // one run at a time
+    const QString url = m_library->setting(QStringLiteral("webdav_url"));
+    const QString user = m_library->setting(QStringLiteral("webdav_user"));
+    const QString pass = m_library->setting(QStringLiteral("webdav_pass"));
+    if (url.isEmpty() || user.isEmpty() || pass.isEmpty()) {
+        emit syncFinished(false, QVariantMap{{QStringLiteral("error"),
+                                              QStringLiteral("Not configured")}});
+        return;
+    }
+
+    m_syncing = true;
+    emit syncStarted();
+
+    const WebDavConfig cfg{url, user, pass};
+    const QString dev = deviceId();
+    const QString dir = m_dataDir;
+
+    QThread *thread = new QThread;
+    SyncEngine *engine = new SyncEngine;  // no parent: required before moveToThread
+    engine->moveToThread(thread);
+
+    // progress/finished cross the thread boundary as queued signals (engine lives on the worker).
+    connect(engine, &SyncEngine::progress, this, &ReaderController::syncProgress);
+    connect(engine, &SyncEngine::finished, this,
+            [this](bool ok, const QVariantMap &summary) {
+                m_syncing = false;
+                if (ok)
+                    invalidate();  // merged rows landed on the worker connection; drop stale cache
+                emit syncFinished(ok, summary);
+            });
+    // Kick run() once the worker's event loop is up; cfg/dev/dir copy into the worker thread.
+    connect(thread, &QThread::started, engine,
+            [engine, cfg, dev, dir]() { engine->run(cfg, dev, dir); });
+    // Teardown: stop the loop when the run ends, then delete both objects.
+    connect(engine, &SyncEngine::finished, thread, &QThread::quit);
+    connect(thread, &QThread::finished, engine, &QObject::deleteLater);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
 }

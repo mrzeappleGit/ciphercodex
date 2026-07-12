@@ -21,6 +21,9 @@ add_library(ccx-reader STATIC
     src/epub/epubrender.h   src/epub/epubrender.cpp
     src/sync/kosync.h       src/sync/kosync.cpp
     src/sync/kosyncclient.cpp
+    src/sync/syncstore.h    src/sync/syncstore.cpp
+    src/sync/webdav.h       src/sync/webdav.cpp
+    src/sync/syncengine.h   src/sync/syncengine.cpp
 )
 target_include_directories(ccx-reader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_definitions(ccx-reader PRIVATE CCX_HAVE_PDFIUM) # library's PDF cover/title path

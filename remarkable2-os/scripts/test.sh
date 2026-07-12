@@ -75,6 +75,18 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W 2>/dev/null || pwd):/work" -w /w
         $LINK -o "$BUILD/test_highlights"
     "$BUILD/test_highlights"
 
+    # sync merge (Phase 3b): snapshot export + LWW applyMerged across two DBs. Qt6Core + sqlite3,
+    # no Qt6Network (syncstore.cpp is pure DB logic; webdav/engine are device-integration tested).
+    g++ -std=c++17 -g -fPIC \
+        src/storage/storage.cpp src/library/library.cpp src/library/digest.cpp \
+        src/sync/syncstore.cpp tests/test_sync.cpp \
+        -Isrc -Isrc/storage -Isrc/library -Isrc/sync -I"$BUILD" \
+        -I"$SYS/usr/include" -I"$SYS/usr/include/QtCore" \
+        -L"$SYS/usr/lib" -L"$SYS/lib" \
+        -lQt6Core -l:libsqlite3.so.0 -l:libm.so.6 -lpthread -ldl \
+        $LINK -o "$BUILD/test_sync"
+    "$BUILD/test_sync"
+
     # epub built-text goldens: XhtmlMapper + buildChapterText + resolvePath/spine numbering.
     # Qt6Core only (QZipReader/QZipWriter are Q_CORE_EXPORT symbols in libQt6Core; the private
     # headers live at QtCore/<ver>/QtCore/private, reachable via -I .../QtCore/<ver>).
