@@ -115,6 +115,25 @@ static int runAsserts()
     assertStrokeEqual(back[0], s1);
     assertStrokeEqual(back[1], s2);
 
+    // replaceStrokes: area-erase commit (fresh ids) and its undo (kept ids), one tx each
+    back = st->strokes(p1);
+    StrokeData victim = back[0];
+    StrokeData fragA = victim, fragB = victim;
+    fragA.id = fragB.id = -1;
+    fragA.pts = {victim.pts[0], victim.pts[1]};
+    fragB.pts = {victim.pts[1], victim.pts[2]};
+    QVector<StrokeData> frags{fragA, fragB};
+    assert(st->replaceStrokes({victim.id}, frags, false));
+    assert(frags[0].id > 0 && frags[1].id > 0 && frags[0].id != frags[1].id);
+    assert(st->strokes(p1).size() == 3); // victim gone, 2 fragments + untouched s2
+    QVector<qint64> fragIds{frags[0].id, frags[1].id};
+    QVector<StrokeData> restoreVictim{victim};
+    assert(st->replaceStrokes(fragIds, restoreVictim, true)); // undo: fragments out, original back
+    back = st->strokes(p1);
+    assert(back.size() == 2);
+    assert(back[0].id == victim.id);
+    assertStrokeEqual(back[0], victim);
+
     // deletePage cascades its strokes
     st->deletePage(p2);
     assert(st->pages(nb1).size() == 1);

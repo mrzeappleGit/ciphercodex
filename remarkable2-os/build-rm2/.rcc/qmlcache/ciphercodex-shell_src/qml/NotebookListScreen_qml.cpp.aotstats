@@ -6,7 +6,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 25,
-                        "durationMicroseconds": 832,
+                        "durationMicroseconds": 121,
                         "errorMessage": "Cannot generate efficient code for storing an array in a non-sequence type",
                         "functionName": "items",
                         "line": 12
@@ -14,7 +14,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 5,
-                        "durationMicroseconds": 523,
+                        "durationMicroseconds": 155,
                         "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
                         "functionName": "reload",
                         "line": 14
@@ -22,7 +22,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 28,
-                        "durationMicroseconds": 52,
+                        "durationMicroseconds": 35,
                         "errorMessage": "",
                         "functionName": "onCompleted",
                         "line": 16
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 16,
-                        "durationMicroseconds": 290,
+                        "durationMicroseconds": 226,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 25
@@ -46,7 +46,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 16,
-                        "durationMicroseconds": 490,
+                        "durationMicroseconds": 299,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 27
@@ -54,7 +54,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 265,
+                        "durationMicroseconds": 199,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 28
@@ -62,7 +62,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 20,
-                        "durationMicroseconds": 288,
+                        "durationMicroseconds": 259,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 32
@@ -70,7 +70,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 31,
-                        "durationMicroseconds": 30,
+                        "durationMicroseconds": 28,
                         "errorMessage": "",
                         "functionName": "centerIn",
                         "line": 31
@@ -78,7 +78,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 44,
-                        "durationMicroseconds": 102,
+                        "durationMicroseconds": 71,
                         "errorMessage": "",
                         "functionName": "onTapped",
                         "line": 35
@@ -86,7 +86,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 16,
-                        "durationMicroseconds": 60,
+                        "durationMicroseconds": 40,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 40
@@ -94,7 +94,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 23,
-                        "durationMicroseconds": 53,
+                        "durationMicroseconds": 54,
                         "errorMessage": "Cannot load property StackView from  stored as QQuickItem.",
                         "functionName": "onTapped",
                         "line": 46
@@ -102,7 +102,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 29,
-                        "durationMicroseconds": 65,
+                        "durationMicroseconds": 98,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 43
@@ -110,7 +110,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 74,
-                        "durationMicroseconds": 60,
+                        "durationMicroseconds": 108,
                         "errorMessage": "",
                         "functionName": "verticalCenter",
                         "line": 43
@@ -118,7 +118,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 31,
-                        "durationMicroseconds": 24,
+                        "durationMicroseconds": 42,
                         "errorMessage": "",
                         "functionName": "centerIn",
                         "line": 49
@@ -126,7 +126,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 19,
-                        "durationMicroseconds": 23,
+                        "durationMicroseconds": 28,
                         "errorMessage": "Cannot load property length from (component in /work/src/qml/NotebookListScreen.qml)::items with type QVariant.",
                         "functionName": "onTapped",
                         "line": 60
@@ -134,7 +134,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 60,
+                        "durationMicroseconds": 64,
                         "errorMessage": "",
                         "functionName": "top",
                         "line": 58
@@ -142,7 +142,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 60,
-                        "durationMicroseconds": 71,
+                        "durationMicroseconds": 61,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 58
@@ -150,7 +150,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 16,
-                        "durationMicroseconds": 47,
+                        "durationMicroseconds": 89,
                         "errorMessage": "",
                         "functionName": "model",
                         "line": 76
@@ -158,7 +158,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 18,
-                        "durationMicroseconds": 66,
+                        "durationMicroseconds": 87,
                         "errorMessage": "",
                         "functionName": "top",
                         "line": 69
@@ -166,7 +166,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 19,
-                        "durationMicroseconds": 59,
+                        "durationMicroseconds": 63,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 70
@@ -174,7 +174,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 20,
-                        "durationMicroseconds": 58,
+                        "durationMicroseconds": 59,
                         "errorMessage": "",
                         "functionName": "right",
                         "line": 71
@@ -182,7 +182,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 21,
-                        "durationMicroseconds": 57,
+                        "durationMicroseconds": 58,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 72
@@ -198,7 +198,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 20,
-                        "durationMicroseconds": 341,
+                        "durationMicroseconds": 257,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 83
@@ -206,7 +206,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 26,
-                        "durationMicroseconds": 69,
+                        "durationMicroseconds": 44,
                         "errorMessage": "",
                         "functionName": "visible",
                         "line": 86
@@ -214,7 +214,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 108,
+                        "durationMicroseconds": 75,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 88
@@ -222,7 +222,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 64,
+                        "durationMicroseconds": 40,
                         "errorMessage": "",
                         "functionName": "elide",
                         "line": 89
@@ -230,7 +230,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 23,
-                        "durationMicroseconds": 15,
+                        "durationMicroseconds": 12,
                         "errorMessage": "Cannot load property title from (component in /work/src/qml/NotebookListScreen.qml)::modelData with type QVariant.",
                         "functionName": "text",
                         "line": 90
@@ -238,7 +238,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 217,
+                        "durationMicroseconds": 200,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 91
@@ -246,7 +246,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 33,
-                        "durationMicroseconds": 63,
+                        "durationMicroseconds": 60,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 87
@@ -262,7 +262,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 26,
-                        "durationMicroseconds": 46,
+                        "durationMicroseconds": 43,
                         "errorMessage": "",
                         "functionName": "visible",
                         "line": 95
@@ -270,7 +270,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 23,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 11,
                         "errorMessage": "Cannot load property pageCount from (component in /work/src/qml/NotebookListScreen.qml)::modelData with type QVariant.",
                         "functionName": "text",
                         "line": 97
@@ -278,7 +278,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 24,
-                        "durationMicroseconds": 200,
+                        "durationMicroseconds": 197,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 98
@@ -286,7 +286,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 34,
-                        "durationMicroseconds": 82,
+                        "durationMicroseconds": 59,
                         "errorMessage": "",
                         "functionName": "right",
                         "line": 96
@@ -294,7 +294,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 81,
-                        "durationMicroseconds": 84,
+                        "durationMicroseconds": 59,
                         "errorMessage": "",
                         "functionName": "verticalCenter",
                         "line": 96
@@ -302,7 +302,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 26,
-                        "durationMicroseconds": 40,
+                        "durationMicroseconds": 33,
                         "errorMessage": "",
                         "functionName": "visible",
                         "line": 102
@@ -310,7 +310,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 35,
-                        "durationMicroseconds": 25,
+                        "durationMicroseconds": 24,
                         "errorMessage": "",
                         "functionName": "centerIn",
                         "line": 103
@@ -318,7 +318,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 31,
-                        "durationMicroseconds": 22,
+                        "durationMicroseconds": 21,
                         "errorMessage": "Cannot load property id from (component in /work/src/qml/NotebookListScreen.qml)::modelData with type QVariant.",
                         "functionName": "onTapped",
                         "line": 107
@@ -326,7 +326,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 50,
-                        "durationMicroseconds": 61,
+                        "durationMicroseconds": 58,
                         "errorMessage": "",
                         "functionName": "onTapped",
                         "line": 112
@@ -334,7 +334,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 26,
-                        "durationMicroseconds": 45,
+                        "durationMicroseconds": 44,
                         "errorMessage": "",
                         "functionName": "enabled",
                         "line": 116
@@ -342,7 +342,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 63,
+                        "durationMicroseconds": 64,
                         "errorMessage": "Cannot load property StackView from  stored as QQuickItem.",
                         "functionName": "onTapped",
                         "line": 117
@@ -350,7 +350,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 32,
-                        "durationMicroseconds": 52,
+                        "durationMicroseconds": 97,
                         "errorMessage": "",
                         "functionName": "onLongPressed",
                         "line": 121
@@ -358,7 +358,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 19,
-                        "durationMicroseconds": 51,
+                        "durationMicroseconds": 54,
                         "errorMessage": "",
                         "functionName": "onTapped",
                         "line": 132
@@ -366,7 +366,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 98,
+                        "durationMicroseconds": 67,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 129
@@ -374,7 +374,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 78,
-                        "durationMicroseconds": 63,
+                        "durationMicroseconds": 59,
                         "errorMessage": "",
                         "functionName": "horizontalCenter",
                         "line": 129
@@ -382,7 +382,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 50,
+                        "durationMicroseconds": 48,
                         "errorMessage": "",
                         "functionName": "pen",
                         "line": 137

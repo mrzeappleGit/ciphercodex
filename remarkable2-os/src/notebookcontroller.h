@@ -40,15 +40,18 @@ signals:
     void undoChanged();
 
 private:
-    // Two op kinds; both carry full stroke copies so either direction can restore with ids.
+    // Op kinds carry full stroke copies so either direction can restore with ids.
+    // Replace (area erase): `strokes` = removed originals, `added` = surviving fragments.
     struct Op {
-        enum Type { Add, Erase };
+        enum Type { Add, Erase, Replace };
         int type;
         QVector<StrokeData> strokes;
+        QVector<StrokeData> added;
     };
 
     void onStrokeFinished(const StrokeData &s);
     void onStrokesErased(const QVector<qint64> &ids);
+    void onStrokesSplit(const QVector<qint64> &removedIds, const QVector<StrokeData> &fragments);
     void pushUndo(Op op);
     bool apply(const Op &op, bool undoing);
     void resyncCanvas(); // storage failed mid-op: re-load truth from DB

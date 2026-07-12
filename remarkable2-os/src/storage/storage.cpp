@@ -352,6 +352,48 @@ bool Storage::restoreStrokes(QVector<StrokeData> &s)
     return tx.commit();
 }
 
+bool Storage::replaceStrokes(const QVector<qint64> &removeIds, QVector<StrokeData> &add,
+                             bool keepAddIds)
+{
+    if (removeIds.isEmpty() && add.isEmpty())
+        return true;
+    Tx tx(m_db);
+    if (!tx.active)
+        return false;
+    {
+        Stmt del(m_db, "DELETE FROM strokes WHERE id = ?");
+        for (qint64 id : removeIds) {
+            sqlite3_bind_int64(del.s, 1, id);
+            if (!del.done())
+                return false;  // dtor rolls back — all-or-nothing
+            sqlite3_reset(del.s);
+        }
+    }
+    Stmt ins(m_db, keepAddIds
+        ? "INSERT INTO strokes(id, page_id, tool, base_width, points, created_at)"
+          "  VALUES(?, ?, ?, ?, ?, ?)"
+        : "INSERT INTO strokes(page_id, tool, base_width, points, created_at)"
+          "  VALUES(?, ?, ?, ?, ?)");
+    const qint64 ts = now();
+    for (StrokeData &sd : add) {
+        const QByteArray blob = encodePoints(sd.pts);
+        int col = 1;
+        if (keepAddIds)
+            sqlite3_bind_int64(ins.s, col++, sd.id);
+        sqlite3_bind_int64(ins.s, col++, sd.pageId);
+        sqlite3_bind_int(ins.s, col++, sd.tool);
+        sqlite3_bind_double(ins.s, col++, sd.baseWidth);
+        sqlite3_bind_blob(ins.s, col++, blob.constData(), blob.size(), SQLITE_TRANSIENT);
+        sqlite3_bind_int64(ins.s, col++, ts);
+        if (!ins.done())
+            return false;
+        if (!keepAddIds)
+            sd.id = sqlite3_last_insert_rowid(m_db);
+        sqlite3_reset(ins.s);
+    }
+    return tx.commit();
+}
+
 QVector<StrokeData> Storage::strokes(qint64 pageId)
 {
     QVector<StrokeData> out;

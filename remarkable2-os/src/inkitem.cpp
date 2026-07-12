@@ -3,7 +3,8 @@
 #include <QPainter>
 #include <QPen>
 
-static constexpr qreal ERASE_RADIUS = 6.0;   // px, per contract
+static constexpr qreal ERASE_RADIUS = 6.0;   // px, stroke-eraser hit radius, per contract
+static constexpr qreal AREA_RADIUS = 12.0;   // px, area-eraser swath half-width
 static constexpr int   MAX_PEN_MARGIN = 16;  // > max pen width (11px) + rounding
 static constexpr qreal PAGE_ASPECT = 1872.0 / 1404.0; // contract: pts normalized to page, not item
 
@@ -155,6 +156,8 @@ void InkItem::setStrokes(const QVector<StrokeData> &strokes)
     // be committed to the new page with old-page coordinates
     m_down = false;
     m_current = StrokeData();
+    m_erasePath.clear();
+    m_eraseBounds = QRectF();
     for (const StrokeData &s : strokes)
         insertEntry(s);
     renderAll();
@@ -197,11 +200,19 @@ void InkItem::removeStrokes(const QVector<qint64> &ids)
     }
     if (!removed)
         return;
+    repaintRegion(dirtyF.toRect()
+        .adjusted(-MAX_PEN_MARGIN, -MAX_PEN_MARGIN, MAX_PEN_MARGIN, MAX_PEN_MARGIN));
+}
+
+// Redraw one region from the model: white fill + only the strokes that intersect it.
+void InkItem::repaintRegion(const QRect &region)
+{
     ensureBuffer();
     const QRect all(QPoint(0, 0), m_buffer.size());
-    const QRect dirty = dirtyF.toRect()
-        .adjusted(-MAX_PEN_MARGIN, -MAX_PEN_MARGIN, MAX_PEN_MARGIN, MAX_PEN_MARGIN) & all;
-    // repaint only the erased region; a dense page pays for its own strokes, not all of them
+    const QRect dirty = region & all;
+    if (dirty.isEmpty())
+        return;
+    // a dense page pays for its own strokes, not all of them; full render only if huge
     if (qint64(dirty.width()) * dirty.height() > qint64(all.width()) * all.height() * 3 / 5) {
         renderAll();
         update(dirty);
@@ -277,6 +288,87 @@ void InkItem::eraseHitTest(const QPointF &px)
         update(dirty);
 }
 
+// White swath painted live under the pen; the model updates once at pen-up.
+void InkItem::areaSwath(const QPointF &from, const QPointF &to)
+{
+    ensureBuffer();
+    QPainter p(&m_buffer);
+    p.setPen(QPen(Qt::white, AREA_RADIUS * 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.drawLine(from, to);
+    p.end();
+    if (m_erasePath.isEmpty())
+        m_erasePath.append(from);
+    m_erasePath.append(to);
+    const int m = int(AREA_RADIUS) + 2;
+    const QRect dirty = QRectF(from, to).normalized().adjusted(-m, -m, m, m).toRect();
+    m_eraseBounds |= QRectF(dirty);
+    update(dirty);
+}
+
+void InkItem::commitAreaErase()
+{
+    if (m_erasePath.isEmpty())
+        return;
+    const QVector<QPointF> path = std::move(m_erasePath);
+    m_erasePath = {};
+    const QRectF swathBounds = m_eraseBounds;
+    m_eraseBounds = QRectF();
+
+    const qreal w = qMax<qreal>(1, width()), ph = pageHeight();
+    const qreal r2 = AREA_RADIUS * AREA_RADIUS;
+    QVector<qint64> removedIds;
+    QVector<StrokeData> fragments;
+    for (auto it = m_strokes.cbegin(); it != m_strokes.cend(); ++it) {
+        if (!pixelBounds(it->bounds)
+                 .adjusted(-MAX_PEN_MARGIN, -MAX_PEN_MARGIN, MAX_PEN_MARGIN, MAX_PEN_MARGIN)
+                 .intersects(swathBounds))
+            continue;
+        const auto &pts = it->s.pts;
+        // ponytail: per-point vs swath-centerline distance, O(points x path); bounds
+        // pre-check culls unaffected strokes. Segment-crossing without a point inside
+        // the swath is possible only for point spacing > 2*AREA_RADIUS (fast flicks).
+        QVector<bool> erased(pts.size(), false);
+        bool any = false;
+        for (int i = 0; i < pts.size(); ++i) {
+            const QPointF px(pts[i].x * w, pts[i].y * ph);
+            for (int j = 1; j < path.size() && !erased[i]; ++j)
+                erased[i] = distSqToSegment(px, path[j - 1], path[j]) < r2;
+            if (path.size() == 1)
+                erased[i] = distSqToSegment(px, path[0], path[0]) < r2;
+            any = any || erased[i];
+        }
+        if (!any)
+            continue;
+        removedIds.append(it.key());
+        // surviving runs of >=2 points become fragment strokes
+        int runStart = -1;
+        for (int i = 0; i <= pts.size(); ++i) {
+            const bool keep = i < pts.size() && !erased[i];
+            if (keep && runStart < 0)
+                runStart = i;
+            if (!keep && runStart >= 0) {
+                if (i - runStart >= 2) {
+                    StrokeData frag;
+                    frag.pageId = it->s.pageId;
+                    frag.tool = it->s.tool;
+                    frag.baseWidth = it->s.baseWidth;
+                    frag.pts = pts.mid(runStart, i - runStart);
+                    const quint32 t0 = frag.pts.first().tMs; // rebase to fragment start
+                    for (StrokePoint &fp : frag.pts)
+                        fp.tMs -= t0;
+                    fragments.append(std::move(frag));
+                }
+                runStart = -1;
+            }
+        }
+    }
+    if (!removedIds.isEmpty())
+        emit strokesSplit(removedIds, fragments); // controller commits, then updates the canvas
+    // model is final now (controller updated it synchronously during the emit); repaint the
+    // swath so kept ink the white sweep overpainted (e.g. failed commit, near-misses) returns
+    repaintRegion(swathBounds.toRect());
+}
+
 void InkItem::penDown(qreal x, qreal y, qreal pressure,
                       int rawPressure, int tiltX, int tiltY, quint32 tMs)
 {
@@ -286,6 +378,10 @@ void InkItem::penDown(qreal x, qreal y, qreal pressure,
     m_activeTool = m_tool;
     if (m_activeTool == 1) {
         eraseHitTest(local);
+        return;
+    }
+    if (m_activeTool == 2) {
+        areaSwath(local, local);
         return;
     }
     m_current = StrokeData();
@@ -304,6 +400,8 @@ void InkItem::penMove(qreal x, qreal y, qreal pressure,
     const QPointF local = mapFromScene(QPointF(x, y));
     if (m_activeTool == 1) {
         eraseHitTest(local);
+    } else if (m_activeTool == 2) {
+        areaSwath(m_last, local);
     } else {
         recordPoint(local, pressure, rawPressure, tiltX, tiltY, tMs);
         update(drawSegment(m_last, local, pressure));
@@ -324,6 +422,10 @@ void InkItem::penUp()
         }
         return;
     }
+    if (m_activeTool == 2) {
+        commitAreaErase();
+        return;
+    }
     if (!m_current.pts.isEmpty())
         emit strokeFinished(m_current); // controller persists, then calls commitStroke() with the id
     m_current.pts.clear();
@@ -335,6 +437,8 @@ void InkItem::clear()
     m_pendingErase.clear();
     m_current.pts.clear();
     m_down = false;
+    m_erasePath.clear();
+    m_eraseBounds = QRectF();
     ensureBuffer();
     m_buffer.fill(Qt::white);
     update();

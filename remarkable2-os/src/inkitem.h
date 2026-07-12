@@ -18,7 +18,7 @@ class InkItem : public QQuickPaintedItem
 {
     Q_OBJECT
     QML_ELEMENT
-    Q_PROPERTY(int tool READ tool WRITE setTool NOTIFY toolChanged) // 0 pencil, 1 stroke-eraser
+    Q_PROPERTY(int tool READ tool WRITE setTool NOTIFY toolChanged) // 0 pencil, 1 stroke-eraser, 2 area-eraser
 
 public:
     explicit InkItem(QQuickItem *parent = nullptr);
@@ -48,6 +48,8 @@ signals:
     void toolChanged();
     void strokeFinished(const StrokeData &s);        // pen-up; pts page-normalized 0..1, id unset
     void strokesErased(const QVector<qint64> &ids);  // stroke-eraser hits, emitted on pen-up
+    // area-eraser commit: swath-touched strokes -> surviving fragments (ids unset)
+    void strokesSplit(const QVector<qint64> &removedIds, const QVector<StrokeData> &fragments);
 
 protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
@@ -66,8 +68,11 @@ private:
     QRect paintStroke(QPainter &p, const StrokeData &s, const QColor &color) const;
     QRect drawStroke(const StrokeData &s, const QColor &color);
     void renderAll();
+    void repaintRegion(const QRect &region);
     void insertEntry(const StrokeData &s);
     void eraseHitTest(const QPointF &px);
+    void areaSwath(const QPointF &from, const QPointF &to);
+    void commitAreaErase();
     void recordPoint(const QPointF &local, qreal pressure, int rawPressure,
                      int tiltX, int tiltY, quint32 tMs);
 
@@ -80,4 +85,6 @@ private:
     StrokeData m_current;
     quint32 m_t0 = 0; // tMs of pen-down; stored point times are relative to stroke start
     QSet<qint64> m_pendingErase;
+    QVector<QPointF> m_erasePath; // area-eraser swath centerline, item pixels
+    QRectF m_eraseBounds;
 };

@@ -57,7 +57,7 @@ Item {
         property alias label: btnText.text
         property bool active: false
         signal tapped()
-        width: Math.max(90, btnText.implicitWidth + 28)
+        width: Math.max(88, btnText.implicitWidth + 20)
         height: 90
         color: (btnTap.pressed || b.active) ? "black" : "white"
         border { color: b.enabled ? "black" : "#999999"; width: 4 }
@@ -66,7 +66,7 @@ Item {
             anchors.centerIn: parent
             color: !b.enabled ? "#999999"
                               : ((btnTap.pressed || b.active) ? "white" : "black")
-            font { pixelSize: 26; bold: true }
+            font { pixelSize: 22; bold: true }
         }
         TapHandler { id: btnTap; onTapped: b.tapped() }
     }
@@ -79,26 +79,26 @@ Item {
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 4; color: "black" }
 
         Row {
-            anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
-            spacing: 8
+            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+            spacing: 6
 
             Btn { label: "BACK"; onTapped: pageScreen.StackView.view.pop() }
             Item {
-                width: 220; height: 90
+                width: 130; height: 90
                 Text {
-                    anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-                    width: parent.width - 8
+                    anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
+                    width: parent.width - 6
                     elide: Text.ElideRight
                     text: pageScreen.notebookTitle
-                    font { pixelSize: 26; bold: true }
+                    font { pixelSize: 22; bold: true }
                 }
             }
             Item {
-                width: 80; height: 90
+                width: 64; height: 90
                 Text {
                     anchors.centerIn: parent
                     text: (pageScreen.pageIndex + 1) + "/" + pageScreen.pageIds.length
-                    font.pixelSize: 26
+                    font.pixelSize: 22
                 }
             }
             Btn {
@@ -125,9 +125,14 @@ Item {
                 onTapped: pageScreen.activeTool = 0
             }
             Btn {
-                label: "ERASER"
+                label: "STROKE"  // stroke eraser: whole strokes
                 active: pageScreen.activeTool === 1
                 onTapped: pageScreen.activeTool = 1
+            }
+            Btn {
+                label: "AREA"    // area eraser: partial, splits strokes
+                active: pageScreen.activeTool === 2
+                onTapped: pageScreen.activeTool = 2
             }
             Btn {
                 label: "UNDO"

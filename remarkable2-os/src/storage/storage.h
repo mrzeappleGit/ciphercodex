@@ -36,6 +36,10 @@ public:
     qint64 appendStroke(const StrokeData &s);     // returns rowid; THE journal write
     bool removeStrokes(const QVector<qint64> &ids);
     bool restoreStrokes(QVector<StrokeData> &s);  // re-insert with original ids
+    // Area-erase commit: delete removeIds and insert fragments, one transaction.
+    // keepAddIds=false assigns fresh ids into `add`; true re-inserts with their ids (undo/redo).
+    bool replaceStrokes(const QVector<qint64> &removeIds, QVector<StrokeData> &add,
+                        bool keepAddIds);
     QVector<StrokeData> strokes(qint64 pageId);   // ordered by id
 
 private:

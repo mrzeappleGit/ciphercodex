@@ -6,7 +6,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 80,
+                        "durationMicroseconds": 114,
                         "errorMessage": "Cannot generate efficient code for storing an array in a non-sequence type",
                         "functionName": "pageIds",
                         "line": 15
@@ -14,7 +14,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 5,
-                        "durationMicroseconds": 952,
+                        "durationMicroseconds": 828,
                         "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
                         "functionName": "reloadPages",
                         "line": 19
@@ -30,7 +30,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 5,
-                        "durationMicroseconds": 72,
+                        "durationMicroseconds": 62,
                         "errorMessage": "Type (component in /work/src/qml/PageScreen.qml)::pen with type QVariant does not have a property canvasRect for writing",
                         "functionName": "syncCanvasRect",
                         "line": 34
@@ -38,7 +38,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 21,
-                        "durationMicroseconds": 42,
+                        "durationMicroseconds": 38,
                         "errorMessage": "",
                         "functionName": "onWidthChanged",
                         "line": 48
@@ -46,7 +46,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 22,
-                        "durationMicroseconds": 28,
+                        "durationMicroseconds": 26,
                         "errorMessage": "",
                         "functionName": "onHeightChanged",
                         "line": 49
@@ -62,7 +62,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 30,
-                        "durationMicroseconds": 33,
+                        "durationMicroseconds": 64,
                         "errorMessage": "Type (component in /work/src/qml/PageScreen.qml)::pen with type QVariant does not have a property canvasRect for writing",
                         "functionName": "onDestruction",
                         "line": 51
@@ -70,7 +70,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 16,
-                        "durationMicroseconds": 154,
+                        "durationMicroseconds": 226,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 60
@@ -78,7 +78,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 16,
-                        "durationMicroseconds": 286,
+                        "durationMicroseconds": 332,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 62
@@ -86,7 +86,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 207,
+                        "durationMicroseconds": 213,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 63
@@ -94,7 +94,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 20,
-                        "durationMicroseconds": 399,
+                        "durationMicroseconds": 386,
                         "errorMessage": "",
                         "functionName": "color",
                         "line": 67
@@ -102,7 +102,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 31,
-                        "durationMicroseconds": 47,
+                        "durationMicroseconds": 41,
                         "errorMessage": "",
                         "functionName": "centerIn",
                         "line": 66
@@ -110,7 +110,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 44,
-                        "durationMicroseconds": 78,
+                        "durationMicroseconds": 112,
                         "errorMessage": "",
                         "functionName": "onTapped",
                         "line": 71
@@ -118,7 +118,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 16,
-                        "durationMicroseconds": 43,
+                        "durationMicroseconds": 52,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 76
@@ -134,7 +134,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 108,
+                        "durationMicroseconds": 61,
                         "errorMessage": "",
                         "functionName": "bottom",
                         "line": 79
@@ -142,7 +142,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 29,
-                        "durationMicroseconds": 67,
+                        "durationMicroseconds": 60,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 82
@@ -150,7 +150,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 74,
-                        "durationMicroseconds": 60,
+                        "durationMicroseconds": 59,
                         "errorMessage": "",
                         "functionName": "verticalCenter",
                         "line": 82
@@ -158,7 +158,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 44,
-                        "durationMicroseconds": 57,
+                        "durationMicroseconds": 58,
                         "errorMessage": "Cannot load property StackView from  stored as QQuickItem.",
                         "functionName": "onTapped",
                         "line": 85
@@ -166,7 +166,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 28,
-                        "durationMicroseconds": 79,
+                        "durationMicroseconds": 78,
                         "errorMessage": "",
                         "functionName": "width",
                         "line": 90
@@ -174,7 +174,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 28,
-                        "durationMicroseconds": 41,
+                        "durationMicroseconds": 82,
                         "errorMessage": "",
                         "functionName": "elide",
                         "line": 91
@@ -182,7 +182,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 36,
+                        "durationMicroseconds": 46,
                         "errorMessage": "",
                         "functionName": "text",
                         "line": 92
@@ -190,7 +190,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 37,
-                        "durationMicroseconds": 61,
+                        "durationMicroseconds": 63,
                         "errorMessage": "",
                         "functionName": "left",
                         "line": 89
@@ -206,7 +206,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 44,
+                        "durationMicroseconds": 47,
                         "errorMessage": "Cannot load property length from (component in /work/src/qml/PageScreen.qml)::pageIds with type QVariant.",
                         "functionName": "text",
                         "line": 100
@@ -214,7 +214,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 39,
-                        "durationMicroseconds": 24,
+                        "durationMicroseconds": 25,
                         "errorMessage": "",
                         "functionName": "centerIn",
                         "line": 99
@@ -222,7 +222,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 26,
-                        "durationMicroseconds": 67,
+                        "durationMicroseconds": 68,
                         "errorMessage": "",
                         "functionName": "enabled",
                         "line": 106
@@ -230,7 +230,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 115,
+                        "durationMicroseconds": 157,
                         "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
                         "functionName": "onTapped",
                         "line": 107
@@ -238,7 +238,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 26,
-                        "durationMicroseconds": 17,
+                        "durationMicroseconds": 31,
                         "errorMessage": "Cannot load property length from (component in /work/src/qml/PageScreen.qml)::pageIds with type QVariant.",
                         "functionName": "enabled",
                         "line": 111
@@ -246,7 +246,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 133,
+                        "durationMicroseconds": 163,
                         "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
                         "functionName": "onTapped",
                         "line": 112
@@ -254,7 +254,7 @@
                     {
                         "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 38,
+                        "durationMicroseconds": 40,
                         "errorMessage": "Cannot load property length from (component in /work/src/qml/PageScreen.qml)::pageIds with type QVariant.",
                         "functionName": "onTapped",
                         "line": 116
@@ -262,7 +262,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 64,
+                        "durationMicroseconds": 67,
                         "errorMessage": "",
                         "functionName": "active",
                         "line": 124
@@ -270,7 +270,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 52,
+                        "durationMicroseconds": 54,
                         "errorMessage": "",
                         "functionName": "onTapped",
                         "line": 125
@@ -278,7 +278,7 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 25,
-                        "durationMicroseconds": 62,
+                        "durationMicroseconds": 61,
                         "errorMessage": "",
                         "functionName": "active",
                         "line": 129
@@ -286,24 +286,24 @@
                     {
                         "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 49,
+                        "durationMicroseconds": 48,
                         "errorMessage": "",
                         "functionName": "onTapped",
                         "line": 130
                     },
                     {
-                        "codegenSuccessfull": false,
-                        "column": 26,
-                        "durationMicroseconds": 9,
-                        "errorMessage": "Cannot load property canUndo from (component in /work/src/qml/PageScreen.qml)::controller with type QVariant.",
-                        "functionName": "enabled",
+                        "codegenSuccessfull": true,
+                        "column": 25,
+                        "durationMicroseconds": 59,
+                        "errorMessage": "",
+                        "functionName": "active",
                         "line": 134
                     },
                     {
-                        "codegenSuccessfull": false,
+                        "codegenSuccessfull": true,
                         "column": 27,
-                        "durationMicroseconds": 81,
-                        "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
+                        "durationMicroseconds": 47,
+                        "errorMessage": "",
                         "functionName": "onTapped",
                         "line": 135
                     },
@@ -311,41 +311,57 @@
                         "codegenSuccessfull": false,
                         "column": 26,
                         "durationMicroseconds": 9,
-                        "errorMessage": "Cannot load property canRedo from (component in /work/src/qml/PageScreen.qml)::controller with type QVariant.",
+                        "errorMessage": "Cannot load property canUndo from (component in /work/src/qml/PageScreen.qml)::controller with type QVariant.",
                         "functionName": "enabled",
                         "line": 139
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 78,
+                        "durationMicroseconds": 80,
                         "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
                         "functionName": "onTapped",
                         "line": 140
                     },
                     {
                         "codegenSuccessfull": false,
+                        "column": 26,
+                        "durationMicroseconds": 9,
+                        "errorMessage": "Cannot load property canRedo from (component in /work/src/qml/PageScreen.qml)::controller with type QVariant.",
+                        "functionName": "enabled",
+                        "line": 144
+                    },
+                    {
+                        "codegenSuccessfull": false,
                         "column": 27,
-                        "durationMicroseconds": 465,
+                        "durationMicroseconds": 77,
                         "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
                         "functionName": "onTapped",
                         "line": 145
                     },
                     {
+                        "codegenSuccessfull": false,
+                        "column": 27,
+                        "durationMicroseconds": 473,
+                        "errorMessage": "Cannot generate efficient code for call to untyped JavaScript function",
+                        "functionName": "onTapped",
+                        "line": 150
+                    },
+                    {
                         "codegenSuccessfull": true,
                         "column": 61,
-                        "durationMicroseconds": 74,
+                        "durationMicroseconds": 91,
                         "errorMessage": "",
                         "functionName": "onTriggered",
-                        "line": 155
+                        "line": 160
                     },
                     {
                         "codegenSuccessfull": false,
                         "column": 15,
-                        "durationMicroseconds": 13,
+                        "durationMicroseconds": 24,
                         "errorMessage": "Cannot load property eraser from (component in /work/src/qml/PageScreen.qml)::pen with type QVariant.",
                         "functionName": "tool",
-                        "line": 161
+                        "line": 166
                     },
                     {
                         "codegenSuccessfull": false,
@@ -353,7 +369,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Cannot resolve property type  for binding on top.",
                         "functionName": "top",
-                        "line": 159
+                        "line": 164
                     },
                     {
                         "codegenSuccessfull": false,
@@ -361,7 +377,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Cannot resolve property type  for binding on left.",
                         "functionName": "left",
-                        "line": 159
+                        "line": 164
                     },
                     {
                         "codegenSuccessfull": false,
@@ -369,7 +385,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Cannot resolve property type  for binding on right.",
                         "functionName": "right",
-                        "line": 159
+                        "line": 164
                     },
                     {
                         "codegenSuccessfull": false,
@@ -377,7 +393,7 @@
                         "durationMicroseconds": 0,
                         "errorMessage": "Cannot resolve property type  for binding on bottom.",
                         "functionName": "bottom",
-                        "line": 159
+                        "line": 164
                     }
                 ],
                 "filepath": "/work/src/qml/PageScreen.qml"

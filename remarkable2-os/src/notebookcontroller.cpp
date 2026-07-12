@@ -84,6 +84,8 @@ void NotebookController::openPage(qint64 pageId, InkItem *canvas, PenReader *pen
             Qt::UniqueConnection);
     connect(canvas, &InkItem::strokesErased, this, &NotebookController::onStrokesErased,
             Qt::UniqueConnection);
+    connect(canvas, &InkItem::strokesSplit, this, &NotebookController::onStrokesSplit,
+            Qt::UniqueConnection);
     if (pen) {
         // direct C++ hot path: no JS trampoline at 200 Hz, all 7 args intact
         connect(pen, &PenReader::penDown, canvas, &InkItem::penDown, Qt::UniqueConnection);
@@ -130,10 +132,29 @@ void NotebookController::onStrokesErased(const QVector<qint64> &ids)
     pushUndo({Op::Erase, copies});
 }
 
+void NotebookController::onStrokesSplit(const QVector<qint64> &removedIds,
+                                        const QVector<StrokeData> &fragments)
+{
+    if (!m_storage || !m_canvas)
+        return;
+    const QVector<StrokeData> removedCopies = m_canvas->strokesById(removedIds);
+    QVector<StrokeData> frags = fragments; // replaceStrokes assigns their fresh ids
+    if (!m_storage->replaceStrokes(removedIds, frags, false)) {
+        qWarning("area erase failed; resyncing canvas from DB");
+        resyncCanvas();
+        return;
+    }
+    m_canvas->removeStrokes(removedIds);
+    m_canvas->addStrokes(frags);
+    pushUndo({Op::Replace, removedCopies, frags});
+}
+
 qint64 NotebookController::opPoints(const Op &op) const
 {
     qint64 n = 0;
     for (const StrokeData &s : op.strokes)
+        n += s.pts.size();
+    for (const StrokeData &s : op.added)
         n += s.pts.size();
     return n;
 }
@@ -154,6 +175,24 @@ bool NotebookController::apply(const Op &op, bool undoing)
 {
     // undo Add == redo Erase == remove; undo Erase == redo Add == restore.
     // Canvas is touched only after storage committed — screen never diverges from DB.
+    if (op.type == Op::Replace) {
+        // one transaction either way; both sides re-insert with their recorded ids
+        const QVector<StrokeData> &out = undoing ? op.added : op.strokes;   // leave DB
+        QVector<StrokeData> in = undoing ? op.strokes : op.added;           // enter DB
+        QVector<qint64> outIds;
+        outIds.reserve(out.size());
+        for (const StrokeData &s : out)
+            outIds.append(s.id);
+        if (!m_storage->replaceStrokes(outIds, in, true)) {
+            resyncCanvas();
+            return false;
+        }
+        if (m_canvas) {
+            m_canvas->removeStrokes(outIds);
+            m_canvas->addStrokes(in);
+        }
+        return true;
+    }
     if ((op.type == Op::Add) == undoing) {
         QVector<qint64> ids;
         ids.reserve(op.strokes.size());

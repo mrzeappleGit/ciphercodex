@@ -30,6 +30,11 @@ Module {
             name: "strokesErased"
             Parameter { name: "ids"; type: "qlonglong"; isList: true }
         }
+        Signal {
+            name: "strokesSplit"
+            Parameter { name: "removedIds"; type: "qlonglong"; isList: true }
+            Parameter { name: "fragments"; type: "StrokeData"; isList: true }
+        }
         Method {
             name: "penDown"
             Parameter { name: "x"; type: "double" }
