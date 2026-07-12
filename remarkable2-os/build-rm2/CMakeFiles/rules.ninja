@@ -14,6 +14,25 @@
 #############################################
 # Rule for compiling CXX files.
 
+rule CXX_COMPILER__ccx-storage_unscanned_
+  depfile = $DEP_FILE
+  deps = gcc
+  command = ${LAUNCHER}${CODE_CHECK}/opt/codex-sdk/sysroots/x86_64-codexsdk-linux/usr/bin/arm-remarkable-linux-gnueabi/arm-remarkable-linux-gnueabi-g++   -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a7 -D_TIME_BITS=64 -D_FILE_OFFSET_BITS=64 --sysroot=/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi --sysroot=/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi $DEFINES $INCLUDES $FLAGS -MD -MT $out -MF $DEP_FILE -o $out -c $in
+  description = Building CXX object $out
+
+
+#############################################
+# Rule for linking CXX static library.
+
+rule CXX_STATIC_LIBRARY_LINKER__ccx-storage_
+  command = $PRE_LINK && /opt/codex-sdk/sysroots/x86_64-codexsdk-linux/usr/bin/cmake -E rm -f $TARGET_FILE && /opt/codex-sdk/sysroots/x86_64-codexsdk-linux/usr/bin/arm-remarkable-linux-gnueabi/arm-remarkable-linux-gnueabi-ar qc $TARGET_FILE $LINK_FLAGS $in && /opt/codex-sdk/sysroots/x86_64-codexsdk-linux/usr/bin/arm-remarkable-linux-gnueabi/arm-remarkable-linux-gnueabi-ranlib $TARGET_FILE && $POST_BUILD
+  description = Linking CXX static library $TARGET_FILE
+  restat = $RESTAT
+
+
+#############################################
+# Rule for compiling CXX files.
+
 rule CXX_COMPILER__ciphercodex-shell_unscanned_
   depfile = $DEP_FILE
   deps = gcc

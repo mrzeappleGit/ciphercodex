@@ -12,6 +12,27 @@ namespace _qt_qml_CipherCodex_src_Main_qml {
         reinterpret_cast<const QV4::CompiledData::Unit*>(&qmlData), &aotBuiltFunctions[0], nullptr
     };
 }
+namespace _qt_qml_CipherCodex_src_qml_HomeScreen_qml { 
+    extern const unsigned char qmlData[];
+    extern const QQmlPrivate::AOTCompiledFunction aotBuiltFunctions[];
+    const QQmlPrivate::CachedQmlUnit unit = {
+        reinterpret_cast<const QV4::CompiledData::Unit*>(&qmlData), &aotBuiltFunctions[0], nullptr
+    };
+}
+namespace _qt_qml_CipherCodex_src_qml_NotebookListScreen_qml { 
+    extern const unsigned char qmlData[];
+    extern const QQmlPrivate::AOTCompiledFunction aotBuiltFunctions[];
+    const QQmlPrivate::CachedQmlUnit unit = {
+        reinterpret_cast<const QV4::CompiledData::Unit*>(&qmlData), &aotBuiltFunctions[0], nullptr
+    };
+}
+namespace _qt_qml_CipherCodex_src_qml_PageScreen_qml { 
+    extern const unsigned char qmlData[];
+    extern const QQmlPrivate::AOTCompiledFunction aotBuiltFunctions[];
+    const QQmlPrivate::CachedQmlUnit unit = {
+        reinterpret_cast<const QV4::CompiledData::Unit*>(&qmlData), &aotBuiltFunctions[0], nullptr
+    };
+}
 
 }
 namespace {
@@ -27,6 +48,9 @@ Q_GLOBAL_STATIC(Registry, unitRegistry)
 
 Registry::Registry() {
     resourcePathToCachedUnit.insert(QStringLiteral("/qt/qml/CipherCodex/src/Main.qml"), &QmlCacheGeneratedCode::_qt_qml_CipherCodex_src_Main_qml::unit);
+    resourcePathToCachedUnit.insert(QStringLiteral("/qt/qml/CipherCodex/src/qml/HomeScreen.qml"), &QmlCacheGeneratedCode::_qt_qml_CipherCodex_src_qml_HomeScreen_qml::unit);
+    resourcePathToCachedUnit.insert(QStringLiteral("/qt/qml/CipherCodex/src/qml/NotebookListScreen.qml"), &QmlCacheGeneratedCode::_qt_qml_CipherCodex_src_qml_NotebookListScreen_qml::unit);
+    resourcePathToCachedUnit.insert(QStringLiteral("/qt/qml/CipherCodex/src/qml/PageScreen.qml"), &QmlCacheGeneratedCode::_qt_qml_CipherCodex_src_qml_PageScreen_qml::unit);
     QQmlPrivate::RegisterQmlUnitCacheHook registration;
     registration.structVersion = 0;
     registration.lookupCachedQmlUnit = &lookupCachedUnit;

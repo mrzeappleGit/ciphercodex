@@ -1,3 +1,4 @@
+/work/build-rm2/CMakeFiles/ccx-storage.dir
 /work/build-rm2/CMakeFiles/ciphercodex-shell.dir
 /work/build-rm2/CMakeFiles/ciphercodex-shell_qmltyperegistration.dir
 /work/build-rm2/CMakeFiles/all_qmltyperegistrations.dir
@@ -19,6 +20,8 @@
 /work/build-rm2/CMakeFiles/install.dir
 /work/build-rm2/CMakeFiles/install/local.dir
 /work/build-rm2/CMakeFiles/install/strip.dir
+/work/build-rm2/CMakeFiles/ccx-storage_autogen_timestamp_deps.dir
+/work/build-rm2/CMakeFiles/ccx-storage_autogen.dir
 /work/build-rm2/CMakeFiles/ciphercodex-shell_autogen_timestamp_deps.dir
 /work/build-rm2/CMakeFiles/ciphercodex-shell_autogen.dir
 /work/build-rm2/CMakeFiles/input-probe_autogen_timestamp_deps.dir

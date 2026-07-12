@@ -13,8 +13,63 @@ Module {
         prototype: "QQuickPaintedItem"
         exports: ["CipherCodex/InkItem 1.0"]
         exportMetaObjectRevisions: [256]
+        Property {
+            name: "tool"
+            type: "int"
+            read: "tool"
+            write: "setTool"
+            notify: "toolChanged"
+            index: 0
+        }
+        Signal { name: "toolChanged" }
+        Signal {
+            name: "strokeFinished"
+            Parameter { name: "s"; type: "StrokeData" }
+        }
+        Signal {
+            name: "strokesErased"
+            Parameter { name: "ids"; type: "qlonglong"; isList: true }
+        }
         Method {
             name: "penDown"
+            Parameter { name: "x"; type: "double" }
+            Parameter { name: "y"; type: "double" }
+            Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+            Parameter { name: "tiltX"; type: "int" }
+            Parameter { name: "tiltY"; type: "int" }
+            Parameter { name: "tMs"; type: "uint" }
+        }
+        Method {
+            name: "penDown"
+            isCloned: true
+            Parameter { name: "x"; type: "double" }
+            Parameter { name: "y"; type: "double" }
+            Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+            Parameter { name: "tiltX"; type: "int" }
+            Parameter { name: "tiltY"; type: "int" }
+        }
+        Method {
+            name: "penDown"
+            isCloned: true
+            Parameter { name: "x"; type: "double" }
+            Parameter { name: "y"; type: "double" }
+            Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+            Parameter { name: "tiltX"; type: "int" }
+        }
+        Method {
+            name: "penDown"
+            isCloned: true
+            Parameter { name: "x"; type: "double" }
+            Parameter { name: "y"; type: "double" }
+            Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+        }
+        Method {
+            name: "penDown"
+            isCloned: true
             Parameter { name: "x"; type: "double" }
             Parameter { name: "y"; type: "double" }
             Parameter { name: "pressure"; type: "double" }
@@ -24,9 +79,106 @@ Module {
             Parameter { name: "x"; type: "double" }
             Parameter { name: "y"; type: "double" }
             Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+            Parameter { name: "tiltX"; type: "int" }
+            Parameter { name: "tiltY"; type: "int" }
+            Parameter { name: "tMs"; type: "uint" }
+        }
+        Method {
+            name: "penMove"
+            isCloned: true
+            Parameter { name: "x"; type: "double" }
+            Parameter { name: "y"; type: "double" }
+            Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+            Parameter { name: "tiltX"; type: "int" }
+            Parameter { name: "tiltY"; type: "int" }
+        }
+        Method {
+            name: "penMove"
+            isCloned: true
+            Parameter { name: "x"; type: "double" }
+            Parameter { name: "y"; type: "double" }
+            Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+            Parameter { name: "tiltX"; type: "int" }
+        }
+        Method {
+            name: "penMove"
+            isCloned: true
+            Parameter { name: "x"; type: "double" }
+            Parameter { name: "y"; type: "double" }
+            Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+        }
+        Method {
+            name: "penMove"
+            isCloned: true
+            Parameter { name: "x"; type: "double" }
+            Parameter { name: "y"; type: "double" }
+            Parameter { name: "pressure"; type: "double" }
         }
         Method { name: "penUp" }
         Method { name: "clear" }
+    }
+    Component {
+        file: "notebookcontroller.h"
+        name: "NotebookController"
+        accessSemantics: "reference"
+        prototype: "QObject"
+        exports: ["CipherCodex/NotebookController 1.0"]
+        exportMetaObjectRevisions: [256]
+        Property {
+            name: "canUndo"
+            type: "bool"
+            read: "canUndo"
+            notify: "undoChanged"
+            index: 0
+            isReadonly: true
+        }
+        Property {
+            name: "canRedo"
+            type: "bool"
+            read: "canRedo"
+            notify: "undoChanged"
+            index: 1
+            isReadonly: true
+        }
+        Signal { name: "undoChanged" }
+        Method { name: "notebooks"; type: "QVariantList" }
+        Method {
+            name: "createNotebook"
+            type: "qlonglong"
+            Parameter { name: "title"; type: "QString" }
+        }
+        Method {
+            name: "deleteNotebook"
+            Parameter { name: "id"; type: "qlonglong" }
+        }
+        Method {
+            name: "pages"
+            type: "QVariantList"
+            Parameter { name: "notebookId"; type: "qlonglong" }
+        }
+        Method {
+            name: "createPage"
+            type: "qlonglong"
+            Parameter { name: "notebookId"; type: "qlonglong" }
+        }
+        Method {
+            name: "openPage"
+            Parameter { name: "pageId"; type: "qlonglong" }
+            Parameter { name: "canvas"; type: "InkItem"; isPointer: true }
+            Parameter { name: "pen"; type: "PenReader"; isPointer: true }
+        }
+        Method { name: "undo" }
+        Method { name: "redo" }
+        Method {
+            name: "exportNotebookPdf"
+            type: "bool"
+            Parameter { name: "notebookId"; type: "qlonglong" }
+            Parameter { name: "outPath"; type: "QString" }
+        }
     }
     Component {
         file: "penreader.h"
@@ -62,29 +214,46 @@ Module {
         Property { name: "tiltX"; type: "int"; read: "tiltX"; notify: "sampled"; index: 3; isReadonly: true }
         Property { name: "tiltY"; type: "int"; read: "tiltY"; notify: "sampled"; index: 4; isReadonly: true }
         Property {
+            name: "canvasRect"
+            type: "QRectF"
+            read: "canvasRect"
+            write: "setCanvasRect"
+            notify: "canvasRectChanged"
+            index: 5
+        }
+        Property {
             name: "calib"
             type: "int"
             read: "calib"
             write: "setCalib"
             notify: "calibChanged"
-            index: 5
+            index: 6
         }
         Signal {
             name: "penDown"
             Parameter { name: "x"; type: "double" }
             Parameter { name: "y"; type: "double" }
             Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+            Parameter { name: "tiltX"; type: "int" }
+            Parameter { name: "tiltY"; type: "int" }
+            Parameter { name: "tMs"; type: "uint" }
         }
         Signal {
             name: "penMove"
             Parameter { name: "x"; type: "double" }
             Parameter { name: "y"; type: "double" }
             Parameter { name: "pressure"; type: "double" }
+            Parameter { name: "rawPressure"; type: "int" }
+            Parameter { name: "tiltX"; type: "int" }
+            Parameter { name: "tiltY"; type: "int" }
+            Parameter { name: "tMs"; type: "uint" }
         }
         Signal { name: "penUp" }
         Signal { name: "nearChanged" }
         Signal { name: "eraserChanged" }
         Signal { name: "sampled" }
         Signal { name: "calibChanged" }
+        Signal { name: "canvasRectChanged" }
     }
 }

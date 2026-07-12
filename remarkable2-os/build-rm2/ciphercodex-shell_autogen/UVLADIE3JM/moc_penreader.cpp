@@ -45,16 +45,20 @@ static constexpr auto qt_meta_stringdata_ZN9PenReaderE = QtMocHelpers::stringDat
     "x",
     "y",
     "pressure",
+    "rawPressure",
+    "tiltX",
+    "tiltY",
+    "tMs",
     "penMove",
     "penUp",
     "nearChanged",
     "eraserChanged",
     "sampled",
     "calibChanged",
+    "canvasRectChanged",
     "near",
     "eraser",
-    "tiltX",
-    "tiltY",
+    "canvasRect",
     "calib"
 );
 #else  // !QT_MOC_HAS_STRINGDATA
@@ -67,28 +71,30 @@ Q_CONSTINIT static const uint qt_meta_data_ZN9PenReaderE[] = {
       12,       // revision
        0,       // classname
        1,   14, // classinfo
-       7,   16, // methods
-       6,   77, // properties
+       8,   16, // methods
+       7,  100, // properties
        0,    0, // enums/sets
        0,    0, // constructors
        0,       // flags
-       7,       // signalCount
+       8,       // signalCount
 
  // classinfo: key, value
        1,    2,
 
  // signals: name, argc, parameters, tag, flags, initial metatype offsets
-       3,    3,   58,    4, 0x06,    7 /* Public */,
-       8,    3,   65,    4, 0x06,   11 /* Public */,
-       9,    0,   72,    4, 0x06,   15 /* Public */,
-      10,    0,   73,    4, 0x06,   16 /* Public */,
-      11,    0,   74,    4, 0x06,   17 /* Public */,
-      12,    0,   75,    4, 0x06,   18 /* Public */,
-      13,    0,   76,    4, 0x06,   19 /* Public */,
+       3,    7,   64,    4, 0x06,    8 /* Public */,
+      12,    7,   79,    4, 0x06,   16 /* Public */,
+      13,    0,   94,    4, 0x06,   24 /* Public */,
+      14,    0,   95,    4, 0x06,   25 /* Public */,
+      15,    0,   96,    4, 0x06,   26 /* Public */,
+      16,    0,   97,    4, 0x06,   27 /* Public */,
+      17,    0,   98,    4, 0x06,   28 /* Public */,
+      18,    0,   99,    4, 0x06,   29 /* Public */,
 
  // signals: parameters
-    QMetaType::Void, QMetaType::QReal, QMetaType::QReal, QMetaType::QReal,    5,    6,    7,
-    QMetaType::Void, QMetaType::QReal, QMetaType::QReal, QMetaType::QReal,    5,    6,    7,
+    QMetaType::Void, QMetaType::QReal, QMetaType::QReal, QMetaType::QReal, QMetaType::Int, QMetaType::Int, QMetaType::Int, QMetaType::UInt,    5,    6,    7,    8,    9,   10,   11,
+    QMetaType::Void, QMetaType::QReal, QMetaType::QReal, QMetaType::QReal, QMetaType::Int, QMetaType::Int, QMetaType::Int, QMetaType::UInt,    5,    6,    7,    8,    9,   10,   11,
+    QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
@@ -96,12 +102,13 @@ Q_CONSTINIT static const uint qt_meta_data_ZN9PenReaderE[] = {
     QMetaType::Void,
 
  // properties: name, type, flags, notifyId, revision
-      14, QMetaType::Bool, 0x00015001, uint(3), 0,
-      15, QMetaType::Bool, 0x00015001, uint(4), 0,
+      19, QMetaType::Bool, 0x00015001, uint(3), 0,
+      20, QMetaType::Bool, 0x00015001, uint(4), 0,
        7, QMetaType::QReal, 0x00015001, uint(5), 0,
-      16, QMetaType::Int, 0x00015001, uint(5), 0,
-      17, QMetaType::Int, 0x00015001, uint(5), 0,
-      18, QMetaType::Int, 0x00015103, uint(6), 0,
+       9, QMetaType::Int, 0x00015001, uint(5), 0,
+      10, QMetaType::Int, 0x00015001, uint(5), 0,
+      21, QMetaType::QRectF, 0x00015103, uint(7), 0,
+      22, QMetaType::Int, 0x00015103, uint(6), 0,
 
        0        // eod
 };
@@ -123,6 +130,8 @@ Q_CONSTINIT const QMetaObject PenReader::staticMetaObject = { {
         int,
         // property 'tiltY'
         int,
+        // property 'canvasRect'
+        QRectF,
         // property 'calib'
         int,
         // Q_OBJECT / Q_GADGET
@@ -132,11 +141,19 @@ Q_CONSTINIT const QMetaObject PenReader::staticMetaObject = { {
         qreal,
         qreal,
         qreal,
+        int,
+        int,
+        int,
+        quint32,
         // method 'penMove'
         void,
         qreal,
         qreal,
         qreal,
+        int,
+        int,
+        int,
+        quint32,
         // method 'penUp'
         void,
         // method 'nearChanged'
@@ -146,6 +163,8 @@ Q_CONSTINIT const QMetaObject PenReader::staticMetaObject = { {
         // method 'sampled'
         void,
         // method 'calibChanged'
+        void,
+        // method 'canvasRectChanged'
         void
     >,
     nullptr
@@ -156,27 +175,28 @@ void PenReader::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, v
     auto *_t = static_cast<PenReader *>(_o);
     if (_c == QMetaObject::InvokeMetaMethod) {
         switch (_id) {
-        case 0: _t->penDown((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 1: _t->penMove((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 0: _t->penDown((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[4])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[5])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[6])),(*reinterpret_cast< std::add_pointer_t<quint32>>(_a[7]))); break;
+        case 1: _t->penMove((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[4])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[5])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[6])),(*reinterpret_cast< std::add_pointer_t<quint32>>(_a[7]))); break;
         case 2: _t->penUp(); break;
         case 3: _t->nearChanged(); break;
         case 4: _t->eraserChanged(); break;
         case 5: _t->sampled(); break;
         case 6: _t->calibChanged(); break;
+        case 7: _t->canvasRectChanged(); break;
         default: ;
         }
     }
     if (_c == QMetaObject::IndexOfMethod) {
         int *result = reinterpret_cast<int *>(_a[0]);
         {
-            using _q_method_type = void (PenReader::*)(qreal , qreal , qreal );
+            using _q_method_type = void (PenReader::*)(qreal , qreal , qreal , int , int , int , quint32 );
             if (_q_method_type _q_method = &PenReader::penDown; *reinterpret_cast<_q_method_type *>(_a[1]) == _q_method) {
                 *result = 0;
                 return;
             }
         }
         {
-            using _q_method_type = void (PenReader::*)(qreal , qreal , qreal );
+            using _q_method_type = void (PenReader::*)(qreal , qreal , qreal , int , int , int , quint32 );
             if (_q_method_type _q_method = &PenReader::penMove; *reinterpret_cast<_q_method_type *>(_a[1]) == _q_method) {
                 *result = 1;
                 return;
@@ -217,6 +237,13 @@ void PenReader::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, v
                 return;
             }
         }
+        {
+            using _q_method_type = void (PenReader::*)();
+            if (_q_method_type _q_method = &PenReader::canvasRectChanged; *reinterpret_cast<_q_method_type *>(_a[1]) == _q_method) {
+                *result = 7;
+                return;
+            }
+        }
     }
     if (_c == QMetaObject::ReadProperty) {
         void *_v = _a[0];
@@ -226,14 +253,16 @@ void PenReader::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, v
         case 2: *reinterpret_cast< qreal*>(_v) = _t->pressure(); break;
         case 3: *reinterpret_cast< int*>(_v) = _t->tiltX(); break;
         case 4: *reinterpret_cast< int*>(_v) = _t->tiltY(); break;
-        case 5: *reinterpret_cast< int*>(_v) = _t->calib(); break;
+        case 5: *reinterpret_cast< QRectF*>(_v) = _t->canvasRect(); break;
+        case 6: *reinterpret_cast< int*>(_v) = _t->calib(); break;
         default: break;
         }
     }
     if (_c == QMetaObject::WriteProperty) {
         void *_v = _a[0];
         switch (_id) {
-        case 5: _t->setCalib(*reinterpret_cast< int*>(_v)); break;
+        case 5: _t->setCanvasRect(*reinterpret_cast< QRectF*>(_v)); break;
+        case 6: _t->setCalib(*reinterpret_cast< int*>(_v)); break;
         default: break;
         }
     }
@@ -258,35 +287,35 @@ int PenReader::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 7)
+        if (_id < 8)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 7;
+        _id -= 8;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 7)
+        if (_id < 8)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 7;
+        _id -= 8;
     }
     if (_c == QMetaObject::ReadProperty || _c == QMetaObject::WriteProperty
             || _c == QMetaObject::ResetProperty || _c == QMetaObject::BindableProperty
             || _c == QMetaObject::RegisterPropertyMetaType) {
         qt_static_metacall(this, _c, _id, _a);
-        _id -= 6;
+        _id -= 7;
     }
     return _id;
 }
 
 // SIGNAL 0
-void PenReader::penDown(qreal _t1, qreal _t2, qreal _t3)
+void PenReader::penDown(qreal _t1, qreal _t2, qreal _t3, int _t4, int _t5, int _t6, quint32 _t7)
 {
-    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t3))) };
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t3))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t4))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t5))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t6))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t7))) };
     QMetaObject::activate(this, &staticMetaObject, 0, _a);
 }
 
 // SIGNAL 1
-void PenReader::penMove(qreal _t1, qreal _t2, qreal _t3)
+void PenReader::penMove(qreal _t1, qreal _t2, qreal _t3, int _t4, int _t5, int _t6, quint32 _t7)
 {
-    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t3))) };
+    void *_a[] = { nullptr, const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t1))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t2))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t3))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t4))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t5))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t6))), const_cast<void*>(reinterpret_cast<const void*>(std::addressof(_t7))) };
     QMetaObject::activate(this, &staticMetaObject, 1, _a);
 }
 
@@ -318,5 +347,11 @@ void PenReader::sampled()
 void PenReader::calibChanged()
 {
     QMetaObject::activate(this, &staticMetaObject, 6, nullptr);
+}
+
+// SIGNAL 7
+void PenReader::canvasRectChanged()
+{
+    QMetaObject::activate(this, &staticMetaObject, 7, nullptr);
 }
 QT_WARNING_POP

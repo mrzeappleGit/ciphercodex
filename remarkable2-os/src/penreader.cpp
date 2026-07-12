@@ -5,6 +5,7 @@
 #include <QSocketNotifier>
 #include <fcntl.h>
 #include <linux/input.h>
+#include <qpa/qwindowsysteminterface.h>
 #include <unistd.h>
 
 // Measured on device 2026-07-11 (input-probe, OS 3.27.3.0):
@@ -14,6 +15,7 @@ static constexpr int WACOM_P_MAX = 4095;
 
 PenReader::PenReader(QObject *parent) : QObject(parent)
 {
+    m_clock.start();
     if (const QScreen *s = QGuiApplication::primaryScreen()) {
         m_screenW = s->size().width();
         m_screenH = s->size().height();
@@ -38,6 +40,13 @@ void PenReader::setCalib(int c)
     emit calibChanged();
 }
 
+void PenReader::setCanvasRect(const QRectF &r)
+{
+    if (r == m_canvasRect) return;
+    m_canvasRect = r;
+    emit canvasRectChanged();
+}
+
 QPointF PenReader::toScreen(int rx, int ry) const
 {
     qreal nx = qreal(rx) / WACOM_X_MAX; // along the panel's long axis
@@ -46,6 +55,16 @@ QPointF PenReader::toScreen(int rx, int ry) const
     if (m_calib & 2) ny = 1.0 - ny;
     return (m_calib & 4) ? QPointF(nx * m_screenW, ny * m_screenH)
                          : QPointF(ny * m_screenW, nx * m_screenH);
+}
+
+void PenReader::synthMouse(const QPointF &pos, QEvent::Type type)
+{
+    // Raw-evdev pen bypasses Qt input entirely; forge a left-button mouse event so the
+    // Marker can press QML buttons. Fullscreen window: local == global coordinates.
+    const Qt::MouseButtons buttons =
+        (type == QEvent::MouseButtonRelease) ? Qt::NoButton : Qt::LeftButton;
+    QWindowSystemInterface::handleMouseEvent(QGuiApplication::focusWindow(), pos, pos,
+                                             buttons, Qt::LeftButton, type);
 }
 
 void PenReader::readEvents()
@@ -78,12 +97,26 @@ void PenReader::readEvents()
             const bool touching = m_rp > 0;
             m_pressure = qreal(m_rp) / WACOM_P_MAX;
             const QPointF pos = toScreen(m_rx, m_ry);
-            if (touching && !m_touching)
-                emit penDown(pos.x(), pos.y(), m_pressure);
-            else if (touching)
-                emit penMove(pos.x(), pos.y(), m_pressure);
-            else if (m_touching)
-                emit penUp();
+            const quint32 t = quint32(m_clock.elapsed());
+            if (touching && !m_touching) {
+                // empty rect = NO canvas on screen: synthesize mouse everywhere so the pen
+                // can press buttons on Home/NotebookList (contract: all buttons pen-usable)
+                m_inkStroke = !m_canvasRect.isEmpty() && m_canvasRect.contains(pos);
+                if (m_inkStroke)
+                    emit penDown(pos.x(), pos.y(), m_pressure, m_rp, m_tiltX, m_tiltY, t);
+                else
+                    synthMouse(pos, QEvent::MouseButtonPress);
+            } else if (touching) {
+                if (m_inkStroke)
+                    emit penMove(pos.x(), pos.y(), m_pressure, m_rp, m_tiltX, m_tiltY, t);
+                else
+                    synthMouse(pos, QEvent::MouseMove);
+            } else if (m_touching) {
+                if (m_inkStroke)
+                    emit penUp();
+                else
+                    synthMouse(pos, QEvent::MouseButtonRelease);
+            }
             m_touching = touching;
             emit sampled();
             break;

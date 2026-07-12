@@ -1,3 +1,5 @@
+set(__QT_DEPLOY_TARGET_ccx-storage_FILE /work/build-rm2/libccx-storage.a)
+set(__QT_DEPLOY_TARGET_ccx-storage_TYPE STATIC_LIBRARY)
 set(__QT_DEPLOY_TARGET_ciphercodex-shell_FILE /work/build-rm2/ciphercodex-shell)
 set(__QT_DEPLOY_TARGET_ciphercodex-shell_TYPE EXECUTABLE)
 set(__QT_DEPLOY_TARGET_input-probe_FILE /work/build-rm2/input-probe)

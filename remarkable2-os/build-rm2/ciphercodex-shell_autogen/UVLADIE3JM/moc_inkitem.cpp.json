@@ -8,9 +8,58 @@
                 }
             ],
             "className": "InkItem",
-            "lineNumber": 10,
+            "lineNumber": 17,
             "object": true,
+            "properties": [
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 0,
+                    "name": "tool",
+                    "notify": "toolChanged",
+                    "read": "tool",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "int",
+                    "user": false,
+                    "write": "setTool"
+                }
+            ],
             "qualifiedClassName": "InkItem",
+            "signals": [
+                {
+                    "access": "public",
+                    "index": 0,
+                    "name": "toolChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "s",
+                            "type": "StrokeData"
+                        }
+                    ],
+                    "index": 1,
+                    "name": "strokeFinished",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "ids",
+                            "type": "QList<qint64>"
+                        }
+                    ],
+                    "index": 2,
+                    "name": "strokesErased",
+                    "returnType": "void"
+                }
+            ],
             "slots": [
                 {
                     "access": "public",
@@ -26,9 +75,112 @@
                         {
                             "name": "pressure",
                             "type": "qreal"
+                        },
+                        {
+                            "name": "rawPressure",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltX",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltY",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tMs",
+                            "type": "quint32"
                         }
                     ],
-                    "index": 0,
+                    "index": 3,
+                    "name": "penDown",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "x",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "y",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "pressure",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "rawPressure",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltX",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltY",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 4,
+                    "isCloned": true,
+                    "name": "penDown",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "x",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "y",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "pressure",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "rawPressure",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltX",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 5,
+                    "isCloned": true,
+                    "name": "penDown",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "x",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "y",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "pressure",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "rawPressure",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 6,
+                    "isCloned": true,
                     "name": "penDown",
                     "returnType": "void"
                 },
@@ -48,19 +200,164 @@
                             "type": "qreal"
                         }
                     ],
-                    "index": 1,
+                    "index": 7,
+                    "isCloned": true,
+                    "name": "penDown",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "x",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "y",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "pressure",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "rawPressure",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltX",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltY",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tMs",
+                            "type": "quint32"
+                        }
+                    ],
+                    "index": 8,
                     "name": "penMove",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 2,
+                    "arguments": [
+                        {
+                            "name": "x",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "y",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "pressure",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "rawPressure",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltX",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltY",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 9,
+                    "isCloned": true,
+                    "name": "penMove",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "x",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "y",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "pressure",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "rawPressure",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tiltX",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 10,
+                    "isCloned": true,
+                    "name": "penMove",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "x",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "y",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "pressure",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "rawPressure",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 11,
+                    "isCloned": true,
+                    "name": "penMove",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "x",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "y",
+                            "type": "qreal"
+                        },
+                        {
+                            "name": "pressure",
+                            "type": "qreal"
+                        }
+                    ],
+                    "index": 12,
+                    "isCloned": true,
+                    "name": "penMove",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 13,
                     "name": "penUp",
                     "returnType": "void"
                 },
                 {
                     "access": "public",
-                    "index": 3,
+                    "index": 14,
                     "name": "clear",
                     "returnType": "void"
                 }

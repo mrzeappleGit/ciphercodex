@@ -203,16 +203,16 @@ CMAKE_PROJECT_HOMEPAGE_URL:STATIC=
 CMAKE_PROJECT_NAME:STATIC=ciphercodex-shell
 
 //Value Computed by CMake
-CMAKE_PROJECT_VERSION:STATIC=0.0.1
+CMAKE_PROJECT_VERSION:STATIC=0.1.0
 
 //Value Computed by CMake
 CMAKE_PROJECT_VERSION_MAJOR:STATIC=0
 
 //Value Computed by CMake
-CMAKE_PROJECT_VERSION_MINOR:STATIC=0
+CMAKE_PROJECT_VERSION_MINOR:STATIC=1
 
 //Value Computed by CMake
-CMAKE_PROJECT_VERSION_PATCH:STATIC=1
+CMAKE_PROJECT_VERSION_PATCH:STATIC=0
 
 //Value Computed by CMake
 CMAKE_PROJECT_VERSION_TWEAK:STATIC=
@@ -360,6 +360,9 @@ Qt6ZlibPrivate_DIR:PATH=/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux
 
 //The directory containing a CMake configuration file for Qt6.
 Qt6_DIR:PATH=/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/lib/cmake/Qt6
+
+//Path to a library.
+SQLITE3_STATIC_LIB:FILEPATH=/opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/lib/libsqlite3.a
 
 //Value Computed by CMake
 ciphercodex-shell_BINARY_DIR:STATIC=/work/build-rm2

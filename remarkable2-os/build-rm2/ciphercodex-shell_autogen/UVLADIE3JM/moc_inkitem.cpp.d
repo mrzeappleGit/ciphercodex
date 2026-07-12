@@ -1,10 +1,14 @@
 /work/build-rm2/ciphercodex-shell_autogen/UVLADIE3JM/moc_inkitem.cpp: /work/src/inkitem.h \
   /work/build-rm2/ciphercodex-shell_autogen/moc_predefs.h \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QHash \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QList \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QObject \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QRect \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QSet \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QSize \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QSizeF \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QString \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QVector \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/q20functional.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/q20iterator.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/q20memory.h \
@@ -140,6 +144,7 @@
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qutf8stringview.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qvariant.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qvarlengtharray.h \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qvector.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qversionnumber.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qversiontagging.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qxptype_traits.h \
@@ -475,4 +480,5 @@
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/wchar.h \
   /opt/codex-sdk/sysroots/x86_64-codexsdk-linux/usr/lib/arm-remarkable-linux-gnueabi/gcc/arm-remarkable-linux-gnueabi/13.4.0/include/stdarg.h \
   /opt/codex-sdk/sysroots/x86_64-codexsdk-linux/usr/lib/arm-remarkable-linux-gnueabi/gcc/arm-remarkable-linux-gnueabi/13.4.0/include/stdbool.h \
-  /opt/codex-sdk/sysroots/x86_64-codexsdk-linux/usr/lib/arm-remarkable-linux-gnueabi/gcc/arm-remarkable-linux-gnueabi/13.4.0/include/stddef.h
+  /opt/codex-sdk/sysroots/x86_64-codexsdk-linux/usr/lib/arm-remarkable-linux-gnueabi/gcc/arm-remarkable-linux-gnueabi/13.4.0/include/stddef.h \
+  /work/src/storage/storage.h

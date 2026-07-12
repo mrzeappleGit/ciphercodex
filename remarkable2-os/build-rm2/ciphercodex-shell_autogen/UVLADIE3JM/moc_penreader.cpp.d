@@ -1,6 +1,9 @@
 /work/build-rm2/ciphercodex-shell_autogen/UVLADIE3JM/moc_penreader.cpp: /work/src/penreader.h \
   /work/build-rm2/ciphercodex-shell_autogen/moc_predefs.h \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QElapsedTimer \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QEvent \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QObject \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/QRectF \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/q20functional.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/q20iterator.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/q20memory.h \
@@ -32,10 +35,12 @@
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qcontainerinfo.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qcontainertools_impl.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qcontiguouscache.h \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qcoreevent.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qdarwinhelpers.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qdatastream.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qdatetime.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qdebug.h \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qelapsedtimer.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qexceptionhandling.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qflags.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qfloat16.h \
@@ -56,6 +61,7 @@
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qlogging.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qmalloc.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qmap.h \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qmargins.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qmath.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qmetacontainer.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qmetaobject.h \
@@ -69,8 +75,10 @@
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qobjectdefs_impl.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qoverload.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qpair.h \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qpoint.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qpointer.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qprocessordetection.h \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qrect.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qrefcount.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qscopedpointer.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qscopeguard.h \
@@ -79,6 +87,7 @@
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qshareddata_impl.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qsharedpointer.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qsharedpointer_impl.h \
+  /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qsize.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qspan.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qstring.h \
   /opt/codex-sdk/sysroots/cortexa7hf-neon-remarkable-linux-gnueabi/usr/include/QtCore/qstringalgorithms.h \
