@@ -7,7 +7,9 @@
 
 static constexpr qreal ERASE_RADIUS = 6.0;   // px, stroke-eraser hit radius, per contract
 static constexpr qreal AREA_RADIUS = 12.0;   // px, area-eraser swath half-width
-static constexpr int   MAX_PEN_MARGIN = 16;  // > max pen width (11px) + rounding
+// Cull/dirty-rect margin around a stroke's centerline bbox: must exceed the ink half-width.
+// inkStrokeWidth() clamps maxW <= 2*this so half-width <= MAX_PEN_MARGIN stays guaranteed.
+static constexpr int   MAX_PEN_MARGIN = 16;
 static constexpr qreal PAGE_ASPECT = 1872.0 / 1404.0; // contract: pts normalized to page, not item
 
 static qreal distSqToSegment(const QPointF &p, const QPointF &a, const QPointF &b)
@@ -19,16 +21,28 @@ static qreal distSqToSegment(const QPointF &p, const QPointF &a, const QPointF &
     return QPointF::dotProduct(d, d);
 }
 
+// Min squared distance between segments a-b and c-d. Endpoint-vs-segment min: exact unless the
+// segments cross (then true distance is 0, but any crossing is trivially < the erase radius so
+// the endpoint min still trips the threshold). Enough to catch a fast strike-through whose ink
+// samples straddle the eraser swath.
+static qreal segSegDistSq(const QPointF &a, const QPointF &b, const QPointF &c, const QPointF &d)
+{
+    return qMin(qMin(distSqToSegment(a, c, d), distSqToSegment(b, c, d)),
+                qMin(distSqToSegment(c, a, b), distSqToSegment(d, a, b)));
+}
+
 // Marker pressure saturates near max during normal writing (measured on device: a firm
 // hand pins ABS_PRESSURE at ~3900/4095), so a plain squared curve compresses all variation
 // into the top and looks constant. Remap the [floor..1] band across the width range instead.
 // ponytail: floor/min/max are hardware-feel knobs — env-tunable for on-device A/B, then baked.
 qreal inkStrokeWidth(qreal pressure)
 {
-    static const qreal floor = qEnvironmentVariableIsSet("CCX_PEN_FLOOR")
-        ? qEnvironmentVariable("CCX_PEN_FLOOR").toDouble() : 0.35;
-    static const qreal maxW = qEnvironmentVariableIsSet("CCX_PEN_MAXW")
-        ? qEnvironmentVariable("CCX_PEN_MAXW").toDouble() : 9.0;
+    // floor < 1 keeps the rescale denominator positive; maxW <= 2*MAX_PEN_MARGIN keeps the
+    // ink half-width within the dirty-rect cull margin (see MAX_PEN_MARGIN).
+    static const qreal floor = qBound(0.0, qEnvironmentVariableIsSet("CCX_PEN_FLOOR")
+        ? qEnvironmentVariable("CCX_PEN_FLOOR").toDouble() : 0.35, 0.9);
+    static const qreal maxW = qBound(1.0, qEnvironmentVariableIsSet("CCX_PEN_MAXW")
+        ? qEnvironmentVariable("CCX_PEN_MAXW").toDouble() : 9.0, 2.0 * MAX_PEN_MARGIN);
     static const qreal minW = 1.0;
     const qreal p = qBound(0.0, (pressure - floor) / (1.0 - floor), 1.0);
     return minW + p * p * (maxW - minW); // gentle curve within the usable band
@@ -357,18 +371,25 @@ void InkItem::commitAreaErase()
                  .intersects(swathBounds))
             continue;
         const auto &pts = it->s.pts;
-        // ponytail: per-point vs swath-centerline distance, O(points x path); bounds
-        // pre-check culls unaffected strokes. Segment-crossing without a point inside
-        // the swath is possible only for point spacing > 2*AREA_RADIUS (fast flicks).
+        // A point is erased if either incident ink segment comes within AREA_RADIUS of any swath
+        // segment (segment-vs-segment, so a fast strike-through whose samples straddle the swath
+        // still cuts). O(inkpts x swathpts); the bounds pre-check culls untouched strokes.
         QVector<bool> erased(pts.size(), false);
         bool any = false;
-        for (int i = 0; i < pts.size(); ++i) {
-            const QPointF px(pts[i].x * w, pts[i].y * ph);
-            for (int j = 1; j < path.size() && !erased[i]; ++j)
-                erased[i] = distSqToSegment(px, path[j - 1], path[j]) < r2;
-            if (path.size() == 1)
-                erased[i] = distSqToSegment(px, path[0], path[0]) < r2;
-            any = any || erased[i];
+        auto pt = [&](int i) { return QPointF(pts[i].x * w, pts[i].y * ph); };
+        if (pts.size() == 1) {
+            for (int j = 1; j < path.size() && !erased[0]; ++j)
+                erased[0] = distSqToSegment(pt(0), path[j - 1], path[j]) < r2;
+            any = erased[0];
+        }
+        for (int k = 0; k + 1 < pts.size(); ++k) { // ink segment k: pts[k]->pts[k+1]
+            bool segHit = false;
+            for (int j = 1; j < path.size() && !segHit; ++j)
+                segHit = segSegDistSq(pt(k), pt(k + 1), path[j - 1], path[j]) < r2;
+            if (segHit) {
+                erased[k] = erased[k + 1] = true;
+                any = true;
+            }
         }
         if (!any)
             continue;

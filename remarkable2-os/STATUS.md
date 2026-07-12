@@ -1,6 +1,26 @@
 # STATUS
 
-Updated: 2026-07-12
+Updated: 2026-07-12 (Phase 1 complete)
+
+## Phase 1 — COMPLETE (notebook vertical slice, verified on hardware)
+
+- Home / Notebooks / page canvas in CipherCodex monochrome identity; pen drives all UI (evdev
+  pen synthesizes mouse events off-canvas).
+- Tools: pencil, stroke eraser, area (partial) eraser with fast-strike-through cut; undo/redo;
+  multi-page; PDF export (vector).
+- Crash-safe per-stroke SQLite journal (WAL + synchronous=FULL, one tx/stroke, durability pragmas
+  enforced at open). **Passed both on-device gates: kill -9 mid-write and hard power-cut** —
+  integrity ok, zero committed strokes lost.
+- **Stock-parity pen latency** via the closed plugin's EPScreenModeItem (Pen waveform), reached by
+  dlsym with graceful fallback; isolated in `src/epscreenmode.cpp`. Owner-verified "perfect".
+- Pressure→width working (saturation-aware remap, owner-verified).
+- Host tests green (storage CRUD + points-BLOB exactness + area-erase replace + WAL tripwire;
+  kill-atomicity 5/5). Two adversarial review passes; all confirmed findings fixed.
+
+Known deferred (non-blocking, tracked): scripted glass-to-ink latency number; Marker Plus eraser
+(no hardware); input-event replay harness; periodic full-page refresh for the reader (Phase 2).
+
+## Prior: Phase 0 — COMPLETE
 
 ## Phase 0 — COMPLETE (hardware proofs on physical rM2, OS 3.27.3.0)
 
@@ -21,9 +41,9 @@ Updated: 2026-07-12
 Deferred within Phase 0 (non-blocking): scripted glass-to-ink latency number, Marker Plus
 eraser hardware test (no eraser hardware available), input-event replay harness.
 
-## Next: Phase 1 — notebook vertical slice
+## Next: Phase 2 — reader vertical slice
 
-Home screen, notebook list, one notebook/page, pencil + eraser tools, undo/redo,
-per-stroke SQLite WAL journal (autosave), reopen, suspend/resume, PDF export.
-Gate: forced-power-loss durability test — all completed strokes survive kill -9 +
-hard power cycle.
+Library import (USB + Wi-Fi upload), EPUB + PDF reading, progress, TOC, bookmarks,
+whole-book search, highlights, handwritten page annotation over documents, and kosync
+(reuse the Android app's partial-MD5 identity + API client). Port EPUB/PDF/kosync logic
+from the existing repo where portable; MuPDF for PDF (AGPL, record in LICENSES.md).
