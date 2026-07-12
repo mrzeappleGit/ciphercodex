@@ -2,10 +2,7 @@
 
 #include <algorithm>
 
-#include <QPair>
-
 #include "library/library.h"
-#include "pdf/pdfdocument.h"
 
 // Matches the Android FINISHED_THRESHOLD: >=0.98 reads as finished.
 static constexpr double FINISHED_THRESHOLD = 0.98;
@@ -33,6 +30,7 @@ QVariantMap ReaderController::importInbox()
     if (!m_library)
         return {};
     const Library::ImportSummary s = m_library->importInbox();
+    invalidate();
     return {{QStringLiteral("imported"), s.imported},
             {QStringLiteral("duplicates"), s.duplicates},
             {QStringLiteral("failed"), s.failed}};
@@ -40,25 +38,30 @@ QVariantMap ReaderController::importInbox()
 
 QVariantList ReaderController::allBooksWithPct()
 {
+    if (m_cacheValid)
+        return m_cache;
     QVariantList out;
-    if (!m_library)
-        return out;
-    for (const BookRow &b : m_library->books()) {
-        const Library::Progress p = m_library->progress(b.id);
-        const double pct = p.exists ? p.percentage : 0.0;
-        const int state = !p.exists ? 0 : (pct >= FINISHED_THRESHOLD ? 2 : 1); // 0 unread,1 reading,2 finished
-        out.append(QVariantMap{{QStringLiteral("id"), b.id},
-                               {QStringLiteral("title"), b.title},
-                               {QStringLiteral("author"), b.author},
-                               {QStringLiteral("coverPath"), b.coverPath},
-                               {QStringLiteral("filePath"), b.filePath},
-                               {QStringLiteral("sizeBytes"), b.sizeBytes},
-                               {QStringLiteral("percentage"), pct},
-                               {QStringLiteral("state"), state},
-                               {QStringLiteral("format"), b.format},
-                               {QStringLiteral("lastOpenedAt"), b.lastOpenedAt},
-                               {QStringLiteral("addedAt"), b.addedAt}});
+    if (m_library) {
+        // one LEFT JOIN, not 1+N per-book progress queries
+        for (const Library::BookWithProgress &bp : m_library->booksWithProgress()) {
+            const BookRow &b = bp.book;
+            const double pct = bp.hasProgress ? bp.percentage : 0.0;
+            const int state = !bp.hasProgress ? 0 : (pct >= FINISHED_THRESHOLD ? 2 : 1);
+            out.append(QVariantMap{{QStringLiteral("id"), b.id},
+                                   {QStringLiteral("title"), b.title},
+                                   {QStringLiteral("author"), b.author},
+                                   {QStringLiteral("coverPath"), b.coverPath},
+                                   {QStringLiteral("filePath"), b.filePath},
+                                   {QStringLiteral("sizeBytes"), b.sizeBytes},
+                                   {QStringLiteral("percentage"), pct},
+                                   {QStringLiteral("state"), state},
+                                   {QStringLiteral("format"), b.format},
+                                   {QStringLiteral("lastOpenedAt"), b.lastOpenedAt},
+                                   {QStringLiteral("addedAt"), b.addedAt}});
+        }
     }
+    m_cache = out;
+    m_cacheValid = true;
     return out;
 }
 
@@ -139,8 +142,10 @@ QVariantMap ReaderController::view(const QString &query, int filter, int sort)
 
 void ReaderController::deleteBook(qint64 id)
 {
-    if (m_library)
+    if (m_library) {
         m_library->deleteBook(id);
+        invalidate();
+    }
 }
 
 QVariantMap ReaderController::openProgress(qint64 id)
@@ -148,6 +153,7 @@ QVariantMap ReaderController::openProgress(qint64 id)
     if (!m_library)
         return {};
     m_library->markOpened(id);
+    invalidate();  // last_opened_at changed -> recent order changed
     const Library::Progress p = m_library->progress(id);
     const int page = p.exists ? p.spineIndex : 0;
     return {{QStringLiteral("spineIndex"), page},
@@ -162,6 +168,7 @@ void ReaderController::saveProgress(qint64 id, int page, int pageCount)
         return;
     const double pct = pageCount > 0 ? double(page + 1) / pageCount : 0.0;
     m_library->saveProgress(id, page, 0, pct); // PDF: char_offset 0
+    invalidate();  // percentage/state may have changed
 }
 
 QVariantList ReaderController::bookmarks(qint64 id)
@@ -189,39 +196,4 @@ void ReaderController::deleteBookmark(qint64 id)
 {
     if (m_library)
         m_library->deleteBookmark(id);
-}
-
-QVariantList ReaderController::pdfOutline(const QString &path)
-{
-    QVariantList out;
-    QString err;
-    PdfDocument *doc = PdfDocument::open(path, &err);
-    if (!doc) {
-        qWarning("ReaderController: pdfOutline open failed: %s", qUtf8Printable(err));
-        return out;
-    }
-    for (const PdfOutline &o : doc->outline())
-        out.append(QVariantMap{{QStringLiteral("title"), o.title},
-                               {QStringLiteral("pageIndex"), o.pageIndex},
-                               {QStringLiteral("level"), o.level}});
-    delete doc;
-    return out;
-}
-
-QVariantList ReaderController::pdfSearch(const QString &path, const QString &query)
-{
-    QVariantList out;
-    if (query.isEmpty())
-        return out;
-    QString err;
-    PdfDocument *doc = PdfDocument::open(path, &err);
-    if (!doc) {
-        qWarning("ReaderController: pdfSearch open failed: %s", qUtf8Printable(err));
-        return out;
-    }
-    for (const QPair<int, int> &m : doc->search(query))
-        out.append(QVariantMap{{QStringLiteral("pageIndex"), m.first},
-                               {QStringLiteral("count"), m.second}});
-    delete doc;
-    return out;
 }

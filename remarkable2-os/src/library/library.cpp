@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSet>
 
 #include <cstdio>   // ::rename
 #include <fcntl.h>
@@ -112,12 +113,13 @@ bool copyDurable(const QString &src, const QString &tmp)
         if (n == 0)
             break;
     }
-    if (!out.flush()) {
+    // fsync is the one barrier where deferred ext4/ENOSPC/EIO surfaces: a discarded return
+    // would let a truncated file be committed as a durable book.
+    if (!out.flush() || ::fsync(out.handle()) != 0) {
         out.close();
         QFile::remove(tmp);
         return false;
     }
-    ::fsync(out.handle());
     out.close();
     return true;
 }
@@ -134,6 +136,25 @@ Library::Library(Storage *s, const QString &dataDir) : m_storage(s), m_dataDir(d
         QDir(booksDir()).entryInfoList({QStringLiteral("import-*.tmp")}, QDir::Files);
     for (const QFileInfo &fi : stale)
         QFile::remove(fi.absoluteFilePath());
+    reconcileOrphans();
+}
+
+// Reclaim final book files whose DB row never landed (crash/power-loss between the
+// rename and the INSERT commit) — the only way to close that window after a hard kill.
+void Library::reconcileOrphans()
+{
+    if (!m_storage)
+        return;
+    QSet<QString> known;  // digests with a live books row
+    Stmt q(m_storage->handle(), "SELECT digest FROM books");
+    while (q.row())
+        known.insert(colText(q.s, 0));
+    const QFileInfoList files = QDir(booksDir()).entryInfoList(
+        {QStringLiteral("*.pdf"), QStringLiteral("*.epub")}, QDir::Files);
+    for (const QFileInfo &fi : files) {
+        if (!known.contains(fi.completeBaseName()))  // filename is <digest>.<ext>
+            QFile::remove(fi.absoluteFilePath());
+    }
 }
 
 QString Library::inboxDir() const { return m_dataDir + QStringLiteral("/inbox"); }
@@ -262,6 +283,33 @@ QVector<BookRow> Library::books()
         b.addedAt = sqlite3_column_int64(q.s, 8);
         b.lastOpenedAt = colInt64OrZero(q.s, 9);
         out.append(b);
+    }
+    return out;
+}
+
+QVector<Library::BookWithProgress> Library::booksWithProgress()
+{
+    QVector<BookWithProgress> out;
+    Stmt q(m_storage->handle(),
+           "SELECT b.id, b.title, b.author, b.file_path, b.digest, b.cover_path, b.size_bytes,"
+           "  b.format, b.added_at, b.last_opened_at, p.percentage"
+           "  FROM books b LEFT JOIN progress p ON p.book_id = b.id"
+           "  ORDER BY b.last_opened_at IS NULL, b.last_opened_at DESC, b.added_at DESC");
+    while (q.row()) {
+        BookWithProgress bp;
+        bp.book.id = sqlite3_column_int64(q.s, 0);
+        bp.book.title = colText(q.s, 1);
+        bp.book.author = colText(q.s, 2);
+        bp.book.filePath = colText(q.s, 3);
+        bp.book.digest = colText(q.s, 4);
+        bp.book.coverPath = colText(q.s, 5);
+        bp.book.sizeBytes = sqlite3_column_int64(q.s, 6);
+        bp.book.format = sqlite3_column_int(q.s, 7);
+        bp.book.addedAt = sqlite3_column_int64(q.s, 8);
+        bp.book.lastOpenedAt = colInt64OrZero(q.s, 9);
+        bp.hasProgress = sqlite3_column_type(q.s, 10) != SQLITE_NULL;
+        bp.percentage = bp.hasProgress ? sqlite3_column_double(q.s, 10) : 0.0;
+        out.append(bp);
     }
     return out;
 }

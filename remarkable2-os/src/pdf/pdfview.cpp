@@ -12,11 +12,15 @@ static constexpr double kSwipeMin = 80.0;   // px: horizontal travel that turns 
 static constexpr double kZoomMin = 0.25;
 static constexpr double kZoomMax = 8.0;
 
+static constexpr int kSearchPagesPerTick = 4;  // keep the event loop responsive during search
+
 PdfView::PdfView(QQuickItem *parent) : QQuickPaintedItem(parent)
 {
     setAcceptedMouseButtons(Qt::LeftButton);  // pen/touch arrive as synthesized mouse
     setOpaquePainting(true);
     setFillColor(Qt::white);
+    m_searchTimer.setInterval(0);  // fire between event-loop turns
+    connect(&m_searchTimer, &QTimer::timeout, this, &PdfView::searchStep);
 }
 
 PdfView::~PdfView()
@@ -35,6 +39,8 @@ void PdfView::setSource(const QString &path)
 
 bool PdfView::openDocument(const QString &path)
 {
+    m_searchTimer.stop();  // a scan on the old doc must not outlive it
+    m_searchQuery.clear();
     delete m_doc;
     QString err;
     m_doc = PdfDocument::open(path, &err);
@@ -145,14 +151,69 @@ void PdfView::paint(QPainter *painter)
     const QRectF rect = displayRect();
     if (rect.isEmpty())
         return;
-    const QImage img = m_doc->renderPage(m_pageIndex,
-                                         QSize(qRound(rect.width()), qRound(rect.height())));
+    // Render only the visible intersection of the scaled page and the viewport, so a zoomed
+    // page never rasterizes more than ~screen pixels (bounds both memory and render time).
+    const QSize full(qRound(rect.width()), qRound(rect.height()));
+    const QRectF visF = rect.intersected(QRectF(0, 0, width(), height()));
+    if (visF.isEmpty())
+        return;
+    const QRect src(qRound(visF.x() - rect.x()), qRound(visF.y() - rect.y()),
+                    qRound(visF.width()), qRound(visF.height()));
+    const QImage img = m_doc->renderView(m_pageIndex, full, src);
     if (img.isNull())
         return;
-    // Center the returned (aspect-fitted) image inside the computed rect.
-    const double ox = rect.x() + (rect.width() - img.width()) / 2;
-    const double oy = rect.y() + (rect.height() - img.height()) / 2;
-    painter->drawImage(QPointF(ox, oy), img);
+    painter->drawImage(QPointF(rect.x() + src.x(), rect.y() + src.y()), img);
+}
+
+QVariantList PdfView::outline() const
+{
+    QVariantList out;
+    if (!m_doc)
+        return out;
+    for (const PdfOutline &o : m_doc->outline())
+        out.append(QVariantMap{{QStringLiteral("title"), o.title},
+                               {QStringLiteral("page"), o.pageIndex},
+                               {QStringLiteral("level"), o.level}});
+    return out;
+}
+
+void PdfView::startSearch(const QString &query)
+{
+    cancelSearch();
+    m_searchQuery = query;
+    m_searchPage = 0;
+    if (!m_doc || query.isEmpty()) {
+        emit searchFinished(0, false);
+        return;
+    }
+    m_searchTimer.start();
+}
+
+void PdfView::cancelSearch()
+{
+    if (m_searchTimer.isActive()) {
+        m_searchTimer.stop();
+        emit searchFinished(m_pageCount, true);
+    }
+    m_searchQuery.clear();
+}
+
+void PdfView::searchStep()
+{
+    if (!m_doc || m_searchQuery.isEmpty()) {
+        m_searchTimer.stop();
+        return;
+    }
+    const int end = qMin(m_searchPage + kSearchPagesPerTick, m_pageCount);
+    for (; m_searchPage < end; ++m_searchPage) {
+        const int c = m_doc->searchPage(m_searchPage, m_searchQuery);
+        if (c > 0)
+            emit searchHit(m_searchPage, c);
+    }
+    if (m_searchPage >= m_pageCount) {
+        m_searchTimer.stop();
+        emit searchFinished(m_pageCount, false);
+    }
 }
 
 void PdfView::mousePressEvent(QMouseEvent *e)

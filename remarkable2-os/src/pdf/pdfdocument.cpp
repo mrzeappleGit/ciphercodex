@@ -6,6 +6,7 @@
 
 #include <QSet>
 #include <QtGlobal>
+#include <QtMath>
 
 namespace {
 
@@ -14,8 +15,10 @@ namespace {
 // storage.cpp's BLOB codec already relies on.
 static_assert(Q_BYTE_ORDER == Q_LITTLE_ENDIAN, "PDFium UTF-16LE strings assume LE host");
 
-constexpr int kMaxOutline = 5000;  // cycle/size guard for malformed bookmark trees
-constexpr int kCacheMax = 3;
+constexpr int kMaxOutline = 5000;    // cycle/size guard for malformed bookmark trees
+constexpr int kCacheMaxEntries = 6;
+constexpr qint64 kCacheMaxBytes = 32 * 1024 * 1024;  // ~12 screen-sized grayscale pages
+constexpr int kMaxViewPx = 1872 * 1404 * 2;  // hard clamp: never render >2x panel area
 
 // PDFium is single-init process-wide; every caller is on the GUI thread (see header).
 void ensureLibrary()
@@ -89,6 +92,62 @@ QSizeF PdfDocument::pageSizePt(int page) const
     return QSizeF(sz.width, sz.height);
 }
 
+void PdfDocument::cachePut(const CacheEntry &e) const
+{
+    m_cache.prepend(e);
+    m_cacheBytes += e.img.sizeInBytes();
+    // Bound by BOTH entry count and total bytes: a few zoomed viewport renders must not
+    // pin hundreds of MB on a 1 GB device.
+    while (m_cache.size() > kCacheMaxEntries
+           || (m_cacheBytes > kCacheMaxBytes && m_cache.size() > 1)) {
+        m_cacheBytes -= m_cache.last().img.sizeInBytes();
+        m_cache.removeLast();
+    }
+}
+
+QImage PdfDocument::renderView(int page, const QSize &fullScaled, const QRect &srcIn) const
+{
+    if (page < 0 || page >= m_pageCount || fullScaled.width() <= 0 || fullScaled.height() <= 0)
+        return QImage();
+    // Clamp the requested region to the scaled page, and its area to the viewport ceiling.
+    QRect src = srcIn.intersected(QRect(QPoint(0, 0), fullScaled));
+    if (src.isEmpty())
+        return QImage();
+    if (qint64(src.width()) * src.height() > kMaxViewPx) {
+        const double k = qSqrt(double(kMaxViewPx) / (double(src.width()) * src.height()));
+        src.setSize(QSize(qMax(1, int(src.width() * k)), qMax(1, int(src.height() * k))));
+    }
+
+    for (int i = 0; i < m_cache.size(); ++i) {  // small cache: linear scan is fine
+        if (m_cache[i].page == page && m_cache[i].full == fullScaled && m_cache[i].src == src) {
+            m_cache.move(i, 0);
+            return m_cache.first().img;
+        }
+    }
+
+    const int w = src.width(), h = src.height();
+    FPDF_BITMAP bmp = FPDFBitmap_Create(w, h, 0);  // BGRx, rows = w*4 bytes
+    if (!bmp)
+        return QImage();
+    FPDFBitmap_FillRect(bmp, 0, 0, w, h, 0xFFFFFFFF);  // white background
+    FPDF_PAGE pg = FPDF_LoadPage(m_doc, page);
+    QImage img;
+    if (pg) {
+        // Place the full scaled page at (-src.x, -src.y): PDFium clips to the bitmap, so only
+        // the visible sub-rectangle is ever rasterized regardless of zoom.
+        FPDF_RenderPageBitmap(bmp, pg, -src.x(), -src.y(), fullScaled.width(), fullScaled.height(),
+                              0, FPDF_GRAYSCALE | FPDF_ANNOT);
+        FPDF_ClosePage(pg);
+        const QImage rgb(static_cast<const uchar *>(FPDFBitmap_GetBuffer(bmp)),
+                         w, h, w * 4, QImage::Format_RGB32);
+        img = rgb.convertToFormat(QImage::Format_Grayscale8);  // deep-copies off the FPDF buffer
+    }
+    FPDFBitmap_Destroy(bmp);
+    if (!img.isNull())
+        cachePut({page, fullScaled, src, img});
+    return img;
+}
+
 QImage PdfDocument::renderPage(int page, const QSize &target) const
 {
     if (page < 0 || page >= m_pageCount || target.width() <= 0 || target.height() <= 0)
@@ -96,42 +155,9 @@ QImage PdfDocument::renderPage(int page, const QSize &target) const
     const QSizeF pt = pageSizePt(page);
     if (pt.isEmpty())
         return QImage();
-
-    // Fit into target preserving aspect.
     const double scale = qMin(target.width() / pt.width(), target.height() / pt.height());
-    const int outW = qMax(1, int(pt.width() * scale + 0.5));
-    const int outH = qMax(1, int(pt.height() * scale + 0.5));
-    const QSize outSize(outW, outH);
-
-    for (int i = 0; i < m_cache.size(); ++i) {  // small LRU (kCacheMax): linear scan is fine
-        if (m_cache[i].page == page && m_cache[i].size == outSize) {
-            m_cache.move(i, 0);
-            return m_cache.first().img;
-        }
-    }
-
-    FPDF_BITMAP bmp = FPDFBitmap_Create(outW, outH, 0);  // BGRx, rows = outW*4 bytes
-    if (!bmp)
-        return QImage();
-    FPDFBitmap_FillRect(bmp, 0, 0, outW, outH, 0xFFFFFFFF);  // white background
-    FPDF_PAGE pg = FPDF_LoadPage(m_doc, page);
-    QImage img;
-    if (pg) {
-        FPDF_RenderPageBitmap(bmp, pg, 0, 0, outW, outH, 0, FPDF_GRAYSCALE | FPDF_ANNOT);
-        FPDF_ClosePage(pg);
-        // Grayscale render yields R=G=B; wrap BGRx then let Qt down-convert (exact for gray).
-        const QImage src(static_cast<const uchar *>(FPDFBitmap_GetBuffer(bmp)),
-                         outW, outH, outW * 4, QImage::Format_RGB32);
-        img = src.convertToFormat(QImage::Format_Grayscale8);  // deep-copies off the FPDF buffer
-    }
-    FPDFBitmap_Destroy(bmp);
-    if (img.isNull())
-        return img;
-
-    m_cache.prepend({page, outSize, img});
-    while (m_cache.size() > kCacheMax)
-        m_cache.removeLast();
-    return img;
+    const QSize full(qMax(1, int(pt.width() * scale + 0.5)), qMax(1, int(pt.height() * scale + 0.5)));
+    return renderView(page, full, QRect(QPoint(0, 0), full));  // whole page
 }
 
 QImage PdfDocument::renderThumbnail(int page, int maxDim) const
@@ -147,35 +173,30 @@ QVector<PdfOutline> PdfDocument::outline() const
     return out;
 }
 
-QVector<QPair<int, int>> PdfDocument::search(const QString &q) const
+int PdfDocument::searchPage(int page, const QString &q) const
 {
-    QVector<QPair<int, int>> hits;
-    if (q.isEmpty())
-        return hits;
-    for (int page = 0; page < m_pageCount; ++page) {
-        FPDF_PAGE pg = FPDF_LoadPage(m_doc, page);
-        if (!pg)
-            continue;
-        if (FPDF_TEXTPAGE tp = FPDFText_LoadPage(pg)) {
-            const int n = FPDFText_CountChars(tp);
-            if (n > 0) {
-                QVector<unsigned short> buf(n + 1);
-                const int written = FPDFText_GetText(tp, 0, n, buf.data());
-                const QString text = QString::fromUtf16(
-                    reinterpret_cast<const char16_t *>(buf.constData()),
-                    written > 0 ? written - 1 : 0);
-                int count = 0;
-                for (int at = text.indexOf(q, 0, Qt::CaseInsensitive); at >= 0;
-                     at = text.indexOf(q, at + q.size(), Qt::CaseInsensitive))
-                    ++count;
-                if (count > 0)
-                    hits.append({page, count});
-            }
-            FPDFText_ClosePage(tp);
+    if (q.isEmpty() || page < 0 || page >= m_pageCount)
+        return 0;
+    FPDF_PAGE pg = FPDF_LoadPage(m_doc, page);
+    if (!pg)
+        return 0;
+    int count = 0;
+    if (FPDF_TEXTPAGE tp = FPDFText_LoadPage(pg)) {
+        const int n = FPDFText_CountChars(tp);
+        if (n > 0) {
+            QVector<unsigned short> buf(n + 1);
+            const int written = FPDFText_GetText(tp, 0, n, buf.data());
+            const QString text = QString::fromUtf16(
+                reinterpret_cast<const char16_t *>(buf.constData()),
+                written > 0 ? written - 1 : 0);
+            for (int at = text.indexOf(q, 0, Qt::CaseInsensitive); at >= 0;
+                 at = text.indexOf(q, at + q.size(), Qt::CaseInsensitive))
+                ++count;
         }
-        FPDF_ClosePage(pg);
+        FPDFText_ClosePage(tp);
     }
-    return hits;
+    FPDF_ClosePage(pg);
+    return count;
 }
 
 QString PdfDocument::metaText(const QString &tag) const

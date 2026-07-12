@@ -31,14 +31,14 @@ public:
     Q_INVOKABLE QVariantList bookmarks(qint64 id);         // [{id,page,percentage,label}]
     Q_INVOKABLE qint64 addBookmark(qint64 id, int page, int pageCount, const QString &label);
     Q_INVOKABLE void deleteBookmark(qint64 id);
-
-    // PdfView renders the doc but exposes no TOC/search; bridge PdfDocument (GUI thread) for those.
-    Q_INVOKABLE QVariantList pdfOutline(const QString &path);            // [{title,pageIndex,level}]
-    Q_INVOKABLE QVariantList pdfSearch(const QString &path, const QString &query); // [{pageIndex,count}]
+    // TOC and search now come from PdfView (its already-open document), not a reopen here.
 
 private:
-    QVariantList allBooksWithPct();
+    QVariantList allBooksWithPct();  // cached; invalidated on any mutation
+    void invalidate() { m_cacheValid = false; }
 
     Storage *m_storage = nullptr;
     Library *m_library = nullptr;
+    QVariantList m_cache;      // last allBooksWithPct() result
+    bool m_cacheValid = false; // rebuilt only after import/delete/save/open/bookmark mutations
 };

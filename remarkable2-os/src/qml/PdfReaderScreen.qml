@@ -16,9 +16,13 @@ Item {
     property var tocItems: []
     property var bmItems: []
     property var searchHits: []
+    property bool searching: false
+    // ready gates progress saves: the page-0 pageChanged that openDocument emits (and the
+    // resume seek) must not persist over the saved position before we've settled.
+    property bool ready: false
 
     function saveNow() {
-        if (pdfView.pageCount > 0)
+        if (pdfReader.ready && pdfView.pageCount > 0)
             pdfReader.reader.saveProgress(pdfReader.bookId, pdfView.pageIndex, pdfView.pageCount)
     }
     function reloadBookmarks() { pdfReader.bmItems = pdfReader.reader.bookmarks(pdfReader.bookId) }
@@ -27,14 +31,30 @@ Item {
         let p = Math.round(frac * (pdfView.pageCount - 1))
         pdfView.goToPage(Math.max(0, Math.min(pdfView.pageCount - 1, p)))
     }
+    function runSearch(q) {
+        pdfReader.searchHits = []
+        pdfReader.searching = true
+        pdfView.startSearch(q)   // chunked + cancelable; hits arrive incrementally
+    }
 
     Component.onCompleted: {
         pdfView.openDocument(pdfReader.filePath)
         if (pdfReader.startPage > 0)
             pdfView.goToPage(pdfReader.startPage)
         pdfReader.reloadBookmarks()
+        pdfReader.ready = true    // only now do page changes persist
     }
-    Component.onDestruction: pdfReader.saveNow()  // belt-and-suspenders: turns already save
+    // Debounce: a scrubber drag emits many pageChanged; save once it settles (fsync-heavy).
+    Timer { id: saveTimer; interval: 400; onTriggered: pdfReader.saveNow() }
+    Component.onDestruction: { saveTimer.stop(); pdfReader.saveNow() }
+
+    Connections {
+        target: pdfView
+        function onSearchHit(page, count) {
+            pdfReader.searchHits = pdfReader.searchHits.concat([{ page: page, count: count }])
+        }
+        function onSearchFinished(total, canceled) { pdfReader.searching = false }
+    }
 
     component Btn: Rectangle {
         id: b
@@ -90,7 +110,7 @@ Item {
                 onTapped: {
                     if (pdfReader.panel === "toc") { pdfReader.panel = "" }
                     else {
-                        pdfReader.tocItems = pdfReader.reader.pdfOutline(pdfReader.filePath)
+                        pdfReader.tocItems = pdfView.outline()   // from the already-open doc
                         pdfReader.panel = "toc"
                     }
                 }
@@ -120,7 +140,7 @@ Item {
     PdfView {
         id: pdfView
         anchors { top: toolbar.bottom; left: parent.left; right: parent.right; bottom: scrubber.top }
-        onPageChanged: pdfReader.saveNow()
+        onPageChanged: if (pdfReader.ready) saveTimer.restart()
     }
 
     // Progress scrubber: tap or drag to jump
@@ -181,13 +201,13 @@ Item {
                 Text {
                     id: pageLbl
                     anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                    text: (tocRow.modelData.pageIndex + 1)
+                    text: (tocRow.modelData.page + 1)
                     color: tocTap.pressed ? "white" : "black"
                     font { pixelSize: 22; bold: true }
                 }
                 TapHandler {
                     id: tocTap
-                    onTapped: { pdfView.goToPage(tocRow.modelData.pageIndex); pdfReader.panel = "" }
+                    onTapped: { pdfView.goToPage(tocRow.modelData.page); pdfReader.panel = "" }
                 }
             }
         }
@@ -279,13 +299,13 @@ Item {
                     verticalAlignment: TextInput.AlignVCenter
                     clip: true
                     font { pixelSize: 24; bold: true }
-                    onAccepted: pdfReader.searchHits = pdfReader.reader.pdfSearch(pdfReader.filePath, text)
+                    onAccepted: pdfReader.runSearch(text)
                 }
             }
             Btn {
                 height: 84
-                label: "GO"
-                onTapped: pdfReader.searchHits = pdfReader.reader.pdfSearch(pdfReader.filePath, searchField.text)
+                label: pdfReader.searching ? "..." : "GO"
+                onTapped: pdfReader.searching ? pdfView.cancelSearch() : pdfReader.runSearch(searchField.text)
             }
         }
         ListView {
@@ -303,13 +323,13 @@ Item {
                 border { color: "black"; width: 3 }
                 Text {
                     anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                    text: "Page " + (hitRow.modelData.pageIndex + 1) + "  (" + hitRow.modelData.count + ")"
+                    text: "Page " + (hitRow.modelData.page + 1) + "  (" + hitRow.modelData.count + ")"
                     color: hitTap.pressed ? "white" : "black"
                     font.pixelSize: 24
                 }
                 TapHandler {
                     id: hitTap
-                    onTapped: { pdfView.goToPage(hitRow.modelData.pageIndex); pdfReader.panel = "" }
+                    onTapped: { pdfView.goToPage(hitRow.modelData.page); pdfReader.panel = "" }
                 }
             }
         }

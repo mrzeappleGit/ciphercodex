@@ -45,6 +45,7 @@ QNetworkRequest request(const QUrl &url)
 {
     QNetworkRequest req(url);
     req.setRawHeader("accept", kAccept);  // reference server 412s without it
+    req.setTransferTimeout(15000);  // bound half-open sockets; times out as httpCode -1
     return req;
 }
 

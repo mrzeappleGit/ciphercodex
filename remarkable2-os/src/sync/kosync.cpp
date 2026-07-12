@@ -15,7 +15,7 @@ QString userKey(const QString &password)
 
 double truncatePercentage(double pct)
 {
-    return std::floor(pct * 10000.0) / 10000.0;
+    return std::floor(pct * 10000.0 + 1e-7) / 10000.0;
 }
 
 bool progressDirty(qint64 updatedAt, qint64 syncedAt)

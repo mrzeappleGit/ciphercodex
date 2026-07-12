@@ -132,6 +132,17 @@ Item {
         Btn { label: "FINISHED " + lib.counts.finished; active: lib.filter === 3; onTapped: { lib.filter = 3; lib.reload() } }
     }
 
+    Text {  // empty-library / no-results placeholder
+        visible: lib.books.length === 0
+        anchors { top: chips.bottom; topMargin: 120; horizontalCenter: parent.horizontalCenter }
+        horizontalAlignment: Text.AlignHCenter
+        color: "#6B6B6B"
+        font.pixelSize: 28
+        text: lib.counts.all === 0
+              ? "No books yet\nDrop PDFs into the inbox and tap IMPORT"
+              : "No matches"
+    }
+
     ListView {
         id: list
         anchors {

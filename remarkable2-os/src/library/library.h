@@ -37,6 +37,13 @@ public:
     ImportSummary importInbox();
 
     QVector<BookRow> books();
+    // BookRow plus its progress in one LEFT JOIN (avoids 1+N queries for the library view).
+    struct BookWithProgress {
+        BookRow book;
+        bool hasProgress;
+        double percentage;  // 0 if no progress row
+    };
+    QVector<BookWithProgress> booksWithProgress();
     void markOpened(qint64 id);
     void deleteBook(qint64 id);  // FK cascade + unlink file_path & cover_path
 
@@ -57,6 +64,7 @@ public:
 
 private:
     ImportResult importFile(const QString &srcPath);
+    void reconcileOrphans();  // delete book files with no DB row (crash between rename + commit)
     QString inboxDir() const;
     QString booksDir() const;
     QString coversDir() const;
