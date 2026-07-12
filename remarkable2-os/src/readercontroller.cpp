@@ -1,11 +1,16 @@
 #include "readercontroller.h"
 
 #include <QDateTime>
+#include <QFile>
+#include <QFileInfo>
 #include <QNetworkAccessManager>
 #include <QUuid>
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>   // ::rename
+#include <fcntl.h>
+#include <unistd.h>  // fsync
 
 #include "library/library.h"
 
@@ -15,14 +20,14 @@ static constexpr double FINISHED_THRESHOLD = 0.98;
 ReaderController::ReaderController(QObject *parent) : QObject(parent)
 {
     m_nam = new QNetworkAccessManager(this);
-    const QString dir = qEnvironmentVariable("CCX_DATA_DIR", QStringLiteral("/home/root/ciphercodex"));
+    m_dataDir = qEnvironmentVariable("CCX_DATA_DIR", QStringLiteral("/home/root/ciphercodex"));
     QString err;
-    m_storage = Storage::open(dir, &err);
+    m_storage = Storage::open(m_dataDir, &err);
     if (!m_storage) {
         qWarning("ReaderController: storage open failed: %s", qUtf8Printable(err));
         return;
     }
-    m_library = new Library(m_storage, dir);
+    m_library = new Library(m_storage, m_dataDir);
 }
 
 ReaderController::~ReaderController()
@@ -221,6 +226,97 @@ void ReaderController::deleteBookmark(qint64 id)
 {
     if (m_library)
         m_library->deleteBookmark(id);
+}
+
+// ---- highlights + Kept (Phase 2c) ----
+
+QVariantList ReaderController::highlights(qint64 bookId, int spineIndex)
+{
+    QVariantList out;
+    if (!m_library)
+        return out;
+    for (const Highlight &h : m_library->highlights(bookId, spineIndex))
+        out.append(QVariantMap{{QStringLiteral("id"), h.id},
+                               {QStringLiteral("spineIndex"), h.spineIndex},
+                               {QStringLiteral("startChar"), h.startChar},
+                               {QStringLiteral("endChar"), h.endChar},
+                               {QStringLiteral("text"), h.text},
+                               {QStringLiteral("note"), h.note},
+                               {QStringLiteral("createdAt"), h.createdAt}});
+    return out;
+}
+
+qint64 ReaderController::addHighlight(qint64 bookId, int spineIndex, int startChar, int endChar,
+                                      const QString &text, const QString &note)
+{
+    // colorId 0: color has no meaning on the mono panel (see contract).
+    return m_library ? m_library->addHighlight(bookId, spineIndex, startChar, endChar, text, note)
+                     : -1;
+}
+
+void ReaderController::updateHighlight(qint64 id, const QString &note)
+{
+    if (m_library)
+        m_library->updateHighlight(id, note, 0);
+}
+
+void ReaderController::deleteHighlight(qint64 id)
+{
+    if (m_library)
+        m_library->deleteHighlight(id);
+}
+
+QVariantList ReaderController::keptHighlights()
+{
+    QVariantList out;
+    if (!m_library)
+        return out;
+    for (const KeptHighlight &kh : m_library->allHighlights())
+        out.append(QVariantMap{{QStringLiteral("id"), kh.h.id},
+                               {QStringLiteral("bookId"), kh.h.bookId},
+                               {QStringLiteral("bookTitle"), kh.bookTitle},
+                               {QStringLiteral("bookAuthor"), kh.bookAuthor},
+                               {QStringLiteral("format"), kh.format},
+                               {QStringLiteral("filePath"), kh.filePath},
+                               {QStringLiteral("spineIndex"), kh.h.spineIndex},
+                               {QStringLiteral("startChar"), kh.h.startChar},
+                               {QStringLiteral("endChar"), kh.h.endChar},
+                               {QStringLiteral("text"), kh.h.text},
+                               {QStringLiteral("note"), kh.h.note},
+                               {QStringLiteral("createdAt"), kh.h.createdAt}});
+    return out;
+}
+
+bool ReaderController::exportKeptMarkdown(const QString &outPath)
+{
+    if (!m_library)
+        return false;
+    const QString path = outPath.isEmpty() ? m_dataDir + QStringLiteral("/kept.md") : outPath;
+    const QByteArray bytes = Library::keptMarkdown(m_library->allHighlights()).toUtf8();
+
+    // Atomic write: temp beside the target, fsync, rename over, fsync the dir (mirrors
+    // library.cpp copyDurable/fsyncDir) so a crash can't leave a half-written kept.md.
+    const QString tmp = path + QStringLiteral(".tmp");
+    QFile out(tmp);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return false;
+    if (out.write(bytes) != bytes.size() || !out.flush() || ::fsync(out.handle()) != 0) {
+        out.close();
+        QFile::remove(tmp);
+        return false;
+    }
+    out.close();
+    if (::rename(QFile::encodeName(tmp).constData(), QFile::encodeName(path).constData()) != 0) {
+        QFile::remove(tmp);
+        return false;
+    }
+    const int fd = ::open(QFile::encodeName(QFileInfo(path).absolutePath()).constData(),
+                          O_RDONLY | O_DIRECTORY);
+    if (fd >= 0) {
+        ::fsync(fd);
+        ::close(fd);
+    }
+    return true;
 }
 
 QString ReaderController::setting(const QString &key, const QString &def)

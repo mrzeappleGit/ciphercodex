@@ -34,6 +34,8 @@ class EpubView : public QQuickPaintedItem
     Q_PROPERTY(int pagesInSpine READ pagesInSpine NOTIFY pageChanged)
     Q_PROPERTY(double percentage READ percentage NOTIFY percentageChanged)
     Q_PROPERTY(bool canReturn READ canReturn NOTIFY canReturnChanged)
+    Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectionText READ selectionText NOTIFY selectionChanged)
 
 public:
     explicit EpubView(QQuickItem *parent = nullptr);
@@ -47,6 +49,8 @@ public:
     int pagesInSpine();
     double percentage() const { return m_percentage; }
     bool canReturn() const { return m_canReturn; }
+    bool hasSelection() const { return m_hasSelection; }
+    QString selectionText() const { return m_selText; }
 
     Q_INVOKABLE bool openDocument(const QString &path);
     Q_INVOKABLE void next();
@@ -68,6 +72,19 @@ public:
     Q_INVOKABLE void cancelSearch() { cancelSearch(true); }
     void cancelSearch(bool emitSignal);  // internal supersede uses emitSignal=false (silent)
 
+    // Text selection (chapter-local, built-offset, word-granular for e-ink). A long-press starts
+    // it, drag extends; the reader screen drives its toolbar off hasSelection/selectionText.
+    Q_INVOKABLE void selectWordAt(qreal x, qreal y);
+    Q_INVOKABLE void extendSelectionTo(qreal x, qreal y);
+    Q_INVOKABLE void clearSelection();
+    Q_INVOKABLE QVariantMap selectionAnchor();  // {spine,startChar,endChar,text} or {} if none
+    Q_INVOKABLE void copySelection();           // built text -> QClipboard
+    // Saved highlights for the CURRENT chapter, drawn as a mono underline band under the text.
+    // list = [{id,startChar,endChar}]; the reader re-sets it on spine change / after add+delete.
+    Q_INVOKABLE void setChapterHighlights(const QVariantList &highlights);
+    // Highlight id(s) under a view-space point (tap a highlight to edit/delete). Newest-set last.
+    Q_INVOKABLE QVariantList highlightAt(qreal x, qreal y);
+
 signals:
     void sourceChanged();
     void spineChanged();
@@ -81,6 +98,8 @@ signals:
     void linkActivated(const QString &href);
     void searchHit(int spine, int charOffset, const QString &snippet);
     void searchFinished(bool canceled, bool truncated);  // truncated: hit the result cap
+    void selectionChanged();  // committed selection appeared / grew / cleared
+    void highlightTapped(qint64 id);  // tap landed on a saved highlight (open its edit sheet)
 
 protected:
     void mousePressEvent(QMouseEvent *e) override;
@@ -97,6 +116,8 @@ private:
     void updateCanReturn();
     void searchStep();
     QString snippetFor(const QString &text, int matchStart, int matchLen) const;
+    void onLongPress();              // press-hold fired: start a word selection at the press point
+    void clearChapterAnnotations();  // spine change: drop this chapter's highlights + selection
 
     EpubDocument *m_doc = nullptr;
     int m_spineIndex = 0;
@@ -121,6 +142,20 @@ private:
     QPointF m_pressPos;
     QPointF m_lastPos;
     bool m_moved = false;
+    QTimer m_pressTimer;  // long-press detector (word-selection start)
+
+    // Selection state (chapter-local; built offsets survive reflow, so no clear on typography/size).
+    struct Hl {
+        qint64 id;
+        int start, end;
+    };
+    QVector<Hl> m_highlights;                       // current-chapter saved highlights
+    bool m_hasSelection = false;
+    bool m_selecting = false;                       // live long-press drag (suppresses tap/turn)
+    int m_selSpine = 0;
+    int m_selAnchorStart = 0, m_selAnchorEnd = 0;   // the first word (drag pivot)
+    int m_selStart = 0, m_selEnd = 0;               // committed [start,end) built offsets
+    QString m_selText;
 
     QTimer m_searchTimer;
     QString m_searchQuery;

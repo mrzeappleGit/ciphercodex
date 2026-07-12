@@ -3,6 +3,9 @@
 #include "epub/epubdocument.h"
 #include "epub/epubrender.h"
 
+#include <QClipboard>
+#include <QColor>
+#include <QGuiApplication>
 #include <QImage>
 #include <QMouseEvent>
 #include <QPainter>
@@ -22,6 +25,7 @@ static constexpr int kNoteMaxChars = 600;   // NOTE_MAX_CHARS: longer target -> 
 static constexpr int kMinSearchLen = 2;     // MIN_SEARCH_LEN
 static constexpr int kMaxSearchHits = 300;  // MAX_SEARCH_HITS
 static constexpr int kSearchContext = 36;   // SEARCH_CONTEXT chars each side of a match
+static constexpr int kLongPressMs = 500;    // press-hold to start a word selection
 
 EpubView::EpubView(QQuickItem *parent) : QQuickPaintedItem(parent)
 {
@@ -30,6 +34,8 @@ EpubView::EpubView(QQuickItem *parent) : QQuickPaintedItem(parent)
     setFillColor(Qt::white);
     m_searchTimer.setInterval(0);  // fire between event-loop turns
     connect(&m_searchTimer, &QTimer::timeout, this, &EpubView::searchStep);
+    m_pressTimer.setSingleShot(true);
+    connect(&m_pressTimer, &QTimer::timeout, this, &EpubView::onLongPress);
 }
 
 EpubView::~EpubView()
@@ -75,6 +81,7 @@ bool EpubView::openDocument(const QString &path)
     m_rendererOrder.clear();
     m_returnStack.clear();
     updateCanReturn();
+    clearChapterAnnotations();
 
     delete m_doc;
     QString err;
@@ -106,6 +113,7 @@ void EpubView::next()
     } else if (m_spineIndex + 1 < spineCount()) {
         m_spineIndex += 1;
         m_pageInSpine = 0;
+        clearChapterAnnotations();  // reader reloads + re-sets highlights for the new chapter
         emit spineChanged();
         emitTurn(true);
     }
@@ -120,6 +128,7 @@ void EpubView::prev()
         emitTurn(true);
     } else if (m_spineIndex > 0) {
         m_spineIndex -= 1;
+        clearChapterAnnotations();  // reader reloads + re-sets highlights for the new chapter
         emit spineChanged();
         EpubRenderer *r = currentRenderer();  // previous chapter's last page
         m_pageInSpine = qMax(0, r->pageCount() - 1);
@@ -134,6 +143,7 @@ void EpubView::goToLocation(int spine, int charOffset)
     const int clamped = qBound(0, spine, spineCount() - 1);
     if (clamped != m_spineIndex) {
         m_spineIndex = clamped;
+        clearChapterAnnotations();  // reader reloads + re-sets highlights for the new chapter
         emit spineChanged();
     }
     EpubRenderer *r = currentRenderer();
@@ -369,13 +379,37 @@ void EpubView::paint(QPainter *painter)
         painter->drawImage(QPointF(x, y), m_imgCache);
         return;
     }
-    r->render(painter, m_pageInSpine, QSizeF(width(), height()));
+    const QSizeF sz(width(), height());
+    r->render(painter, m_pageInSpine, sz);
+
+    // Saved highlights: a light-gray underline band under each line's text rects (mono; color_id
+    // has no visual meaning on e-ink). Drawn last, semi, so the ink text stays readable.
+    if (!m_highlights.isEmpty()) {
+        painter->save();
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(0, 0, 0, 40));  // ~15% gray
+        for (const Hl &h : m_highlights)
+            for (const QRectF &rc : r->rectsForRange(m_pageInSpine, h.start, h.end, sz))
+                painter->drawRect(QRectF(rc.left(), rc.bottom() - 3.0, rc.width(), 3.0));
+        painter->restore();
+    }
+    // Live selection: a semi-gray box over the selected words.
+    if (m_hasSelection && m_selSpine == m_spineIndex) {
+        painter->save();
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(0, 0, 0, 60));  // ~25% gray, text still legible
+        for (const QRectF &rc : r->rectsForRange(m_pageInSpine, m_selStart, m_selEnd, sz))
+            painter->drawRect(rc);
+        painter->restore();
+    }
 }
 
 void EpubView::mousePressEvent(QMouseEvent *e)
 {
     m_pressPos = m_lastPos = e->position();
     m_moved = false;
+    m_selecting = false;             // a fresh gesture; existing selection persists via hasSelection
+    m_pressTimer.start(kLongPressMs);
     e->accept();
 }
 
@@ -383,16 +417,38 @@ void EpubView::mouseMoveEvent(QMouseEvent *e)
 {
     const QPointF pos = e->position();
     m_lastPos = pos;
-    if ((pos - m_pressPos).manhattanLength() > kTapSlop)
+    if ((pos - m_pressPos).manhattanLength() > kTapSlop) {
         m_moved = true;
+        if (!m_selecting)
+            m_pressTimer.stop();     // moved before the hold completed: a drag/swipe, not a select
+    }
+    if (m_selecting)
+        extendSelectionTo(pos.x(), pos.y());
     e->accept();
 }
 
 void EpubView::mouseReleaseEvent(QMouseEvent *e)
 {
+    m_pressTimer.stop();
+    const bool wasSelecting = m_selecting;
+    m_selecting = false;
+    if (wasSelecting || m_hasSelection) {
+        // A selection is active: swallow tap/turn/swipe until the reader clears it (toolbar X /
+        // HIGHLIGHT). Keeps the committed range stable while its toolbar is up.
+        e->accept();
+        return;
+    }
     const QPointF pos = e->position();
     const QPointF total = pos - m_pressPos;
     if (!m_moved) {
+        // A tap on an existing highlight opens its edit sheet instead of turning/following — check
+        // first so a highlight sitting in a turn-zone doesn't also flip the page underneath.
+        const QVariantList hit = highlightAt(pos.x(), pos.y());
+        if (!hit.isEmpty()) {
+            emit highlightTapped(hit.first().toLongLong());
+            e->accept();
+            return;
+        }
         // Tap-zones (either hand): left third prev, right third next, middle third follows a link.
         if (pos.x() < width() / 3.0) {
             prev();
@@ -418,4 +474,128 @@ void EpubView::geometryChange(const QRectF &newGeometry, const QRectF &oldGeomet
     QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
     if (newGeometry.size() != oldGeometry.size())
         reflowKeepingPosition();  // re-paginate at the new size, keep the reading offset
+}
+
+void EpubView::onLongPress()
+{
+    if (m_moved)
+        return;  // moved past the tap slop before the hold completed: not a selection
+    m_selecting = true;
+    selectWordAt(m_pressPos.x(), m_pressPos.y());
+    if (!m_hasSelection)
+        m_selecting = false;  // nothing under the point (e.g. margin): fall back to normal taps
+}
+
+void EpubView::selectWordAt(qreal x, qreal y)
+{
+    EpubRenderer *r = currentRenderer();
+    if (!r)
+        return;
+    const int off = r->offsetAtPoint(m_pageInSpine, QPointF(x, y), QSizeF(width(), height()));
+    if (off < 0)
+        return;
+    const QPair<int, int> w = r->wordRangeAt(off);
+    if (w.second <= w.first)
+        return;
+    m_selSpine = m_spineIndex;
+    m_selAnchorStart = m_selStart = w.first;
+    m_selAnchorEnd = m_selEnd = w.second;
+    m_selText = r->textSlice(m_selStart, m_selEnd);
+    m_hasSelection = true;
+    emit selectionChanged();
+    update();
+}
+
+void EpubView::extendSelectionTo(qreal x, qreal y)
+{
+    if (!m_hasSelection || m_selSpine != m_spineIndex)
+        return;
+    EpubRenderer *r = currentRenderer();
+    if (!r)
+        return;
+    const int off = r->offsetAtPoint(m_pageInSpine, QPointF(x, y), QSizeF(width(), height()));
+    if (off < 0)
+        return;
+    const QPair<int, int> w = r->wordRangeAt(off);
+    if (w.second <= w.first)
+        return;
+    const int ns = qMin(m_selAnchorStart, w.first);   // union the anchor word with the dragged word
+    const int ne = qMax(m_selAnchorEnd, w.second);
+    if (ns == m_selStart && ne == m_selEnd)
+        return;
+    m_selStart = ns;
+    m_selEnd = ne;
+    m_selText = r->textSlice(ns, ne);
+    emit selectionChanged();
+    update();
+}
+
+void EpubView::clearSelection()
+{
+    m_selecting = false;
+    if (!m_hasSelection)
+        return;
+    m_hasSelection = false;
+    m_selStart = m_selEnd = m_selAnchorStart = m_selAnchorEnd = 0;
+    m_selText.clear();
+    emit selectionChanged();
+    update();
+}
+
+void EpubView::clearChapterAnnotations()
+{
+    const bool hadSel = m_hasSelection;
+    m_highlights.clear();
+    m_hasSelection = false;
+    m_selecting = false;
+    m_selStart = m_selEnd = m_selAnchorStart = m_selAnchorEnd = 0;
+    m_selText.clear();
+    if (hadSel)
+        emit selectionChanged();  // update() follows via the ensuing emitTurn()
+}
+
+QVariantMap EpubView::selectionAnchor()
+{
+    if (!m_hasSelection)
+        return {};
+    return {{QStringLiteral("spine"), m_selSpine},
+            {QStringLiteral("startChar"), m_selStart},
+            {QStringLiteral("endChar"), m_selEnd},
+            {QStringLiteral("text"), m_selText}};
+}
+
+void EpubView::copySelection()
+{
+    if (!m_hasSelection)
+        return;
+    if (QClipboard *cb = QGuiApplication::clipboard())
+        cb->setText(m_selText);
+}
+
+void EpubView::setChapterHighlights(const QVariantList &highlights)
+{
+    m_highlights.clear();
+    for (const QVariant &v : highlights) {
+        const QVariantMap m = v.toMap();
+        const int s = m.value(QStringLiteral("startChar")).toInt();
+        const int e = m.value(QStringLiteral("endChar")).toInt();
+        if (e > s)
+            m_highlights.append({m.value(QStringLiteral("id")).toLongLong(), s, e});
+    }
+    update();
+}
+
+QVariantList EpubView::highlightAt(qreal x, qreal y)
+{
+    QVariantList ids;
+    EpubRenderer *r = currentRenderer();
+    if (!r)
+        return ids;
+    const int off = r->offsetAtPoint(m_pageInSpine, QPointF(x, y), QSizeF(width(), height()));
+    if (off < 0)
+        return ids;
+    for (const Hl &h : m_highlights)
+        if (off >= h.start && off < h.end)
+            ids.append(QVariant::fromValue(h.id));
+    return ids;
 }

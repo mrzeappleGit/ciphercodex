@@ -449,6 +449,158 @@ void Library::deleteBookmark(qint64 id)
         tx.commit();
 }
 
+QVector<Highlight> Library::highlights(qint64 bookId, int spineIndex)
+{
+    QVector<Highlight> out;
+    Stmt q(m_storage->handle(),
+           "SELECT id, book_id, spine_index, start_char, end_char, text, note, color_id,"
+           "  created_at FROM highlights WHERE book_id = ?1 AND (?2 < 0 OR spine_index = ?2)"
+           "  ORDER BY spine_index, start_char");
+    sqlite3_bind_int64(q.s, 1, bookId);
+    sqlite3_bind_int(q.s, 2, spineIndex);
+    while (q.row()) {
+        Highlight h;
+        h.id = sqlite3_column_int64(q.s, 0);
+        h.bookId = sqlite3_column_int64(q.s, 1);
+        h.spineIndex = sqlite3_column_int(q.s, 2);
+        h.startChar = sqlite3_column_int(q.s, 3);
+        h.endChar = sqlite3_column_int(q.s, 4);
+        h.text = colText(q.s, 5);
+        h.note = colText(q.s, 6);
+        h.colorId = sqlite3_column_int(q.s, 7);
+        h.createdAt = sqlite3_column_int64(q.s, 8);
+        out.append(h);
+    }
+    return out;
+}
+
+qint64 Library::addHighlight(qint64 bookId, int spineIndex, int startChar, int endChar,
+                             const QString &text, const QString &note, int colorId)
+{
+    sqlite3 *db = m_storage->handle();
+    Tx tx(db);
+    if (!tx.active)
+        return -1;
+    Stmt q(db,
+           "INSERT INTO highlights(book_id, spine_index, start_char, end_char, text, note,"
+           "  color_id, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)");
+    sqlite3_bind_int64(q.s, 1, bookId);
+    sqlite3_bind_int(q.s, 2, spineIndex);
+    sqlite3_bind_int(q.s, 3, startChar);
+    sqlite3_bind_int(q.s, 4, endChar);
+    bindText(q.s, 5, text.toUtf8());
+    if (note.isEmpty())
+        sqlite3_bind_null(q.s, 6);  // note is nullable; a blank annotation is stored as NULL
+    else
+        bindText(q.s, 6, note.toUtf8());
+    sqlite3_bind_int(q.s, 7, colorId);
+    sqlite3_bind_int64(q.s, 8, now());
+    if (!q.done())
+        return -1;
+    const qint64 id = sqlite3_last_insert_rowid(db);
+    return tx.commit() ? id : -1;
+}
+
+void Library::updateHighlight(qint64 id, const QString &note, int colorId)
+{
+    sqlite3 *db = m_storage->handle();
+    Tx tx(db);
+    if (!tx.active)
+        return;
+    Stmt q(db, "UPDATE highlights SET note = ?, color_id = ? WHERE id = ?");
+    if (note.isEmpty())
+        sqlite3_bind_null(q.s, 1);
+    else
+        bindText(q.s, 1, note.toUtf8());
+    sqlite3_bind_int(q.s, 2, colorId);
+    sqlite3_bind_int64(q.s, 3, id);
+    if (q.done())
+        tx.commit();
+}
+
+void Library::deleteHighlight(qint64 id)
+{
+    sqlite3 *db = m_storage->handle();
+    Tx tx(db);
+    if (!tx.active)
+        return;
+    Stmt q(db, "DELETE FROM highlights WHERE id = ?");
+    sqlite3_bind_int64(q.s, 1, id);
+    if (q.done())
+        tx.commit();
+}
+
+QVector<KeptHighlight> Library::allHighlights()
+{
+    QVector<KeptHighlight> out;
+    Stmt q(m_storage->handle(),
+           "SELECT h.id, h.book_id, h.spine_index, h.start_char, h.end_char, h.text, h.note,"
+           "  h.color_id, h.created_at, b.title, b.author, b.format, b.file_path"
+           "  FROM highlights h JOIN books b ON b.id = h.book_id"
+           "  ORDER BY h.created_at DESC, h.id DESC");  // id DESC: stable order for same-ms inserts
+    while (q.row()) {
+        KeptHighlight kh;
+        kh.h.id = sqlite3_column_int64(q.s, 0);
+        kh.h.bookId = sqlite3_column_int64(q.s, 1);
+        kh.h.spineIndex = sqlite3_column_int(q.s, 2);
+        kh.h.startChar = sqlite3_column_int(q.s, 3);
+        kh.h.endChar = sqlite3_column_int(q.s, 4);
+        kh.h.text = colText(q.s, 5);
+        kh.h.note = colText(q.s, 6);
+        kh.h.colorId = sqlite3_column_int(q.s, 7);
+        kh.h.createdAt = sqlite3_column_int64(q.s, 8);
+        kh.bookTitle = colText(q.s, 9);
+        kh.bookAuthor = colText(q.s, 10);
+        kh.format = sqlite3_column_int(q.s, 11);
+        kh.filePath = colText(q.s, 12);
+        out.append(kh);
+    }
+    return out;
+}
+
+QString Library::keptMarkdown(const QVector<KeptHighlight> &items)
+{
+    // Group by (title, author) preserving first-appearance order, items in list order — matches
+    // Kotlin groupBy (LinkedHashMap). ponytail: linear group lookup, fine for a personal library;
+    // key by a hash if someone ever keeps highlights across thousands of distinct books.
+    struct Group { QString title, author; QVector<const KeptHighlight *> items; };
+    QVector<Group> groups;
+    for (const KeptHighlight &kh : items) {
+        int gi = -1;
+        for (int i = 0; i < groups.size(); ++i)
+            if (groups[i].title == kh.bookTitle && groups[i].author == kh.bookAuthor) {
+                gi = i;
+                break;
+            }
+        if (gi < 0) {
+            groups.append({kh.bookTitle, kh.bookAuthor, {}});
+            gi = int(groups.size()) - 1;
+        }
+        groups[gi].items.append(&kh);
+    }
+
+    // " — " is an em-dash with ASCII spaces, byte-identical to the Android separator.
+    const QString emDash = QString::fromUtf8(" \xE2\x80\x94 ");
+    QString md;
+    for (const Group &g : groups) {
+        md += QStringLiteral("# ") + g.title;
+        if (!g.author.trimmed().isEmpty())  // Kotlin isNullOrBlank(): blank author => no separator
+            md += emDash + g.author;
+        md += QStringLiteral("\n\n");
+        for (const KeptHighlight *kh : g.items) {
+            md += QStringLiteral("> ")
+                  + QString(kh->h.text).replace(QLatin1Char('\n'), QLatin1Char(' '))
+                  + QLatin1Char('\n');
+            if (!kh->h.note.trimmed().isEmpty())  // note on its own line only when non-blank
+                md += QLatin1Char('\n')
+                      + QString(kh->h.note).replace(QLatin1Char('\n'), QLatin1Char(' '))
+                      + QLatin1Char('\n');
+            md += QLatin1Char('\n');
+        }
+    }
+    return md;
+}
+
 QString Library::setting(const QString &key, const QString &def)
 {
     Stmt q(m_storage->handle(), "SELECT value FROM settings WHERE key = ?");

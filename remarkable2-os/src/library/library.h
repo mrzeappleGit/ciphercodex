@@ -22,6 +22,25 @@ struct Bookmark {
     qint64 createdAt;
 };
 
+// EPUB text highlight. [startChar,endChar) index the chapter's BUILT text (same offset space as
+// progress/bookmarks). text is a snapshot for Kept display. color_id has no visual meaning on the
+// mono panel — kept as metadata only.
+struct Highlight {
+    qint64 id, bookId;
+    int spineIndex, startChar, endChar;
+    QString text, note;
+    int colorId;
+    qint64 createdAt;
+};
+
+// A highlight plus its book's display fields (allHighlights JOIN) for the Kept view/export.
+struct KeptHighlight {
+    Highlight h;
+    QString bookTitle, bookAuthor;
+    int format;
+    QString filePath;
+};
+
 enum ImportResult { Imported, Duplicate, Failed };
 
 // Owns a Storage* (uses handle() for its own statements) and the on-disk book files.
@@ -61,6 +80,17 @@ public:
     qint64 addBookmark(qint64 bookId, int spineIndex, int charOffset, double percentage,
                        const QString &label);
     void deleteBookmark(qint64 id);
+
+    // Highlights (EPUB text annotations). spineIndex == -1 => every chapter; else just that one.
+    QVector<Highlight> highlights(qint64 bookId, int spineIndex = -1);  // ORDER BY spine_index, start_char
+    qint64 addHighlight(qint64 bookId, int spineIndex, int startChar, int endChar,
+                        const QString &text, const QString &note = QString(), int colorId = 0);
+    void updateHighlight(qint64 id, const QString &note, int colorId);
+    void deleteHighlight(qint64 id);
+    QVector<KeptHighlight> allHighlights();  // JOIN books; newest first (Kept view)
+    // Grouped Markdown of a Kept set, byte-identical to the Android export. Static so the host
+    // test can assert the exact bytes without the controller's network deps.
+    static QString keptMarkdown(const QVector<KeptHighlight> &items);
 
     // settings key/value store (used for kosync config, typography, device_id).
     QString setting(const QString &key, const QString &def = QString());  // def if key absent

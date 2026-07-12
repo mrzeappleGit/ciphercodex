@@ -5,7 +5,9 @@
 #include <QHash>
 #include <QPainter>
 #include <QPointF>
+#include <QRectF>
 #include <QTextBlock>
+#include <QTextBoundaryFinder>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextLayout>
@@ -346,6 +348,126 @@ QString EpubRenderer::linkAt(int pageIndex, const QPointF &pt, const QSizeF &siz
         if (off >= l.first.first && off < l.first.second)
             return l.second;
     return QString();
+}
+
+int EpubRenderer::offsetAtPoint(int pageIndex, const QPointF &pt, const QSizeF &size)
+{
+    ensure();
+    if (pageIndex < 0 || pageIndex >= m_pages.size())
+        return -1;
+    const Page &pg = m_pages[pageIndex];
+    if (!pg.imageZipPath.isEmpty())
+        return -1;
+    // Undo render()'s transform: view -> doc coords (margins out, topPx back in).
+    const QPointF docPt(pt.x() - m_marginPx, pt.y() - m_marginPx + pg.topPx);
+    const int docPos = m_doc->documentLayout()->hitTest(docPt, Qt::FuzzyHit);
+    if (docPos < 0)
+        return -1;
+    return offsetForDocPosition(docPos);
+}
+
+QPair<int, int> EpubRenderer::wordRangeAt(int builtOffset)
+{
+    // Pure built-text query (no layout needed): QTextBoundaryFinder over m_chapter.text. The
+    // '\n' block separators are boundaries, so a word never crosses a block.
+    const QString &t = m_chapter.text;
+    const int n = t.size();
+    if (n == 0)
+        return {0, 0};
+    const int pos = qBound(0, builtOffset, n - 1);
+
+    QTextBoundaryFinder bf(QTextBoundaryFinder::Word, t);
+    bf.setPosition(pos);
+    int s = bf.isAtBoundary() ? pos : bf.toPreviousBoundary();
+    if (s < 0)
+        s = 0;
+    bf.setPosition(s);
+    int e = bf.toNextBoundary();
+    if (e <= s)
+        e = n;
+
+    // The enclosing segment may be a non-word run (spaces/rule/image char). Grab the adjacent
+    // word: prefer the one just before the tap, else the one after.
+    auto hasWord = [&](int a, int b) {
+        for (int i = a; i < b; ++i)
+            if (t.at(i).isLetterOrNumber())
+                return true;
+        return false;
+    };
+    if (!hasWord(s, e)) {
+        bf.setPosition(s);
+        const int ps = bf.toPreviousBoundary();
+        if (ps >= 0 && hasWord(ps, s))
+            return {ps, s};
+        bf.setPosition(e);
+        const int ne = bf.toNextBoundary();
+        if (ne > e && hasWord(e, ne))
+            return {e, ne};
+    }
+    return {s, e};
+}
+
+QVector<QRectF> EpubRenderer::rectsForRange(int pageIndex, int startOffset, int endOffset,
+                                            const QSizeF &size)
+{
+    ensure();
+    QVector<QRectF> rects;
+    if (pageIndex < 0 || pageIndex >= m_pages.size() || endOffset <= startOffset)
+        return rects;
+    const Page &pg = m_pages[pageIndex];
+    if (!pg.imageZipPath.isEmpty())
+        return rects;
+
+    const int ds = docPositionForOffset(startOffset);
+    const int de = docPositionForOffset(endOffset);
+    if (de <= ds)
+        return rects;
+
+    const qreal contentW = qMax<qreal>(1, size.width() - 2 * m_marginPx);
+    const qreal bandTop = pg.topPx;
+    const qreal bandBot = pg.topPx + pg.contentHeightPx;
+    const QRectF box(m_marginPx, m_marginPx, contentW, pg.contentHeightPx);
+    QAbstractTextDocumentLayout *dl = m_doc->documentLayout();
+
+    for (QTextBlock b = m_doc->begin(); b.isValid(); b = b.next()) {
+        const QRectF br = dl->blockBoundingRect(b);
+        if (br.bottom() <= bandTop || br.top() >= bandBot)
+            continue;  // block wholly off this page
+        QTextLayout *lay = b.layout();
+        const int lc = lay ? lay->lineCount() : 0;
+        const int bpos = b.position();
+        for (int j = 0; j < lc; ++j) {
+            const QTextLine line = lay->lineAt(j);
+            const qreal lineTop = br.top() + line.y();
+            const qreal lineBot = lineTop + line.height();
+            if (lineBot <= bandTop || lineTop >= bandBot)
+                continue;  // line off this page (next page's first line starts exactly at bandBot)
+            const int lineStartDoc = bpos + line.textStart();
+            const int lineEndDoc = lineStartDoc + line.textLength();
+            const int selS = qMax(ds, lineStartDoc);
+            const int selE = qMin(de, lineEndDoc);
+            if (selE <= selS)
+                continue;
+            const qreal x1 = line.cursorToX(selS - bpos);  // cursorToX is layout(block)-relative
+            const qreal x2 = line.cursorToX(selE - bpos);
+            const qreal left = qMin(x1, x2);
+            // view space: margins in, topPx out (same as render())
+            QRectF r(left + m_marginPx, lineTop - pg.topPx + m_marginPx, qAbs(x2 - x1),
+                     line.height());
+            r = r.intersected(box);
+            if (!r.isEmpty())
+                rects.append(r);
+        }
+    }
+    return rects;
+}
+
+QString EpubRenderer::textSlice(int startOffset, int endOffset) const
+{
+    const int n = m_chapter.text.size();
+    const int s = qBound(0, startOffset, n);
+    const int e = qBound(s, endOffset, n);
+    return m_chapter.text.mid(s, e - s);
 }
 
 double EpubRenderer::pctFor(const QVector<qint64> &w, int spine, int startCharOfPage,

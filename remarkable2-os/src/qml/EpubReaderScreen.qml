@@ -31,6 +31,10 @@ Item {
     property string footnoteText: ""   // non-empty => footnote popup shown
     property bool showSyncPrompt: false
 
+    property var hlItems: []           // highlights of the CURRENT chapter (full maps)
+    property bool addingNote: false    // note editor open for a fresh selection
+    property var editHl: null          // tapped highlight -> edit/delete sheet (null = closed)
+
     // Typography (persisted in the settings table).
     property string fontName: "Serif"
     property int fontSize: 34
@@ -51,6 +55,20 @@ Item {
             epubReader.reader.pushProgress(epubReader.bookId)
     }
     function reloadBookmarks() { epubReader.bmItems = epubReader.reader.bookmarks(epubReader.bookId) }
+    // Reload the current chapter's highlights and hand EpubView the offset ranges to draw.
+    function reloadHighlights() {
+        if (epubView.spineCount <= 0) return
+        epubReader.hlItems = epubReader.reader.highlights(epubReader.bookId, epubView.spineIndex)
+        // EpubView renders by offset only; the id lets highlightAt map a tap back to a row.
+        epubView.setChapterHighlights(epubReader.hlItems.map(function(h) {
+            return { id: h.id, startChar: h.startChar, endChar: h.endChar }
+        }))
+    }
+    function highlightById(id) {
+        for (var i = 0; i < epubReader.hlItems.length; ++i)
+            if (epubReader.hlItems[i].id === id) return epubReader.hlItems[i]
+        return null
+    }
     function seekTo(frac) {
         // Chapter-granular whole-book seek: EpubView exposes no percentage seek, so a scrubber
         // tap lands on the nearest spine. ponytail: chapter-granular, fine for a book scrubber.
@@ -89,6 +107,7 @@ Item {
                                epubReader.lineSpacing, epubReader.margins, epubReader.justify)
         epubView.goToLocation(epubReader.startSpine, epubReader.startCharOffset)
         epubReader.reloadBookmarks()
+        epubReader.reloadHighlights()
         epubReader.ready = true    // only now do turns persist
         epubReader.reader.pullOnOpen(epubReader.bookId)  // async -> onPullReady shows the prompt
         epubReader.reader.syncAllDirty()                 // drain any push that failed offline earlier
@@ -113,6 +132,7 @@ Item {
             epubReader.charOffset = charOffset
             if (epubReader.ready) saveTimer.restart()
         }
+        function onSpineChanged() { epubReader.reloadHighlights() }
         function onSearchHit(spine, charOffset, snippet) {
             epubReader.searchHits = epubReader.searchHits.concat(
                 [{ spine: spine, charOffset: charOffset, snippet: snippet }])
@@ -212,6 +232,13 @@ Item {
     EpubView {
         id: epubView
         anchors { top: toolbar.bottom; left: parent.left; right: parent.right; bottom: scrubber.top }
+        // EpubView emits highlightTapped when a tap lands on a saved highlight (and skips its own
+        // page-turn for that tap), so there's no double-processing / page flip underneath.
+        onHighlightTapped: (id) => {
+            if (epubReader.panel !== "" || epubReader.addingNote) return
+            const h = epubReader.highlightById(id)
+            if (h) { editNote.text = h.note ? h.note : ""; epubReader.editHl = h }
+        }
     }
 
     // Jump-back affordance: after following a link jump, return down the 10-deep stack.
@@ -563,6 +590,158 @@ Item {
                     }
                 }
                 Btn { label: "STAY"; onTapped: epubReader.showSyncPrompt = false }
+            }
+        }
+    }
+
+    // ---- Selection toolbar (while a selection is committed) ----
+    Rectangle {
+        visible: epubView.hasSelection && !epubReader.addingNote
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: scrubber.top; bottomMargin: 20 }
+        width: selRow.width + 24
+        height: 110
+        color: "white"
+        border { color: "black"; width: 4 }
+        z: 4
+        Row {
+            id: selRow
+            anchors.centerIn: parent
+            spacing: 10
+            Btn {
+                label: "HIGHLIGHT"
+                onTapped: {
+                    const a = epubView.selectionAnchor()
+                    epubReader.reader.addHighlight(epubReader.bookId, a.spine, a.startChar,
+                                                   a.endChar, a.text, "")
+                    epubReader.reloadHighlights()
+                    epubView.clearSelection()
+                }
+            }
+            Btn { label: "COPY"; onTapped: { epubView.copySelection(); epubView.clearSelection() } }
+            Btn { label: "NOTE"; onTapped: { newNote.text = ""; epubReader.addingNote = true } }
+            Btn { label: "X"; onTapped: epubView.clearSelection() }
+        }
+    }
+
+    // ---- Note editor for a fresh selection (NOTE -> addHighlight with the note) ----
+    Rectangle {
+        visible: epubReader.addingNote
+        anchors.centerIn: parent
+        width: 900
+        height: 460
+        color: "white"
+        border { color: "black"; width: 4 }
+        z: 7
+        Column {
+            anchors { fill: parent; margins: 24 }
+            spacing: 20
+            Text { text: "NOTE"; font { pixelSize: 26; bold: true } }
+            Rectangle {
+                width: parent.width
+                height: 240
+                color: "white"
+                border { color: "black"; width: 3 }
+                Text {
+                    visible: newNote.text === ""
+                    anchors { left: parent.left; leftMargin: 14; top: parent.top; topMargin: 12 }
+                    text: "type a note"
+                    color: "#999999"
+                    font.pixelSize: 24
+                }
+                TextEdit {
+                    id: newNote
+                    anchors { fill: parent; margins: 14 }
+                    wrapMode: TextEdit.Wrap
+                    clip: true
+                    font.pixelSize: 24
+                }
+            }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 40
+                Btn {
+                    label: "SAVE"
+                    onTapped: {
+                        const a = epubView.selectionAnchor()
+                        epubReader.reader.addHighlight(epubReader.bookId, a.spine, a.startChar,
+                                                       a.endChar, a.text, newNote.text)
+                        epubReader.reloadHighlights()
+                        epubView.clearSelection()
+                        epubReader.addingNote = false
+                    }
+                }
+                Btn { label: "CANCEL"; onTapped: epubReader.addingNote = false }
+            }
+        }
+    }
+
+    // ---- Tapped-highlight edit/delete sheet ----
+    Rectangle {
+        visible: epubReader.editHl !== null
+        anchors.centerIn: parent
+        width: 900
+        height: Math.min(760, editCol.implicitHeight + 48)
+        color: "white"
+        border { color: "black"; width: 4 }
+        z: 7
+        Column {
+            id: editCol
+            anchors { fill: parent; margins: 24 }
+            spacing: 18
+            Flickable {
+                width: parent.width
+                height: 220
+                clip: true
+                contentHeight: hlText.implicitHeight
+                Text {
+                    id: hlText
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: epubReader.editHl ? ("“" + epubReader.editHl.text + "”") : ""
+                    font.pixelSize: 26
+                }
+            }
+            Text { text: "NOTE"; font { pixelSize: 24; bold: true } }
+            Rectangle {
+                width: parent.width
+                height: 200
+                color: "white"
+                border { color: "black"; width: 3 }
+                Text {
+                    visible: editNote.text === ""
+                    anchors { left: parent.left; leftMargin: 14; top: parent.top; topMargin: 12 }
+                    text: "type a note"
+                    color: "#999999"
+                    font.pixelSize: 24
+                }
+                TextEdit {
+                    id: editNote
+                    anchors { fill: parent; margins: 14 }
+                    wrapMode: TextEdit.Wrap
+                    clip: true
+                    font.pixelSize: 24
+                }
+            }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 30
+                Btn {
+                    label: "SAVE"
+                    onTapped: {
+                        epubReader.reader.updateHighlight(epubReader.editHl.id, editNote.text)
+                        epubReader.reloadHighlights()
+                        epubReader.editHl = null
+                    }
+                }
+                Btn {
+                    label: "DELETE"
+                    onTapped: {
+                        epubReader.reader.deleteHighlight(epubReader.editHl.id)
+                        epubReader.reloadHighlights()
+                        epubReader.editHl = null
+                    }
+                }
+                Btn { label: "CLOSE"; onTapped: epubReader.editHl = null }
             }
         }
     }

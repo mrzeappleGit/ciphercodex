@@ -38,6 +38,15 @@ public:
     Q_INVOKABLE void deleteBookmark(qint64 id);
     // TOC and search now come from the view items (their already-open documents), not a reopen here.
 
+    // ---- highlights + Kept (Phase 2c) ----
+    Q_INVOKABLE QVariantList highlights(qint64 bookId, int spineIndex);  // chapter highlights for rendering
+    Q_INVOKABLE qint64 addHighlight(qint64 bookId, int spineIndex, int startChar, int endChar,
+                                    const QString &text, const QString &note);
+    Q_INVOKABLE void updateHighlight(qint64 id, const QString &note);  // colorId stays 0 (mono panel)
+    Q_INVOKABLE void deleteHighlight(qint64 id);
+    Q_INVOKABLE QVariantList keptHighlights();  // every highlight + its book, newest first
+    Q_INVOKABLE bool exportKeptMarkdown(const QString &outPath);  // grouped Markdown; "" => <dataDir>/kept.md
+
     // Reader preferences (typography, etc.) persisted in the settings key/value table.
     Q_INVOKABLE QString setting(const QString &key, const QString &def = QString());
     Q_INVOKABLE void setSetting(const QString &key, const QString &value);
@@ -73,6 +82,7 @@ private:
     QString deviceId();                // persisted device_id (UUIDv4, dashes stripped); created once
     QVariantMap resolvePull(qint64 bookId, const ccx::kosync::Result &r);  // remoteNewer logic
 
+    QString m_dataDir;  // app data dir; default target for exportKeptMarkdown
     Storage *m_storage = nullptr;
     Library *m_library = nullptr;
     QNetworkAccessManager *m_nam = nullptr;  // parented to this

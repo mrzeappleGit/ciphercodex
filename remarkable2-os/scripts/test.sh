@@ -64,6 +64,17 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W 2>/dev/null || pwd):/work" -w /w
         $LINK -o "$BUILD/test_library"
     "$BUILD/test_library"
 
+    # highlights + Kept: CRUD/spine-filter/allHighlights JOIN + exact grouped-Markdown bytes.
+    g++ -std=c++17 -g -fPIC \
+        src/storage/storage.cpp src/library/library.cpp src/library/digest.cpp \
+        tests/test_highlights.cpp \
+        -Isrc -Isrc/storage -Isrc/library -I"$BUILD" \
+        -I"$SYS/usr/include" -I"$SYS/usr/include/QtCore" \
+        -L"$SYS/usr/lib" -L"$SYS/lib" \
+        -lQt6Core -l:libsqlite3.so.0 -l:libm.so.6 -lpthread -ldl \
+        $LINK -o "$BUILD/test_highlights"
+    "$BUILD/test_highlights"
+
     # epub built-text goldens: XhtmlMapper + buildChapterText + resolvePath/spine numbering.
     # Qt6Core only (QZipReader/QZipWriter are Q_CORE_EXPORT symbols in libQt6Core; the private
     # headers live at QtCore/<ver>/QtCore/private, reachable via -I .../QtCore/<ver>).

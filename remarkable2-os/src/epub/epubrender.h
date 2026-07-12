@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QPair>
+#include <QRectF>
 #include <QSizeF>
 #include <QString>
 #include <QVector>
@@ -52,6 +54,18 @@ public:
 
     // Link href under a view-space point on `pageIndex`, or "" if none (for tap-to-follow).
     QString linkAt(int pageIndex, const QPointF &pt, const QSizeF &size);
+
+    // --- Selection + highlight-render seam (Phase 2c). All built-offset based. ---
+    // Built char offset under a view-space point on pageIndex (documentLayout hitTest, undoing
+    // the render() margin/topPx transform), or -1 for an out-of-range / image page.
+    int offsetAtPoint(int pageIndex, const QPointF &pt, const QSizeF &size);
+    // Word [start,end) (built offsets) at/nearest `builtOffset`; empty pair if none.
+    QPair<int, int> wordRangeAt(int builtOffset);
+    // View-space rects covering built range [start,end) on pageIndex (selection + saved
+    // highlights); empty if the range doesn't intersect the page. Same transform as render().
+    QVector<QRectF> rectsForRange(int pageIndex, int startOffset, int endOffset, const QSizeF &size);
+    // Plain built-text slice [start,end) (highlight snapshot + copy).
+    QString textSlice(int startOffset, int endOffset) const;
 
     // offset<->docPosition seam (pagination + later selection). Exact for interior offsets;
     // block-boundary/separator offsets clamp to the owning block's edge.

@@ -69,7 +69,10 @@ Item {
             width: parent.width; label: "NOTEBOOKS"
             onActivated: home.StackView.view.push(nbListComp)
         }
-        Tile { width: parent.width; label: "KEPT"; tag: "PHASE 3" }
+        Tile {
+            width: parent.width; label: "KEPT"
+            onActivated: home.StackView.view.push(keptComp)
+        }
         Tile { width: parent.width; label: "STATS"; tag: "PHASE 3" }
         Tile {
             width: parent.width; label: "SETTINGS"
@@ -90,5 +93,10 @@ Item {
     Component {
         id: settingsComp
         SettingsScreen { reader: home.reader }
+    }
+
+    Component {
+        id: keptComp
+        KeptScreen { reader: home.reader }
     }
 }
