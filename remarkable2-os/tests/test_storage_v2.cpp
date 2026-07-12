@@ -49,13 +49,14 @@ int main()
     sqlite3 *db = st->handle();
     assert(db);
 
-    // fresh DB ran v1 then v2
-    assert(scalar(db, "SELECT version FROM schema_version") == 2);
+    // fresh DB ran v1, v2, then v3 (sync foundation)
+    assert(scalar(db, "SELECT version FROM schema_version") == 3);
 
     const char *const v2Tables[] = {"books", "progress", "reading_sessions", "bookmarks",
                                     "highlights", "collections", "book_collections", "settings"};
     for (const char *t : v2Tables)
         assert(tableExists(db, t));
+    assert(tableExists(db, "sync_state"));  // v3 device-local sync bookkeeping
 
     // FK cascade: deleting the book removes its progress + highlight rows.
     exec(db, "INSERT INTO books(id,title,file_path,digest,size_bytes,format,added_at)"

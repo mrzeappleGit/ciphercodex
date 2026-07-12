@@ -6,6 +6,8 @@
 
 #include <sqlite3.h>
 
+#include <QByteArray>
+#include <QSet>
 #include <QTemporaryDir>
 
 #include <cassert>
@@ -145,19 +147,24 @@ static int runAsserts()
     assert(st->notebooks().size() == 1);
     delete st;
 
-    // cascade verified against the raw DB, not just the API
+    // Soft-delete cascade verified against the raw DB: no LIVE strokes/pages remain, but the
+    // tombstone rows are still present (deleted=1) so the delete can propagate on sync.
     const QByteArray path = (tmp.path() + QStringLiteral("/data.db")).toUtf8();
     sqlite3 *db = nullptr;
     assert(sqlite3_open_v2(path.constData(), &db, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK);
     sqlite3_stmt *q = nullptr;
-    assert(sqlite3_prepare_v2(db, "SELECT (SELECT COUNT(*) FROM strokes),"
-                                  " (SELECT COUNT(*) FROM pages),"
-                                  " (SELECT version FROM schema_version)",
+    assert(sqlite3_prepare_v2(db, "SELECT (SELECT COUNT(*) FROM strokes WHERE deleted=0),"
+                                  " (SELECT COUNT(*) FROM pages WHERE deleted=0),"
+                                  " (SELECT version FROM schema_version),"
+                                  " (SELECT COUNT(*) FROM strokes),"
+                                  " (SELECT COUNT(*) FROM pages)",
                               -1, &q, nullptr) == SQLITE_OK);
     assert(sqlite3_step(q) == SQLITE_ROW);
-    assert(sqlite3_column_int(q, 0) == 0);
-    assert(sqlite3_column_int(q, 1) == 0);
-    assert(sqlite3_column_int(q, 2) == 2);  // fresh DB now runs v1 then v2
+    assert(sqlite3_column_int(q, 0) == 0);   // no live strokes
+    assert(sqlite3_column_int(q, 1) == 0);   // no live pages
+    assert(sqlite3_column_int(q, 2) == 3);   // fresh DB now runs v1, v2, v3
+    assert(sqlite3_column_int(q, 3) > 0);    // stroke tombstones kept
+    assert(sqlite3_column_int(q, 4) > 0);    // page tombstones kept
     sqlite3_finalize(q);
     sqlite3_close(db);
 
@@ -240,11 +247,111 @@ static int powerlossVerify(const char *dir, const char *idsFile)
     return 0;
 }
 
+// --- Phase 3a sync-foundation checks ---
+
+static bool columnsExist(sqlite3 *db, const char *table)  // guid/deleted/updated_at all present?
+{
+    char sql[128];
+    std::snprintf(sql, sizeof sql, "SELECT guid, deleted, updated_at FROM %s LIMIT 0", table);
+    sqlite3_stmt *q = nullptr;
+    const bool ok = sqlite3_prepare_v2(db, sql, -1, &q, nullptr) == SQLITE_OK;
+    sqlite3_finalize(q);
+    return ok;
+}
+
+// Fetch guid/updated_at/deleted for one row keyed by rowid (== id on these tables).
+static void rowSync(sqlite3 *db, const char *table, qint64 id,
+                    QByteArray *guid, qint64 *updatedAt, int *deleted)
+{
+    char sql[160];
+    std::snprintf(sql, sizeof sql, "SELECT guid, updated_at, deleted FROM %s WHERE rowid=?", table);
+    sqlite3_stmt *q = nullptr;
+    assert(sqlite3_prepare_v2(db, sql, -1, &q, nullptr) == SQLITE_OK);
+    sqlite3_bind_int64(q, 1, id);
+    assert(sqlite3_step(q) == SQLITE_ROW);
+    if (guid)
+        *guid = reinterpret_cast<const char *>(sqlite3_column_text(q, 0));
+    if (updatedAt)
+        *updatedAt = sqlite3_column_int64(q, 1);
+    if (deleted)
+        *deleted = sqlite3_column_int(q, 2);
+    sqlite3_finalize(q);
+}
+
+static int runSyncAsserts()
+{
+    QTemporaryDir tmp;
+    assert(tmp.isValid());
+    QString err;
+    Storage *st = Storage::open(tmp.path(), &err);
+    assert(st);
+    sqlite3 *db = st->handle();
+
+    // Every synced table gained guid/deleted/updated_at; sync_state exists.
+    const char *const synced[] = {"books", "progress", "bookmarks", "highlights", "collections",
+                                  "book_collections", "notebooks", "pages", "strokes",
+                                  "reading_sessions"};
+    for (const char *t : synced)
+        assert(columnsExist(db, t));
+    { sqlite3_stmt *q = nullptr;
+      assert(sqlite3_prepare_v2(db, "SELECT key, value FROM sync_state LIMIT 0", -1, &q, nullptr)
+             == SQLITE_OK);
+      sqlite3_finalize(q); }
+
+    // Every insert stamps a unique non-empty guid + updated_at>0 across notebooks/pages/strokes.
+    QSet<QByteArray> guids;
+    qint64 firstPage = -1, firstStroke = -1;
+    for (int i = 0; i < 25; ++i) {
+        const qint64 nb = st->createNotebook(QStringLiteral("n"));
+        const qint64 pg = st->createPage(nb);
+        StrokeData s = makeStroke(pg);
+        const qint64 sid = st->appendStroke(s);
+        assert(nb > 0 && pg > 0 && sid > 0);
+        if (i == 0) { firstPage = pg; firstStroke = sid; }
+        const char *const tbl[] = {"notebooks", "pages", "strokes"};
+        const qint64 ids[] = {nb, pg, sid};
+        for (int k = 0; k < 3; ++k) {
+            QByteArray g; qint64 ua = 0; int del = -1;
+            rowSync(db, tbl[k], ids[k], &g, &ua, &del);
+            assert(g.size() == 32);          // 32 hex chars, dashes stripped
+            assert(ua > 0);                  // updated_at stamped
+            assert(del == 0);                // live on insert
+            assert(!guids.contains(g));      // unique across every inserted row
+            guids.insert(g);
+        }
+    }
+    assert(guids.size() == 75);
+
+    // Undo path: soft-delete then restore returns the SAME guid with deleted cleared.
+    QByteArray g0; rowSync(db, "strokes", firstStroke, &g0, nullptr, nullptr);
+    assert(st->removeStrokes({firstStroke}));
+    int del = -1; rowSync(db, "strokes", firstStroke, nullptr, nullptr, &del);
+    assert(del == 1);
+    { sqlite3_stmt *q = nullptr;  // soft-delete emptied the points blob but kept the row
+      assert(sqlite3_prepare_v2(db, "SELECT length(points) FROM strokes WHERE id=?", -1, &q, nullptr)
+             == SQLITE_OK);
+      sqlite3_bind_int64(q, 1, firstStroke);
+      assert(sqlite3_step(q) == SQLITE_ROW && sqlite3_column_int(q, 0) == 0);
+      sqlite3_finalize(q); }
+    StrokeData rs = makeStroke(firstPage);
+    rs.id = firstStroke;
+    QVector<StrokeData> restore{rs};
+    assert(st->restoreStrokes(restore));
+    QByteArray g1; rowSync(db, "strokes", firstStroke, &g1, nullptr, &del);
+    assert(del == 0 && !g1.isEmpty() && g1 == g0);  // revived in place, identity preserved
+
+    delete st;
+    printf("ALL SYNC FOUNDATION TESTS PASSED\n");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     if (argc >= 3 && std::strcmp(argv[1], "--powerloss-child") == 0)
         return powerlossChild(argv[2]);
     if (argc >= 4 && std::strcmp(argv[1], "--powerloss-verify") == 0)
         return powerlossVerify(argv[2], argv[3]);
+    if (int rc = runSyncAsserts())
+        return rc;
     return runAsserts();
 }

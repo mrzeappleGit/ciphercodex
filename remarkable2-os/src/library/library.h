@@ -64,7 +64,7 @@ public:
     };
     QVector<BookWithProgress> booksWithProgress();
     void markOpened(qint64 id);
-    void deleteBook(qint64 id);  // FK cascade + unlink file_path & cover_path
+    void deleteBook(qint64 id);  // soft-delete book + child rows; KEEPS the content-addressed file
 
     struct Progress {
         int spineIndex, charOffset;

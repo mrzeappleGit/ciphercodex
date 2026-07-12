@@ -19,6 +19,8 @@ struct NotebookInfo { qint64 id; QString title; int pageCount; qint64 updatedAt;
 // SQLite-backed store: WAL + synchronous=FULL + foreign_keys=ON.
 // Every mutating method is one committed transaction — a crash at any moment
 // preserves exactly the strokes whose appendStroke() already returned.
+// Schema v3 (sync foundation): every synced row carries guid + updated_at + a `deleted`
+// tombstone; deletes are soft (set deleted=1, cascaded to descendants) and reads filter deleted=0.
 class Storage {
 public:
     static Storage *open(const QString &dbDir, QString *error);  // creates dir, db, runs migrations
@@ -29,13 +31,13 @@ public:
     QVector<NotebookInfo> notebooks();
     qint64 createNotebook(const QString &title);
     void renameNotebook(qint64 id, const QString &title);
-    void deleteNotebook(qint64 id);               // cascades pages+strokes
+    void deleteNotebook(qint64 id);               // soft-deletes (tombstones) notebook+pages+strokes
     QVector<PageInfo> pages(qint64 notebookId);
     qint64 createPage(qint64 notebookId);         // appends at end, returns id
-    void deletePage(qint64 pageId);
+    void deletePage(qint64 pageId);               // soft-deletes page + its strokes
     qint64 appendStroke(const StrokeData &s);     // returns rowid; THE journal write
-    bool removeStrokes(const QVector<qint64> &ids);
-    bool restoreStrokes(QVector<StrokeData> &s);  // re-insert with original ids
+    bool removeStrokes(const QVector<qint64> &ids);  // soft-delete (tombstone, empty blob)
+    bool restoreStrokes(QVector<StrokeData> &s);  // undo: revive tombstoned rows, same ids + guids
     // Area-erase commit: delete removeIds and insert fragments, one transaction.
     // keepAddIds=false assigns fresh ids into `add`; true re-inserts with their ids (undo/redo).
     bool replaceStrokes(const QVector<qint64> &removeIds, QVector<StrokeData> &add,

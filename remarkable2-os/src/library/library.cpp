@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSet>
+#include <QUuid>
 
 #include <cstdio>   // ::rename
 #include <fcntl.h>
@@ -24,6 +25,12 @@ static constexpr int kCoverMaxDim = 400;  // page-0 thumbnail longest edge, px
 namespace {
 
 qint64 now() { return QDateTime::currentMSecsSinceEpoch(); }
+
+// Sync identity: UUIDv4, dashes stripped (32 hex chars) — same format as storage.cpp/kosync.
+QByteArray newGuid()
+{
+    return QUuid::createUuid().toString(QUuid::WithoutBraces).remove(QLatin1Char('-')).toLatin1();
+}
 
 // Same prepared-statement RAII as storage.cpp — the reader lib prepares its own
 // statements against Storage's connection (foreign_keys=ON, WAL, synchronous=FULL).
@@ -141,11 +148,13 @@ Library::Library(Storage *s, const QString &dataDir) : m_storage(s), m_dataDir(d
 
 // Reclaim final book files whose DB row never landed (crash/power-loss between the
 // rename and the INSERT commit) — the only way to close that window after a hard kill.
+// Deletes files only when NO books row references the digest; a tombstoned (deleted=1) book
+// KEEPS its file (content-addressed, shared with sync), so this SELECT must NOT filter deleted.
 void Library::reconcileOrphans()
 {
     if (!m_storage)
         return;
-    QSet<QString> known;  // digests with a live books row
+    QSet<QString> known;  // digests with any books row (live OR tombstoned)
     Stmt q(m_storage->handle(), "SELECT digest FROM books");
     while (q.row())
         known.insert(colText(q.s, 0));
@@ -191,10 +200,29 @@ ImportResult Library::importFile(const QString &srcPath)
         return Failed;
 
     {  // dedupe on partial-MD5
-        Stmt q(db, "SELECT 1 FROM books WHERE digest = ?");
-        bindText(q.s, 1, digest.toUtf8());
-        if (q.row())
-            return Duplicate;
+        qint64 existingId = -1;
+        bool tombstoned = false;
+        {
+            Stmt q(db, "SELECT id, deleted FROM books WHERE digest = ?");
+            bindText(q.s, 1, digest.toUtf8());
+            if (q.row()) {
+                existingId = sqlite3_column_int64(q.s, 0);
+                tombstoned = sqlite3_column_int(q.s, 1) != 0;
+            }
+        }
+        if (existingId >= 0) {
+            if (!tombstoned)
+                return Duplicate;
+            // Re-import of a soft-deleted book: its content-addressed file was kept, so just
+            // clear the tombstone (LWW: bump updated_at) instead of inserting a duplicate row.
+            Tx tx(db);
+            if (!tx.active)
+                return Failed;
+            Stmt up(db, "UPDATE books SET deleted = 0, updated_at = ? WHERE id = ?");
+            sqlite3_bind_int64(up.s, 1, now());
+            sqlite3_bind_int64(up.s, 2, existingId);
+            return (up.done() && tx.commit()) ? Imported : Failed;
+        }
     }
 
     const QString finalPath = booksDir() + QStringLiteral("/") + digest + QStringLiteral(".") + ext;
@@ -242,8 +270,10 @@ ImportResult Library::importFile(const QString &srcPath)
     }
     Stmt ins(db,
              "INSERT INTO books(title, author, file_path, digest, cover_path, size_bytes,"
-             "  format, added_at, last_opened_at)"
-             "  VALUES(?, NULL, ?, ?, ?, ?, ?, ?, NULL)");
+             "  format, added_at, last_opened_at, guid, updated_at)"
+             "  VALUES(?, NULL, ?, ?, ?, ?, ?, ?, NULL, ?, ?)");
+    const qint64 ts = now();
+    const QByteArray g = newGuid();
     bindText(ins.s, 1, title.toUtf8());
     bindText(ins.s, 2, finalPath.toUtf8());
     bindText(ins.s, 3, digest.toUtf8());
@@ -253,7 +283,9 @@ ImportResult Library::importFile(const QString &srcPath)
         bindText(ins.s, 4, coverPath.toUtf8());
     sqlite3_bind_int64(ins.s, 5, fi.size());
     sqlite3_bind_int(ins.s, 6, format);
-    sqlite3_bind_int64(ins.s, 7, now());
+    sqlite3_bind_int64(ins.s, 7, ts);   // added_at
+    bindText(ins.s, 8, g);              // guid
+    sqlite3_bind_int64(ins.s, 9, ts);   // updated_at
     if (!ins.done() || !tx.commit()) {
         QFile::remove(finalPath);
         if (!coverPath.isEmpty())
@@ -268,7 +300,7 @@ QVector<BookRow> Library::books()
     QVector<BookRow> out;
     Stmt q(m_storage->handle(),
            "SELECT id, title, author, file_path, digest, cover_path, size_bytes, format,"
-           "  added_at, last_opened_at FROM books"
+           "  added_at, last_opened_at FROM books WHERE deleted = 0"
            "  ORDER BY last_opened_at IS NULL, last_opened_at DESC, added_at DESC");
     while (q.row()) {
         BookRow b;
@@ -293,7 +325,8 @@ QVector<Library::BookWithProgress> Library::booksWithProgress()
     Stmt q(m_storage->handle(),
            "SELECT b.id, b.title, b.author, b.file_path, b.digest, b.cover_path, b.size_bytes,"
            "  b.format, b.added_at, b.last_opened_at, p.percentage"
-           "  FROM books b LEFT JOIN progress p ON p.book_id = b.id"
+           "  FROM books b LEFT JOIN progress p ON p.book_id = b.id AND p.deleted = 0"
+           "  WHERE b.deleted = 0"
            "  ORDER BY b.last_opened_at IS NULL, b.last_opened_at DESC, b.added_at DESC");
     while (q.row()) {
         BookWithProgress bp;
@@ -320,9 +353,11 @@ void Library::markOpened(qint64 id)
     Tx tx(db);
     if (!tx.active)
         return;
-    Stmt q(db, "UPDATE books SET last_opened_at = ? WHERE id = ?");
-    sqlite3_bind_int64(q.s, 1, now());
-    sqlite3_bind_int64(q.s, 2, id);
+    const qint64 ts = now();
+    Stmt q(db, "UPDATE books SET last_opened_at = ?, updated_at = ? WHERE id = ?");
+    sqlite3_bind_int64(q.s, 1, ts);
+    sqlite3_bind_int64(q.s, 2, ts);  // last_opened_at is synced book metadata -> bump LWW key
+    sqlite3_bind_int64(q.s, 3, id);
     if (q.done())
         tx.commit();
 }
@@ -330,27 +365,32 @@ void Library::markOpened(qint64 id)
 void Library::deleteBook(qint64 id)
 {
     sqlite3 *db = m_storage->handle();
-    QString filePath, coverPath;
-    {
-        Stmt q(db, "SELECT file_path, cover_path FROM books WHERE id = ?");
-        sqlite3_bind_int64(q.s, 1, id);
-        if (!q.row())
-            return;  // no such book
-        filePath = colText(q.s, 0);
-        coverPath = colText(q.s, 1);
-    }
     Tx tx(db);
     if (!tx.active)
         return;
-    Stmt del(db, "DELETE FROM books WHERE id = ?");  // FK cascade: progress/bookmarks/etc.
-    sqlite3_bind_int64(del.s, 1, id);
-    if (!del.done() || !tx.commit())
-        return;
-    // Row is gone and committed — now unlink the on-disk files.
-    if (!filePath.isEmpty())
-        QFile::remove(filePath);
-    if (!coverPath.isEmpty())
-        QFile::remove(coverPath);
+    const qint64 ts = now();
+    // Soft-delete the book and its child rows so the delete propagates on sync. The on-disk file
+    // is content-addressed and shared with sync, so it is KEPT (reconcileOrphans deletes only
+    // files with no row at all). The cover thumbnail is local-only; also kept for a possible revive.
+    static const char *const kChildTables[] = {
+        "progress", "bookmarks", "highlights", "reading_sessions", "book_collections",
+    };
+    for (const char *t : kChildTables) {
+        char sql[96];
+        std::snprintf(sql, sizeof sql,
+                      "UPDATE %s SET deleted = 1, updated_at = ? WHERE book_id = ? AND deleted = 0",
+                      t);
+        Stmt q(db, sql);
+        sqlite3_bind_int64(q.s, 1, ts);
+        sqlite3_bind_int64(q.s, 2, id);
+        if (!q.done())
+            return;  // dtor rolls back — all-or-nothing
+    }
+    Stmt delBook(db, "UPDATE books SET deleted = 1, updated_at = ? WHERE id = ?");
+    sqlite3_bind_int64(delBook.s, 1, ts);
+    sqlite3_bind_int64(delBook.s, 2, id);
+    if (delBook.done())
+        tx.commit();
 }
 
 Library::Progress Library::progress(qint64 bookId)
@@ -358,7 +398,7 @@ Library::Progress Library::progress(qint64 bookId)
     Progress p{0, 0, 0.0, 0, 0, false};
     Stmt q(m_storage->handle(),
            "SELECT spine_index, char_offset, percentage, updated_at, synced_at"
-           "  FROM progress WHERE book_id = ?");
+           "  FROM progress WHERE book_id = ? AND deleted = 0");
     sqlite3_bind_int64(q.s, 1, bookId);
     if (q.row()) {
         p.spineIndex = sqlite3_column_int(q.s, 0);
@@ -379,17 +419,21 @@ void Library::saveProgress(qint64 bookId, int spineIndex, int charOffset, double
         return;
     // Upsert. synced_at is absent from the UPDATE SET, so an existing sync marker survives;
     // a fresh row starts synced_at = NULL (dirty) per the kosync dirty rule.
+    // guid is set only on first insert (preserved on conflict); deleted=0 revives a progress row
+    // that a prior deleteBook tombstoned (re-reading a re-imported book).
     Stmt q(db,
            "INSERT INTO progress(book_id, spine_index, char_offset, percentage, updated_at,"
-           "  synced_at) VALUES(?, ?, ?, ?, ?, NULL)"
+           "  synced_at, guid) VALUES(?, ?, ?, ?, ?, NULL, ?)"
            "  ON CONFLICT(book_id) DO UPDATE SET spine_index = excluded.spine_index,"
            "    char_offset = excluded.char_offset, percentage = excluded.percentage,"
-           "    updated_at = excluded.updated_at");
+           "    updated_at = excluded.updated_at, deleted = 0");
+    const QByteArray g = newGuid();
     sqlite3_bind_int64(q.s, 1, bookId);
     sqlite3_bind_int(q.s, 2, spineIndex);
     sqlite3_bind_int(q.s, 3, charOffset);
     sqlite3_bind_double(q.s, 4, percentage);
     sqlite3_bind_int64(q.s, 5, now());
+    bindText(q.s, 6, g);
     if (q.done())
         tx.commit();
 }
@@ -399,7 +443,7 @@ QVector<Bookmark> Library::bookmarks(qint64 bookId)
     QVector<Bookmark> out;
     Stmt q(m_storage->handle(),
            "SELECT id, book_id, spine_index, char_offset, percentage, label, created_at"
-           "  FROM bookmarks WHERE book_id = ? ORDER BY created_at, id");
+           "  FROM bookmarks WHERE book_id = ? AND deleted = 0 ORDER BY created_at, id");
     sqlite3_bind_int64(q.s, 1, bookId);
     while (q.row()) {
         Bookmark b;
@@ -424,13 +468,17 @@ qint64 Library::addBookmark(qint64 bookId, int spineIndex, int charOffset, doubl
         return -1;
     Stmt q(db,
            "INSERT INTO bookmarks(book_id, spine_index, char_offset, percentage, label,"
-           "  created_at) VALUES(?, ?, ?, ?, ?, ?)");
+           "  created_at, guid, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)");
+    const qint64 ts = now();
+    const QByteArray g = newGuid();
     sqlite3_bind_int64(q.s, 1, bookId);
     sqlite3_bind_int(q.s, 2, spineIndex);
     sqlite3_bind_int(q.s, 3, charOffset);
     sqlite3_bind_double(q.s, 4, percentage);
     bindText(q.s, 5, label.toUtf8());
-    sqlite3_bind_int64(q.s, 6, now());
+    sqlite3_bind_int64(q.s, 6, ts);   // created_at
+    bindText(q.s, 7, g);              // guid
+    sqlite3_bind_int64(q.s, 8, ts);   // updated_at
     if (!q.done())
         return -1;
     const qint64 id = sqlite3_last_insert_rowid(db);
@@ -443,8 +491,9 @@ void Library::deleteBookmark(qint64 id)
     Tx tx(db);
     if (!tx.active)
         return;
-    Stmt q(db, "DELETE FROM bookmarks WHERE id = ?");
-    sqlite3_bind_int64(q.s, 1, id);
+    Stmt q(db, "UPDATE bookmarks SET deleted = 1, updated_at = ? WHERE id = ?");
+    sqlite3_bind_int64(q.s, 1, now());
+    sqlite3_bind_int64(q.s, 2, id);
     if (q.done())
         tx.commit();
 }
@@ -455,7 +504,7 @@ QVector<Highlight> Library::highlights(qint64 bookId, int spineIndex)
     Stmt q(m_storage->handle(),
            "SELECT id, book_id, spine_index, start_char, end_char, text, note, color_id,"
            "  created_at FROM highlights WHERE book_id = ?1 AND (?2 < 0 OR spine_index = ?2)"
-           "  ORDER BY spine_index, start_char");
+           "  AND deleted = 0 ORDER BY spine_index, start_char");
     sqlite3_bind_int64(q.s, 1, bookId);
     sqlite3_bind_int(q.s, 2, spineIndex);
     while (q.row()) {
@@ -483,7 +532,9 @@ qint64 Library::addHighlight(qint64 bookId, int spineIndex, int startChar, int e
         return -1;
     Stmt q(db,
            "INSERT INTO highlights(book_id, spine_index, start_char, end_char, text, note,"
-           "  color_id, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)");
+           "  color_id, created_at, guid, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    const qint64 ts = now();
+    const QByteArray g = newGuid();
     sqlite3_bind_int64(q.s, 1, bookId);
     sqlite3_bind_int(q.s, 2, spineIndex);
     sqlite3_bind_int(q.s, 3, startChar);
@@ -494,7 +545,9 @@ qint64 Library::addHighlight(qint64 bookId, int spineIndex, int startChar, int e
     else
         bindText(q.s, 6, note.toUtf8());
     sqlite3_bind_int(q.s, 7, colorId);
-    sqlite3_bind_int64(q.s, 8, now());
+    sqlite3_bind_int64(q.s, 8, ts);   // created_at
+    bindText(q.s, 9, g);              // guid
+    sqlite3_bind_int64(q.s, 10, ts);  // updated_at
     if (!q.done())
         return -1;
     const qint64 id = sqlite3_last_insert_rowid(db);
@@ -507,13 +560,14 @@ void Library::updateHighlight(qint64 id, const QString &note, int colorId)
     Tx tx(db);
     if (!tx.active)
         return;
-    Stmt q(db, "UPDATE highlights SET note = ?, color_id = ? WHERE id = ?");
+    Stmt q(db, "UPDATE highlights SET note = ?, color_id = ?, updated_at = ? WHERE id = ?");
     if (note.isEmpty())
         sqlite3_bind_null(q.s, 1);
     else
         bindText(q.s, 1, note.toUtf8());
     sqlite3_bind_int(q.s, 2, colorId);
-    sqlite3_bind_int64(q.s, 3, id);
+    sqlite3_bind_int64(q.s, 3, now());  // edit -> bump LWW key so the change syncs
+    sqlite3_bind_int64(q.s, 4, id);
     if (q.done())
         tx.commit();
 }
@@ -524,8 +578,9 @@ void Library::deleteHighlight(qint64 id)
     Tx tx(db);
     if (!tx.active)
         return;
-    Stmt q(db, "DELETE FROM highlights WHERE id = ?");
-    sqlite3_bind_int64(q.s, 1, id);
+    Stmt q(db, "UPDATE highlights SET deleted = 1, updated_at = ? WHERE id = ?");
+    sqlite3_bind_int64(q.s, 1, now());
+    sqlite3_bind_int64(q.s, 2, id);
     if (q.done())
         tx.commit();
 }
@@ -537,6 +592,7 @@ QVector<KeptHighlight> Library::allHighlights()
            "SELECT h.id, h.book_id, h.spine_index, h.start_char, h.end_char, h.text, h.note,"
            "  h.color_id, h.created_at, b.title, b.author, b.format, b.file_path"
            "  FROM highlights h JOIN books b ON b.id = h.book_id"
+           "  WHERE h.deleted = 0 AND b.deleted = 0"
            "  ORDER BY h.created_at DESC, h.id DESC");  // id DESC: stable order for same-ms inserts
     while (q.row()) {
         KeptHighlight kh;
@@ -672,7 +728,8 @@ QVector<qint64> Library::dirtyProgressBookIds()
 {
     QVector<qint64> out;
     Stmt q(m_storage->handle(),
-           "SELECT book_id FROM progress WHERE synced_at IS NULL OR synced_at < updated_at");
+           "SELECT book_id FROM progress WHERE (synced_at IS NULL OR synced_at < updated_at)"
+           "  AND deleted = 0");
     while (q.row())
         out.append(sqlite3_column_int64(q.s, 0));
     return out;

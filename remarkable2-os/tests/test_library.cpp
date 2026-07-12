@@ -29,6 +29,29 @@ static const BookRow *findByTitle(const QVector<BookRow> &v, const QString &titl
     return nullptr;
 }
 
+// Raw single-column reads (bypass the deleted=0 API filter) to inspect tombstones directly.
+static long long rawInt(sqlite3 *db, const char *sql, qint64 id)
+{
+    sqlite3_stmt *q = nullptr;
+    assert(sqlite3_prepare_v2(db, sql, -1, &q, nullptr) == SQLITE_OK);
+    sqlite3_bind_int64(q, 1, id);
+    const long long v = sqlite3_step(q) == SQLITE_ROW ? sqlite3_column_int64(q, 0) : -1;
+    sqlite3_finalize(q);
+    return v;
+}
+
+static QByteArray rawText(sqlite3 *db, const char *sql, qint64 id)
+{
+    sqlite3_stmt *q = nullptr;
+    assert(sqlite3_prepare_v2(db, sql, -1, &q, nullptr) == SQLITE_OK);
+    sqlite3_bind_int64(q, 1, id);
+    QByteArray s;
+    if (sqlite3_step(q) == SQLITE_ROW)
+        s = reinterpret_cast<const char *>(sqlite3_column_text(q, 0));
+    sqlite3_finalize(q);
+    return s;
+}
+
 int main()
 {
     QTemporaryDir tmp;
@@ -108,14 +131,42 @@ int main()
     lib.deleteBookmark(bmId);
     assert(lib.bookmarks(pdfId).isEmpty());
 
-    // deleteBook: row + file gone, and FK cascade removed the progress row.
+    // deleteBook: soft-delete the row + child rows; the content-addressed file is KEPT for sync.
+    sqlite3 *h = st->handle();
     const QString pdfFile = pdf->filePath;
     assert(QFile::exists(pdfFile));
+    lib.saveProgress(pdfId, 1, 0, 0.1);                    // give the pdf a progress row to cascade
+    assert(lib.progress(pdfId).exists);
     lib.deleteBook(pdfId);
     all = lib.books();
-    assert(all.size() == 1 && all.first().id == epubId);
-    assert(!lib.progress(pdfId).exists);                   // ON DELETE CASCADE
-    assert(!QFile::exists(pdfFile));                       // on-disk file unlinked
+    assert(all.size() == 1 && all.first().id == epubId);   // pdf tombstoned -> hidden
+    assert(!lib.progress(pdfId).exists);                   // child soft-deleted (filtered by API)
+    assert(rawInt(h, "SELECT deleted FROM books WHERE id = ?", pdfId) == 1);     // row still there
+    assert(rawInt(h, "SELECT deleted FROM progress WHERE book_id = ?", pdfId) == 1);  // cascaded
+    assert(QFile::exists(pdfFile));                        // file KEPT (was: unlinked pre-v3)
+
+    // Full cascade + tombstone-not-hard-delete + un-delete-on-reimport, on the surviving epub.
+    lib.saveProgress(epubId, 2, 0, 0.2);
+    const qint64 ebm = lib.addBookmark(epubId, 2, 0, 0.2, QStringLiteral("b"));
+    const qint64 ehl = lib.addHighlight(epubId, 0, 0, 4, QStringLiteral("word"));
+    assert(ebm > 0 && ehl > 0);
+    assert(!rawText(h, "SELECT guid FROM highlights WHERE id = ?", ehl).isEmpty());  // guid stamped
+    lib.deleteBook(epubId);
+    assert(lib.books().isEmpty());                         // both books now tombstoned
+    assert(!lib.progress(epubId).exists);
+    assert(lib.bookmarks(epubId).isEmpty());
+    assert(lib.highlights(epubId).isEmpty());
+    assert(rawInt(h, "SELECT deleted FROM books WHERE id = ?", epubId) == 1);
+    assert(rawInt(h, "SELECT deleted FROM bookmarks WHERE id = ?", ebm) == 1);   // cascaded
+    assert(rawInt(h, "SELECT deleted FROM highlights WHERE id = ?", ehl) == 1);  // cascaded
+
+    // Re-import the still-present inbox sources: both tombstoned books revive in place (no dup rows).
+    Library::ImportSummary rev = lib.importInbox();
+    assert(rev.imported == 2 && rev.duplicates == 0 && rev.failed == 0);
+    assert(lib.books().size() == 2);
+    assert(rawInt(h, "SELECT deleted FROM books WHERE id = ?", epubId) == 0);  // un-deleted in place
+    // Count ALL book rows (live + tombstoned): still exactly 2 -> revive updated in place, no dup insert.
+    assert(rawInt(h, "SELECT COUNT(*) FROM books WHERE deleted >= ?", 0) == 2);
 
     delete st;
     printf("ALL LIBRARY TESTS PASSED\n");
