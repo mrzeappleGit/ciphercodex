@@ -133,6 +133,9 @@ class WebDavSyncManager(
                         local.coverPath?.let { File(it).delete() }
                         tombstones++
                     } else entities++
+                    // Live row still missing its file: re-queue the download; without this a
+                    // remote reader bumping updatedAt each round starves this device forever.
+                    if (!nowDeleted && local.filePath.isEmpty()) needFiles.add(digest)
                     localBooks[digest] = sync.allBooks().first { it.digest == digest }
                 } else if (!local.deleted && local.filePath.isEmpty()) {
                     needFiles.add(digest) // row known, file still missing (earlier failed download)
