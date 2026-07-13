@@ -245,13 +245,17 @@ class WebDavSyncManager(
             // --- page texts (recognized handwriting; parent by pageGuid) ---
             val notesDao = db.notesDao()
             for (r in m.pageTexts) {
+                val local = notesDao.pageText(r.pageGuid)
                 if (r.deleted == 1) {
-                    notesDao.deletePageText(r.pageGuid)
-                    tombstones++
+                    // Gated like every sibling: a stale remote tombstone must not destroy a
+                    // fresher local recognition written after the last export.
+                    if (local != null && SnapshotMerge.wins(r.updatedAt, 1, local.updatedAt, 0)) {
+                        notesDao.deletePageText(r.pageGuid)
+                        tombstones++
+                    }
                     continue
                 }
                 if (notesDao.pageByGuid(r.pageGuid) == null) continue // missing parent: skip, converges next sync
-                val local = notesDao.pageText(r.pageGuid)
                 if (SnapshotMerge.wins(r.updatedAt, r.deleted, local?.updatedAt ?: -1, 0)) {
                     notesDao.upsertPageText(PageTextEntity(pageGuid = r.pageGuid, text = r.text,
                         sourceStamp = r.sourceStamp, updatedAt = r.updatedAt))
