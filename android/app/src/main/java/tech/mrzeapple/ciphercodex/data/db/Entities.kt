@@ -132,3 +132,29 @@ data class ProgressEntity(
     val syncedAt: Long?,
     @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
+
+/** rM2 notebook metadata mirrored from sync snapshots. Read-only on Android;
+ *  ink tombstones hard-delete rows, so no deleted column. */
+@Entity(tableName = "notebooks", indices = [Index(value = ["guid"], unique = true)])
+data class NotebookEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val guid: String,
+    val title: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Entity(
+    tableName = "notebook_pages",
+    indices = [Index(value = ["guid"], unique = true), Index("notebookGuid")],
+)
+data class NotebookPageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val guid: String,
+    val notebookGuid: String,
+    val seq: Int,
+    val updatedAt: Long,
+    /** max(stroke.updatedAt)*31 + liveStrokeCount at last render; -1 = never rendered. */
+    val contentStamp: Long,
+    val imagePath: String,
+)

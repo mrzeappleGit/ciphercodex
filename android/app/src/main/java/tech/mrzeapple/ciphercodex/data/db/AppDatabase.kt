@@ -12,14 +12,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BookEntity::class, ProgressEntity::class, ReadingSessionEntity::class,
         BookmarkEntity::class, HighlightEntity::class,
         CollectionEntity::class, BookCollectionCrossRef::class,
+        NotebookEntity::class, NotebookPageEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun bookDao(): BookDao
     abstract fun statsDao(): StatsDao
     abstract fun syncDao(): SyncDao
+    abstract fun notesDao(): NotesDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -122,9 +124,35 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `notebooks` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`guid` TEXT NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_notebooks_guid` ON `notebooks` (`guid`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `notebook_pages` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`guid` TEXT NOT NULL, " +
+                        "`notebookGuid` TEXT NOT NULL, " +
+                        "`seq` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "`contentStamp` INTEGER NOT NULL, " +
+                        "`imagePath` TEXT NOT NULL)"
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_notebook_pages_guid` ON `notebook_pages` (`guid`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notebook_pages_notebookGuid` ON `notebook_pages` (`notebookGuid`)")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "ciphercodex.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .build()
     }
 }
