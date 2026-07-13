@@ -34,9 +34,14 @@ Item {
 
     // PageScreen sits at scene (0,0) — StackView fills the window, no transitions —
     // so the ink scene rect is just everything right of the tool rail.
+    // While the TEXT overlay is open the pen is gated out entirely: raw pen-downs inside
+    // canvasRect draw real strokes in C++ (bypassing QML), so a pen tap on the overlay
+    // would scribble on the page beneath. Empty rect => PenReader synthesizes mouse
+    // everywhere, so the pen can still close the overlay and press rail buttons.
     function syncCanvasRect() {
-        pageScreen.pen.canvasRect = Qt.rect(rail.width, 0,
-                                            pageScreen.width - rail.width, pageScreen.height)
+        pageScreen.pen.canvasRect = pageScreen.showText
+            ? Qt.rect(0, 0, 0, 0)
+            : Qt.rect(rail.width, 0, pageScreen.width - rail.width, pageScreen.height)
     }
 
     Component.onCompleted: {
@@ -50,6 +55,7 @@ Item {
     }
     onWidthChanged: syncCanvasRect()
     onHeightChanged: syncCanvasRect()
+    onShowTextChanged: syncCanvasRect()
     // empty rect = all pen-downs route to QML buttons again
     Component.onDestruction: pageScreen.pen.canvasRect = Qt.rect(0, 0, 0, 0)
 
@@ -166,7 +172,8 @@ Item {
                 active: pageScreen.showText
                 onTapped: {
                     pageScreen.showText = !pageScreen.showText
-                    pageScreen.recognizedText = pageScreen.controller.pageText(pageScreen.pageIds[pageScreen.pageIndex])
+                    if (pageScreen.showText)  // opening: pick up text merged by a sync since last shown
+                        pageScreen.recognizedText = pageScreen.controller.pageText(pageScreen.pageIds[pageScreen.pageIndex])
                 }
             }
             RailDivider {}
@@ -280,9 +287,11 @@ Item {
                 }
             }
         }
-        // MouseArea, NOT TapHandler: it accepts and CONSUMES the press, so the tap-to-close
-        // doesn't leak through to the full-screen InkItem beneath (TapHandler's passive grab
-        // does not block items underneath — see SleepScreen).
-        MouseArea { anchors.fill: parent; onClicked: pageScreen.showText = false }
+        // TapHandler (passive grab) so the Flickable stays scrollable: a clean tap closes,
+        // a drag hands the exclusive grab to the Flickable which cancels the tap — same
+        // tap-vs-scroll coexistence as the ListView delegates. Leak-through is safe here:
+        // canvasRect is gated empty while the overlay is open (pen taps arrive as
+        // synthesized mouse) and InkItem accepts no QML pointer input at all.
+        TapHandler { onTapped: pageScreen.showText = false }
     }
 }
