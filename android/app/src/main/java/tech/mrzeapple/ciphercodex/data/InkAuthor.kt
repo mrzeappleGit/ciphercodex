@@ -1,5 +1,6 @@
 package tech.mrzeapple.ciphercodex.data
 
+import androidx.room.withTransaction
 import java.io.File
 import tech.mrzeapple.ciphercodex.data.db.AppDatabase
 import tech.mrzeapple.ciphercodex.data.db.NotebookEntity
@@ -25,10 +26,14 @@ class InkAuthor(private val db: AppDatabase, private val notebooksDir: File) {
     suspend fun createPage(notebookGuid: String): String {
         val now = System.currentTimeMillis()
         val guid = Guids.new()
-        val seq = (dao.allPages().filter { it.notebookGuid == notebookGuid }
-            .maxOfOrNull { it.seq } ?: -1) + 1
-        dao.upsertPage(NotebookPageEntity(guid = guid, notebookGuid = notebookGuid,
-            seq = seq, updatedAt = now, contentStamp = -1, imagePath = ""))
+        // Transaction: seq read + upsert must be atomic, or two concurrent creates
+        // for the same notebook mint duplicate seq values.
+        db.withTransaction {
+            val seq = (dao.allPages().filter { it.notebookGuid == notebookGuid }
+                .maxOfOrNull { it.seq } ?: -1) + 1
+            dao.upsertPage(NotebookPageEntity(guid = guid, notebookGuid = notebookGuid,
+                seq = seq, updatedAt = now, contentStamp = -1, imagePath = ""))
+        }
         return guid
     }
 
