@@ -3,12 +3,14 @@ package tech.mrzeapple.ciphercodex.ui.settings
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.data.prefs.LibrarySort
 import tech.mrzeapple.ciphercodex.data.prefs.ReaderMargin
@@ -19,6 +21,7 @@ import tech.mrzeapple.ciphercodex.data.prefs.UserPrefs
 import tech.mrzeapple.ciphercodex.sync.Digests
 import tech.mrzeapple.ciphercodex.sync.KosyncAccount
 import tech.mrzeapple.ciphercodex.sync.KosyncResult
+import tech.mrzeapple.ciphercodex.sync.recognition.HandwritingRecognizer
 
 sealed interface ConnectionState {
     data object Idle : ConnectionState
@@ -221,6 +224,31 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefs.setEinkMode(value) }
     }
 
+    private val _hwrStatus = MutableStateFlow<String?>(null)
+    val hwrStatus: StateFlow<String?> = _hwrStatus.asStateFlow()
+
+    /** Toggling on triggers the one-time ~20MB model download; toggling off is immediate. */
+    fun setHandwritingRecognition(value: Boolean) {
+        viewModelScope.launch {
+            prefs.setHandwritingRecognition(value)
+            if (!value) {
+                _hwrStatus.value = null
+                return@launch
+            }
+            _hwrStatus.value = "downloading model…"
+            val recognizer = HandwritingRecognizer()
+            try {
+                withContext(Dispatchers.IO) { recognizer.downloadModel() }
+                _hwrStatus.value = "model ready"
+            } catch (e: Exception) {
+                _hwrStatus.value = "download failed: ${e.message ?: e.javaClass.simpleName}"
+                prefs.setHandwritingRecognition(false)
+            } finally {
+                withContext(Dispatchers.IO) { recognizer.close() }
+            }
+        }
+    }
+
     fun testConnection(register: Boolean) {
         if (_connection.value is ConnectionState.Testing) return
         viewModelScope.launch {
@@ -276,6 +304,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             webdavUser = "",
             webdavPass = "",
             webdavLastSyncAt = 0L,
+            handwritingRecognition = false,
         )
     }
 }

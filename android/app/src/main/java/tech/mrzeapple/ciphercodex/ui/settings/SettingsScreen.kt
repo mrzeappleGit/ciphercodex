@@ -84,6 +84,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
     val webdavConnection by vm.webdavConnection.collectAsState()
     val webdavSyncStatus by vm.webdavSyncStatus.collectAsState()
     val webdavRunning by vm.webdavRunning.collectAsState()
+    val hwrStatus by vm.hwrStatus.collectAsState()
 
     Column(
         modifier = Modifier
@@ -145,6 +146,9 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
                 onPass = vm::setWebdavPass,
                 onTest = vm::testWebdavConnection,
                 onSyncNow = vm::webdavSyncNow,
+                hwrEnabled = settings.handwritingRecognition,
+                hwrStatus = hwrStatus,
+                onHwrEnabled = vm::setHandwritingRecognition,
             )
             ReadingPanel(
                 settings = settings,
@@ -280,6 +284,9 @@ private fun WebDavPanel(
     onPass: (String) -> Unit,
     onTest: () -> Unit,
     onSyncNow: () -> Unit,
+    hwrEnabled: Boolean,
+    hwrStatus: String?,
+    onHwrEnabled: (Boolean) -> Unit,
 ) {
     val cipher = LocalCipherColors.current
     CipherPanel(modifier = Modifier.fillMaxWidth()) {
@@ -315,6 +322,13 @@ private fun WebDavPanel(
                     CipherCaption("LAST SYNC // ${formatLastSync(settings.webdavLastSyncAt)}")
                 }
             }
+            SwitchRow(
+                title = "HANDWRITING RECOGNITION",
+                subtitle = "recognize rM2 notes to text at sync (~20MB one-time model)",
+                checked = hwrEnabled,
+                onChange = onHwrEnabled,
+            )
+            hwrStatus?.let { CipherCaption(it, color = cipher.cyan) }
         }
     }
 }
