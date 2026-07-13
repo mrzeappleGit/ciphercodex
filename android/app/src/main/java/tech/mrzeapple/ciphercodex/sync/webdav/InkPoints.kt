@@ -29,6 +29,21 @@ object InkPoints {
         }
         return out
     }
+
+    /** Inverse of [decode]: 18-byte little-endian PackedPoint rows, tilt written as 0. */
+    fun encode(points: List<InkPoint>): String {
+        if (points.isEmpty()) return ""
+        val buf = ByteBuffer.allocate(points.size * BYTES_PER_POINT).order(ByteOrder.LITTLE_ENDIAN)
+        for (p in points) {
+            buf.putFloat(p.x)
+            buf.putFloat(p.y)
+            buf.putShort((p.pressure and 0xFFFF).toShort())
+            buf.putShort(0) // tiltX
+            buf.putShort(0) // tiltY
+            buf.putInt((p.t and 0xFFFFFFFFL).toInt())
+        }
+        return Base64.getEncoder().encodeToString(buf.array())
+    }
 }
 
 object InkGeometry {

@@ -96,4 +96,15 @@ class InkPointsTest {
         // missing arrays parse as empty
         assertTrue(InkSnapshotJson.decode("""{"deviceId":"x"}""").notebooks.isEmpty())
     }
+
+    @Test
+    fun `encode is the exact inverse of decode`() {
+        val pts = listOf(
+            InkPoint(0.0f, 1.0f, 0, 0L),
+            InkPoint(0.25f, 0.75f, 4095, 40L),
+            InkPoint(0.5f, 0.5f, 2048, 4_294_967_295L), // u32 max survives
+        )
+        assertEquals(pts, InkPoints.decode(InkPoints.encode(pts)))
+        assertEquals("", InkPoints.encode(emptyList()))
+    }
 }
