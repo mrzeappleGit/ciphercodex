@@ -168,3 +168,18 @@ data class PageTextEntity(
     val sourceStamp: Long,
     val updatedAt: Long,
 )
+
+/** One ink stroke, the merged local truth (mirrors the wire rows and the rM2's own
+ *  strokes table). Tombstones are KEPT (deleted = 1) so the eraser travels on the
+ *  wire and out-votes stale live copies — unlike notebooks/pages, which hard-delete. */
+@Entity(tableName = "strokes", indices = [Index("pageGuid")])
+data class StrokeEntity(
+    @PrimaryKey val guid: String,
+    val pageGuid: String,
+    val tool: Int,
+    val baseWidth: Float,
+    val pointsB64: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val deleted: Int,
+)

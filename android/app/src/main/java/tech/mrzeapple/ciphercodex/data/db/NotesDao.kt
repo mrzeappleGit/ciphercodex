@@ -44,4 +44,15 @@ interface NotesDao {
 
     @Query("DELETE FROM page_texts WHERE pageGuid = :pageGuid")
     suspend fun deletePageText(pageGuid: String)
+
+    @Query("SELECT * FROM strokes WHERE pageGuid = :pageGuid AND deleted = 0 ORDER BY createdAt")
+    suspend fun liveStrokesForPage(pageGuid: String): List<StrokeEntity>
+
+    @Query("SELECT * FROM strokes WHERE pageGuid = :pageGuid AND deleted = 0 ORDER BY createdAt")
+    fun observeLiveStrokesForPage(pageGuid: String): Flow<List<StrokeEntity>>
+
+    @Query("SELECT * FROM strokes") suspend fun allStrokes(): List<StrokeEntity>
+    @Query("SELECT * FROM strokes WHERE guid = :guid") suspend fun strokeByGuid(guid: String): StrokeEntity?
+    @Upsert suspend fun upsertStroke(s: StrokeEntity)
+    @Query("DELETE FROM strokes WHERE pageGuid = :pageGuid") suspend fun deleteStrokesOf(pageGuid: String)
 }

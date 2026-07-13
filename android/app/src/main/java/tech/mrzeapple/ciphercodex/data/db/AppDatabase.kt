@@ -12,9 +12,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BookEntity::class, ProgressEntity::class, ReadingSessionEntity::class,
         BookmarkEntity::class, HighlightEntity::class,
         CollectionEntity::class, BookCollectionCrossRef::class,
-        NotebookEntity::class, NotebookPageEntity::class, PageTextEntity::class,
+        NotebookEntity::class, NotebookPageEntity::class, PageTextEntity::class, StrokeEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -161,11 +161,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // letter-for-letter what Room generates for StrokeEntity (v4->v5 lesson)
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `strokes` (`guid` TEXT NOT NULL, " +
+                        "`pageGuid` TEXT NOT NULL, `tool` INTEGER NOT NULL, " +
+                        "`baseWidth` REAL NOT NULL, `pointsB64` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, " +
+                        "`deleted` INTEGER NOT NULL, PRIMARY KEY(`guid`))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_strokes_pageGuid` ON `strokes` (`pageGuid`)")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "ciphercodex.db")
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
                 )
                 .build()
     }
