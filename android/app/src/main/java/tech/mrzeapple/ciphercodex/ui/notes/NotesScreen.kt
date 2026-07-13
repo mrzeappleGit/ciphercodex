@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +26,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,6 +50,7 @@ import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.ui.components.CipherCaption
 import tech.mrzeapple.ciphercodex.ui.components.CipherHeader
 import tech.mrzeapple.ciphercodex.ui.components.CipherPanel
+import tech.mrzeapple.ciphercodex.ui.components.CipherTextField
 import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 
 /** Decode a PNG off the main thread, downsampled to roughly maxDim on the long side.
@@ -68,12 +72,16 @@ private fun rememberPageBitmap(path: String, stamp: Long, maxDim: Int) = produce
 @Composable
 fun NotesScreen(vm: NotesViewModel = viewModel()) {
     val cards by vm.notebooks.collectAsState()
+    val pageTexts by vm.pageTexts.collectAsState()
+    val hasNotebooks by vm.hasNotebooks.collectAsState()
+    val query by vm.query.collectAsState()
     var open by remember { mutableStateOf<NotebookCard?>(null) }
 
     val current = open
     if (current != null) {
         PageViewer(
             card = cards.firstOrNull { it.notebook.guid == current.notebook.guid } ?: current,
+            pageTexts = pageTexts,
             onClose = { open = null },
         )
         return
@@ -90,20 +98,32 @@ fun NotesScreen(vm: NotesViewModel = viewModel()) {
         CipherHeader(title = "NOTES")
         Spacer(Modifier.height(12.dp))
 
-        if (cards.isEmpty()) {
+        if (!hasNotebooks) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CipherCaption("NOTES SYNC FROM YOUR REMARKABLE 2")
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 16.dp),
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            ) {
-                items(cards, key = { it.notebook.guid }) { card ->
-                    NotebookCardView(card, onOpen = { open = card })
+            CipherTextField(
+                value = query,
+                onValueChange = { vm.query.value = it },
+                label = "SEARCH",
+            )
+            Spacer(Modifier.height(12.dp))
+            if (cards.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CipherCaption("NO MATCHES")
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                ) {
+                    items(cards, key = { it.notebook.guid }) { card ->
+                        NotebookCardView(card, onOpen = { open = card })
+                    }
                 }
             }
         }
@@ -148,25 +168,37 @@ private fun NotebookCardView(card: NotebookCard, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun PageViewer(card: NotebookCard, onClose: () -> Unit) {
+private fun PageViewer(card: NotebookCard, pageTexts: Map<String, String>, onClose: () -> Unit) {
     val c = LocalCipherColors.current
     BackHandler(onBack = onClose)
     val pager = rememberPagerState { card.pages.size }
+    var showText by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding(),
     ) {
-        CipherCaption(
-            text = "${card.notebook.title.uppercase()} · PAGE ${pager.currentPage + 1}/${card.pages.size}",
-            color = c.cyan,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClose)
-                .padding(16.dp),
-        )
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { index ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CipherCaption(
+                text = "${card.notebook.title.uppercase()} · PAGE ${pager.currentPage + 1}/${card.pages.size}",
+                color = c.cyan,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onClose),
+            )
+            CipherCaption(
+                text = "TEXT",
+                color = if (showText) c.cyan else c.muted,
+                modifier = Modifier
+                    .clickable { showText = !showText }
+                    .padding(start = 12.dp),
+            )
+        }
+        HorizontalPager(state = pager, modifier = Modifier.weight(1f)) { index ->
             val page = card.pages[index]
             var scale by remember { mutableStateOf(1f) }
             var offX by remember { mutableStateOf(0f) }
@@ -212,6 +244,25 @@ private fun PageViewer(card: NotebookCard, onClose: () -> Unit) {
                         )
                     }
                 }
+            }
+        }
+        if (showText) {
+            val guid = card.pages.getOrNull(pager.currentPage)?.guid
+            CipherPanel(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.4f)
+                    .padding(16.dp),
+            ) {
+                Text(
+                    text = pageTexts[guid] ?: "No text recognized yet — sync with recognition enabled.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(12.dp),
+                )
             }
         }
     }
