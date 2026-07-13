@@ -25,10 +25,12 @@ class WebDavSyncManager(
     private val db: AppDatabase,
     private val repository: LibraryRepository,
     private val cacheDir: File,
+    private val notebooksDir: File,
 ) {
     data class WebDavSummary(val booksUp: Int = 0, val booksDown: Int = 0, val entities: Int = 0,
                              val tombstones: Int = 0, val error: String? = null)
 
+    private val inkSync = InkSync(db, notebooksDir)
     private val mutex = Mutex()
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running
@@ -73,9 +75,10 @@ class WebDavSyncManager(
         }
 
         // 2. Pull every device snapshot (unparsable one aborts: better no sync than a partial merge).
-        val snapshots = dav.list("state/")
+        val stateTexts = dav.list("state/")
             .filter { it.endsWith(".json") }
-            .map { SnapshotJson.decode(dav.get("state/$it").decodeToString()) }
+            .map { dav.get("state/$it").decodeToString() }
+        val snapshots = stateTexts.map { SnapshotJson.decode(it) }
 
         // 3. Merge + apply.
         val merged = SnapshotMerge.merge(snapshots)
@@ -97,8 +100,13 @@ class WebDavSyncManager(
         dav.put("state/$deviceId.json.tmp", out.encodeToByteArray())
         dav.move("state/$deviceId.json.tmp", "state/$deviceId.json")
 
+        // 6. Ink pass (rM2 notebooks -> local viewer). Contained: never fails book sync.
+        val inkError = try { inkSync.apply(stateTexts); null } catch (e: Exception) {
+            "notes: ${e.message ?: e.javaClass.simpleName}"
+        }
+
         prefs.setWebdavLastSyncAt(System.currentTimeMillis())
-        return WebDavSummary(booksUp, booksDown, result.entities, result.tombstones)
+        return WebDavSummary(booksUp, booksDown, result.entities, result.tombstones, error = inkError)
     }
 
     private data class ApplyResult(val needFiles: List<String>, val entities: Int, val tombstones: Int)

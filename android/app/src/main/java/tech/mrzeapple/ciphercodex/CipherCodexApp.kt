@@ -1,6 +1,7 @@
 package tech.mrzeapple.ciphercodex
 
 import android.app.Application
+import java.io.File
 import tech.mrzeapple.ciphercodex.data.BookRepository
 import tech.mrzeapple.ciphercodex.data.LibraryRepository
 import tech.mrzeapple.ciphercodex.data.db.AppDatabase
@@ -23,7 +24,7 @@ class CipherCodexApp : Application() {
         BookRepository(this, database.bookDao(), database.statsDao(), database.syncDao())
     }
     val webdavSync: WebDavSyncManager by lazy {
-        WebDavSyncManager(prefs, database, repository, cacheDir)
+        WebDavSyncManager(prefs, database, repository, cacheDir, File(filesDir, "notebooks"))
     }
 
     override fun onCreate() {
