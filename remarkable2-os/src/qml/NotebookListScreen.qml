@@ -11,8 +11,12 @@ Item {
     required property var reader  // only for onSyncedDataChanged below
 
     property var items: []
+    property string query: ""
 
-    function reload() { nbList.items = nbList.controller.notebooks() }
+    function reload() {
+        nbList.items = nbList.query === "" ? nbList.controller.notebooks()
+                                            : nbList.controller.notebooks(nbList.query)
+    }
 
     Component.onCompleted: reload()
     StackView.onActivated: reload()  // page counts change while a notebook is open
@@ -81,10 +85,61 @@ Item {
         }
     }
 
+    // Search row — 96px, Theme.frame bottom border (structure copied from LibraryScreen)
+    Item {
+        id: searchRow
+        anchors { top: header.bottom; left: parent.left; right: parent.right }
+        height: 96
+
+        Item {  // magnifier built from rectangles (glyph policy)
+            id: searchIcon
+            anchors { left: parent.left; leftMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+            width: 30; height: 30
+            Rectangle {
+                width: 20; height: 20; radius: 10
+                color: "white"
+                border { color: "black"; width: 3 }
+            }
+            Rectangle {
+                x: 14; y: 16
+                width: 3; height: 12
+                rotation: 45
+                color: "black"
+            }
+        }
+
+        Text {
+            visible: searchInput.text === ""
+            anchors { left: searchIcon.right; leftMargin: 20; verticalCenter: parent.verticalCenter }
+            text: "Search notebooks & notes..."
+            color: "#999999"
+            font { family: Theme.reading; pixelSize: 26 }
+        }
+        TextInput {
+            id: searchInput
+            anchors {
+                left: searchIcon.right; leftMargin: 20
+                right: parent.right; rightMargin: Theme.pad
+                top: parent.top; bottom: parent.bottom
+            }
+            verticalAlignment: TextInput.AlignVCenter
+            clip: true
+            color: "black"
+            font { family: Theme.reading; pixelSize: 26 }
+            onTextChanged: { nbList.query = text; nbList.reload() }
+        }
+
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: Theme.frame
+            color: "black"
+        }
+    }
+
     ListView {
         id: list
         anchors {
-            top: header.bottom
+            top: searchRow.bottom
             left: parent.left; right: parent.right
             bottom: exitBtn.top; bottomMargin: 24
         }

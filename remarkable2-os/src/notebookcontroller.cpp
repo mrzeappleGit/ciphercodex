@@ -38,6 +38,18 @@ QVariantList NotebookController::notebooks()
     return out;
 }
 
+QVariantList NotebookController::notebooks(const QString &query)
+{
+    QVariantList out;
+    if (!m_storage)
+        return out;
+    for (const NotebookInfo &n : m_storage->notebooks(query))
+        out.append(QVariantMap{{QStringLiteral("id"), n.id},
+                               {QStringLiteral("title"), n.title},
+                               {QStringLiteral("pageCount"), n.pageCount}});
+    return out;
+}
+
 qint64 NotebookController::createNotebook(const QString &title)
 {
     return m_storage ? m_storage->createNotebook(title) : -1;
@@ -303,4 +315,9 @@ bool NotebookController::exportNotebookPdf(qint64 notebookId, const QString &out
     }
     p.end();
     return true;
+}
+
+QString NotebookController::pageText(qint64 pageId)
+{
+    return m_storage ? m_storage->pageText(pageId) : QString();
 }

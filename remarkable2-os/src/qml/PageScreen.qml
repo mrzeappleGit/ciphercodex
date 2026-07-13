@@ -15,6 +15,8 @@ Item {
     property var pageIds: []
     property int pageIndex: 0
     property int activeTool: 0  // 0 pencil, 1 stroke-eraser
+    property bool showText: false
+    property string recognizedText: ""
 
     function reloadPages() {
         const ps = pageScreen.controller.pages(pageScreen.notebookId)
@@ -27,6 +29,7 @@ Item {
     function loadPage(i) {
         pageScreen.pageIndex = i
         pageScreen.controller.openPage(pageScreen.pageIds[i], ink, pageScreen.pen)
+        pageScreen.recognizedText = pageScreen.controller.pageText(pageScreen.pageIds[i])
     }
 
     // PageScreen sits at scene (0,0) — StackView fills the window, no transitions —
@@ -158,6 +161,14 @@ Item {
                     Rectangle { x: 25; y: 6; width: 3; height: 8; color: areaBtn.fg }
                 }
             }
+            RailBtn {
+                glyph: "T"; label: "TEXT"
+                active: pageScreen.showText
+                onTapped: {
+                    pageScreen.showText = !pageScreen.showText
+                    pageScreen.recognizedText = pageScreen.controller.pageText(pageScreen.pageIds[pageScreen.pageIndex])
+                }
+            }
             RailDivider {}
             RailBtn {
                 glyph: "«"; label: "UNDO"
@@ -231,5 +242,47 @@ Item {
         anchors.fill: parent
         // Marker Plus rubber end overrides the toolbar pick while in proximity (untested on hw)
         tool: pageScreen.pen.eraser ? 1 : pageScreen.activeTool
+    }
+
+    Rectangle {  // recognized-text overlay: read-only, derived data
+        visible: pageScreen.showText
+        z: 2
+        anchors { top: parent.top; right: parent.right; margins: 40 }
+        width: 560
+        height: Math.min(1400, textCol.implicitHeight + 96)
+        color: "white"
+        border { color: "black"; width: Theme.chip }
+        Rectangle {  // hard-offset elevation
+            z: -1
+            x: Theme.lift; y: Theme.lift
+            width: parent.width; height: parent.height
+            color: "white"
+            border { color: "black"; width: Theme.chip }
+        }
+        Flickable {
+            anchors { fill: parent; margins: 32 }
+            contentHeight: textCol.implicitHeight
+            clip: true
+            Column {
+                id: textCol
+                width: parent.width
+                spacing: 12
+                Text {
+                    text: "RECOGNIZED TEXT"
+                    font { family: Theme.mono; pixelSize: Theme.micro; letterSpacing: 2 }
+                }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                    text: pageScreen.recognizedText !== "" ? pageScreen.recognizedText
+                          : "No text yet — sync after writing; the phone recognizes at its next sync."
+                    font { family: Theme.reading; pixelSize: 26 }
+                }
+            }
+        }
+        // MouseArea, NOT TapHandler: it accepts and CONSUMES the press, so the tap-to-close
+        // doesn't leak through to the full-screen InkItem beneath (TapHandler's passive grab
+        // does not block items underneath — see SleepScreen).
+        MouseArea { anchors.fill: parent; onClicked: pageScreen.showText = false }
     }
 }

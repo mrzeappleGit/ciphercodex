@@ -26,6 +26,7 @@ public:
     bool canRedo() const { return !m_redo.isEmpty(); }
 
     Q_INVOKABLE QVariantList notebooks(); // [{id,title,pageCount}]
+    Q_INVOKABLE QVariantList notebooks(const QString &query); // title OR recognized-text match
     Q_INVOKABLE qint64 createNotebook(const QString &title);
     Q_INVOKABLE void deleteNotebook(qint64 id);
     Q_INVOKABLE QVariantList pages(qint64 notebookId); // [{id,seq}]
@@ -38,6 +39,7 @@ public:
     // the now-dangling undo/redo history. No-op when no page is open.
     Q_INVOKABLE void reloadOpenPage();
     Q_INVOKABLE bool exportNotebookPdf(qint64 notebookId, const QString &outPath);
+    Q_INVOKABLE QString pageText(qint64 pageId); // recognized handwriting text, or empty
 
 signals:
     void undoChanged();
