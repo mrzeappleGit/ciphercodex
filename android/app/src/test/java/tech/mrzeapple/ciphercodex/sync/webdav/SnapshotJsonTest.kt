@@ -57,4 +57,14 @@ class SnapshotJsonTest {
         val s = SnapshotJson.decode("""{"deviceId":"x","generatedAt":0}""")
         assertTrue(s.books.isEmpty() && s.progress.isEmpty())
     }
+
+    @Test
+    fun `pageTexts round-trips and old snapshots decode without it`() {
+        val snap = Snapshot(deviceId = "a", generatedAt = 1L,
+            pageTexts = listOf(SnapPageText("pg1", "hello", 42L, 0, 100L)))
+        val decoded = SnapshotJson.decode(SnapshotJson.encode(snap))
+        assertEquals("hello", decoded.pageTexts.single().text)
+        val old = SnapshotJson.decode("""{"deviceId":"b","generatedAt":2}""")
+        assertTrue(old.pageTexts.isEmpty())
+    }
 }

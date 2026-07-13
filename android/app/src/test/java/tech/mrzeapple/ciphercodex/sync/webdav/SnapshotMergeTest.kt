@@ -90,6 +90,18 @@ class SnapshotMergeTest {
     }
 
     @Test
+    fun `pageTexts merge is LWW by pageGuid with tombstone tie-break`() {
+        val a = Snapshot(deviceId = "a", generatedAt = 1L,
+            pageTexts = listOf(SnapPageText("pg", "old", 1L, 0, 100L)))
+        val b = Snapshot(deviceId = "b", generatedAt = 2L,
+            pageTexts = listOf(SnapPageText("pg", "new", 2L, 0, 200L)))
+        assertEquals("new", SnapshotMerge.merge(listOf(a, b)).pageTexts.single().text)
+        val tomb = Snapshot(deviceId = "c", generatedAt = 3L,
+            pageTexts = listOf(SnapPageText("pg", "", 2L, 1, 200L)))
+        assertEquals(1, SnapshotMerge.merge(listOf(b, tomb)).pageTexts.single().deleted)
+    }
+
+    @Test
     fun `wins - lww against local rows`() {
         assertTrue(SnapshotMerge.wins(20, 0, 10, 0))   // newer remote
         assertFalse(SnapshotMerge.wins(10, 0, 20, 0))  // never lower a newer local

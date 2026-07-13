@@ -10,6 +10,7 @@ object SnapshotMerge {
         val collections: Map<String, SnapCollection>,
         val bookCollections: Map<Pair<String, String>, SnapBookCollection>,
         val sessions: Map<String, SnapSession>,
+        val pageTexts: List<SnapPageText>,
     )
 
     fun wins(remoteUpdatedAt: Long, remoteDeleted: Int, localUpdatedAt: Long, localDeleted: Int): Boolean =
@@ -37,5 +38,7 @@ object SnapshotMerge {
         bookCollections = lww(snapshots, { it.bookCollections },
             { Pair(it.collectionGuid, it.bookDigest) }, { it.updatedAt }, { it.deleted }),
         sessions = lww(snapshots, { it.sessions }, { it.guid }, { it.updatedAt }, { it.deleted }),
+        pageTexts = lww(snapshots, { it.pageTexts }, { it.pageGuid }, { it.updatedAt }, { it.deleted })
+            .values.toList(),
     )
 }

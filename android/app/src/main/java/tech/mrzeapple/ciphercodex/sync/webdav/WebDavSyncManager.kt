@@ -14,6 +14,7 @@ import tech.mrzeapple.ciphercodex.data.db.BookEntity
 import tech.mrzeapple.ciphercodex.data.db.BookmarkEntity
 import tech.mrzeapple.ciphercodex.data.db.CollectionEntity
 import tech.mrzeapple.ciphercodex.data.db.HighlightEntity
+import tech.mrzeapple.ciphercodex.data.db.PageTextEntity
 import tech.mrzeapple.ciphercodex.data.db.ProgressEntity
 import tech.mrzeapple.ciphercodex.data.db.ReadingSessionEntity
 import tech.mrzeapple.ciphercodex.data.prefs.UserPrefs
@@ -240,6 +241,23 @@ class WebDavSyncManager(
                     if (r.deleted == 1) tombstones++ else entities++
                 }
             }
+
+            // --- page texts (recognized handwriting; parent by pageGuid) ---
+            val notesDao = db.notesDao()
+            for (r in m.pageTexts) {
+                if (r.deleted == 1) {
+                    notesDao.deletePageText(r.pageGuid)
+                    tombstones++
+                    continue
+                }
+                if (notesDao.pageByGuid(r.pageGuid) == null) continue // missing parent: skip, converges next sync
+                val local = notesDao.pageText(r.pageGuid)
+                if (SnapshotMerge.wins(r.updatedAt, r.deleted, local?.updatedAt ?: -1, 0)) {
+                    notesDao.upsertPageText(PageTextEntity(pageGuid = r.pageGuid, text = r.text,
+                        sourceStamp = r.sourceStamp, updatedAt = r.updatedAt))
+                    entities++
+                }
+            }
         }
         return ApplyResult(needFiles.distinct(), entities, tombstones)
     }
@@ -285,6 +303,8 @@ class WebDavSyncManager(
                     endedAt = s.endedAt, pagesTurned = s.pagesTurned,
                     startPercentage = s.startPercentage, endPercentage = s.endPercentage,
                     deleted = d(s.deleted), updatedAt = s.updatedAt) },
+            pageTexts = db.notesDao().allPageTexts().map {
+                SnapPageText(it.pageGuid, it.text, it.sourceStamp, 0, it.updatedAt) },
         )
     }
 }

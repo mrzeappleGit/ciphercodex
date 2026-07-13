@@ -39,6 +39,13 @@ import kotlinx.serialization.json.Json
     val startPercentage: Float = 0f, val endPercentage: Float = 0f,
     val deleted: Int = 0, val updatedAt: Long = 0,
 )
+@Serializable data class SnapPageText(
+    val pageGuid: String,
+    val text: String,
+    val sourceStamp: Long = -1,
+    val deleted: Int = 0,
+    val updatedAt: Long,
+)
 @Serializable data class Snapshot(
     val deviceId: String = "", val generatedAt: Long = 0,
     val books: List<SnapBook> = emptyList(),
@@ -48,6 +55,7 @@ import kotlinx.serialization.json.Json
     val collections: List<SnapCollection> = emptyList(),
     val bookCollections: List<SnapBookCollection> = emptyList(),
     val sessions: List<SnapSession> = emptyList(),
+    val pageTexts: List<SnapPageText> = emptyList(),
 )
 
 object SnapshotJson {
