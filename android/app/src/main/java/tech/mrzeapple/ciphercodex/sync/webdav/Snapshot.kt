@@ -44,7 +44,7 @@ import kotlinx.serialization.json.Json
     val text: String,
     val sourceStamp: Long = -1,
     val deleted: Int = 0,
-    val updatedAt: Long,
+    val updatedAt: Long = 0,
 )
 @Serializable data class Snapshot(
     val deviceId: String = "", val generatedAt: Long = 0,

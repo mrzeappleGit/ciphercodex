@@ -105,17 +105,20 @@ class WebDavSyncManager(
 
         // 6. Ink pass (rM2 notebooks -> local viewer). Contained: never fails book sync.
         var pagesRecognized = 0
+        var hw: HandwritingRecognizer? = null
         val inkError = try {
             val recognition = if (settings.handwritingRecognition) {
                 try {
-                    val hw = HandwritingRecognizer()
-                    if (hw.modelDownloaded()) RecognitionPass(hw::recognizeLine) else null
+                    hw = HandwritingRecognizer()
+                    if (hw!!.modelDownloaded()) RecognitionPass(hw!!::recognizeLine) else null
                 } catch (t: Throwable) { null }  // recognition must never break sync
             } else null
             pagesRecognized = InkSync(db, notebooksDir, recognition).apply(stateTexts).pagesRecognized
             null
         } catch (e: Exception) {
             "notes: ${e.message ?: e.javaClass.simpleName}"
+        } finally {
+            hw?.close()
         }
 
         prefs.setWebdavLastSyncAt(System.currentTimeMillis())

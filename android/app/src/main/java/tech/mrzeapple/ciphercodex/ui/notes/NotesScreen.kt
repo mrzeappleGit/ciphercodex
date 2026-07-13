@@ -255,7 +255,8 @@ private fun PageViewer(card: NotebookCard, pageTexts: Map<String, String>, onClo
                     .padding(16.dp),
             ) {
                 Text(
-                    text = pageTexts[guid] ?: "No text recognized yet — sync with recognition enabled.",
+                    text = pageTexts[guid]?.takeIf { it.isNotBlank() }
+                        ?: "No text recognized yet — sync with recognition enabled.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier

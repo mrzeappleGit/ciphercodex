@@ -117,7 +117,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _webdavSyncStatus.value = "SYNCING..."
             val summary = app.webdavSync.syncNow()
             _webdavSyncStatus.value = summary.error
-                ?: "↑${summary.booksUp} ↓${summary.booksDown} ~${summary.entities}"
+                ?: "↑${summary.booksUp} ↓${summary.booksDown} ~${summary.entities}" +
+                    (if (summary.pagesRecognized > 0) " ✎${summary.pagesRecognized}" else "")
         }
     }
 

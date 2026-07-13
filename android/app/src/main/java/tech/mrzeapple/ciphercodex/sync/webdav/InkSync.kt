@@ -97,16 +97,24 @@ class InkSync(
             val stamp = InkMerge.contentStamp(strokes)
             // Independent of the render check below: text must catch up even when the PNG
             // was already current (or vice versa), so this never gates on the render continue.
-            if (recognition != null) {
+            val rec = recognition
+            if (rec != null) {
                 val existing = dao.pageText(page.guid)
                 if (existing?.sourceStamp != stamp) {
-                    val text = if (strokes.isEmpty()) "" else recognition.textFor(strokes.map {
-                        RecStroke(InkPoints.decode(it.pointsB64), it.createdAt)
-                    })
-                    if (text.isEmpty()) dao.deletePageText(page.guid)
-                    else dao.upsertPageText(PageTextEntity(page.guid, text, stamp,
-                        System.currentTimeMillis()))
-                    recognized++
+                    // Contained: an ML Kit throw on this page must not abort the render loop
+                    // for the remaining pages. Failure leaves this page's row untouched.
+                    runCatching {
+                        val text = if (strokes.isEmpty()) "" else rec.textFor(strokes.map {
+                            RecStroke(InkPoints.decode(it.pointsB64), it.createdAt)
+                        })
+                        // Always upsert, even when text is empty: a fresh updatedAt must win
+                        // LWW against a stale live row on the rM2, and empty text has to
+                        // propagate on the wire as text="" — a hard delete is wire-invisible
+                        // and lets the stale remote row resurrect on the next sync.
+                        dao.upsertPageText(PageTextEntity(page.guid, text, stamp,
+                            System.currentTimeMillis()))
+                        recognized++
+                    }
                 }
             }
             if (stamp == page.contentStamp && page.imagePath.isNotEmpty()) continue

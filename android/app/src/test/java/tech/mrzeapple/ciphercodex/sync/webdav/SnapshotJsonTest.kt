@@ -67,4 +67,24 @@ class SnapshotJsonTest {
         val old = SnapshotJson.decode("""{"deviceId":"b","generatedAt":2}""")
         assertTrue(old.pageTexts.isEmpty())
     }
+
+    /** Guards the final-review Critical fix: erased-ink pages must upsert an empty-text row
+     *  (never a hard delete), so it has to survive the wire round-trip as text="" rather than
+     *  vanishing. Also covers `updatedAt`'s new default (Issue 5): a row missing that key from
+     *  a future peer must decode instead of aborting the whole snapshot. */
+    @Test
+    fun `empty text round-trips and updatedAt defaults when absent`() {
+        val snap = Snapshot(deviceId = "a", generatedAt = 1L,
+            pageTexts = listOf(SnapPageText(pageGuid = "pg1", text = "", sourceStamp = 7L, updatedAt = 100L)))
+        val decoded = SnapshotJson.decode(SnapshotJson.encode(snap))
+        val row = decoded.pageTexts.single()
+        assertEquals("", row.text)
+        assertEquals(100L, row.updatedAt)
+
+        val missingUpdatedAt = SnapshotJson.decode(
+            """{"deviceId":"c","generatedAt":3,
+                "pageTexts":[{"pageGuid":"pg2","text":"x","sourceStamp":1}]}""",
+        )
+        assertEquals(0L, missingUpdatedAt.pageTexts.single().updatedAt)
+    }
 }
