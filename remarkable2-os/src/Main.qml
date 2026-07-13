@@ -15,6 +15,20 @@ Window {
     ReaderController { id: reader }
     PowerButton { id: power; onPressed: root.powerPressed() }
 
+    IdleWatch {
+        id: idleWatch
+        // settings-table value in minutes (0 disables); CCX_IDLE_MIN env overrides in C++
+        timeoutMinutes: parseInt(reader.setting("sleep_idle_min", "10"))
+        onIdleTimeout: if (root.sleepState === "") root.powerPressed()
+    }
+    Connections {
+        target: pen
+        // Raw ink strokes never become Qt input events, so the event filter can't see
+        // writing — count activity per stroke edge (NEVER per-sample: penMove is 200Hz).
+        function onPenDown() { idleWatch.poke() }
+        function onPenUp() { idleWatch.poke() }
+    }
+
     // Sleep: "" awake · "arming" face is flushing to the EPD · "suspended" suspend issued.
     // Wake-dismiss paths: the waking power press, any tap, or the wall-clock jump probe.
     // Press/tap dismissals within 5s of issuing the suspend are ignored: the freeze lands
@@ -38,6 +52,9 @@ Window {
         root.sleepState = ""
         root.wokeAt = Date.now()
         armTimer.stop()
+        // the waking power press is raw evdev (no Qt event): reset idle by hand, or a
+        // timer that was near expiry at suspend would re-sleep moments after waking
+        idleWatch.poke()
         // waking is an app-open moment: queue an auto sync when we're sitting at Home
         if (stack.depth === 1)
             autoSync.restart()

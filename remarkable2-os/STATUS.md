@@ -82,8 +82,11 @@ here.)
   CONSUMES input (MouseArea, StackView hidden beneath — also removes the Pen-waveform region so
   the face flushes clean grays), and dismissals within 5s of issuing suspend are ignored (the
   freeze lands seconds after systemctl returns). Live-verified twice on hardware via injected
-  KEY_POWER (suspend confirmed by SSH drop; shell + wake sync survived resume). No idle
-  auto-sleep yet (power button only).
+  KEY_POWER (suspend confirmed by SSH drop; shell + wake sync survived resume). Idle
+  auto-sleep too (2026-07-13): IdleWatch app event filter (touch/keys/synth mouse) + per-stroke
+  pen pokes (raw ink never becomes Qt events) → same sleep flow; default 10 min via settings
+  key `sleep_idle_min` (0 disables, no UI row yet), dev override env `CCX_IDLE_MIN` —
+  live-verified with a 1-minute override (device self-suspended untouched).
 - **CipherCodex OS design implemented** (claude.ai/design project "CipherCodex OS.dc.html",
   pulled via the claude_design MCP): all 10 screens restyled to the 1-bit design system —
   embedded OFL fonts (Rajdhani display / Share Tech Mono captions / Courier Prime reading,
@@ -134,8 +137,8 @@ here.)
 - **PDF text highlighting**: EPUB highlights done; PDF needs a page+rect anchor model (follow-on).
 - **Marker Plus eraser**: BTN_TOOL_RUBBER path implemented, untested (owner's Marker has no eraser).
 - **Scripted glass-to-ink latency number**: currently owner-assessed parity only.
-- **Phase 3 remaining**: full backup/restore archive; USB/web transfer UI; idle auto-sleep
-  (power-button sleep is DONE); rest of Settings (Wi-Fi, storage, battery, handedness).
+- **Phase 3 remaining**: full backup/restore archive; USB/web transfer UI; rest of Settings
+  (Wi-Fi, storage, battery, handedness; a `sleep_idle_min` row for the now-live idle sleep).
 - **Phase 4**: reproducible image/update artifact, signed checksums, rollback/watchdog, tested
   recovery, final handoff docs.
 - **Cross-device sync acceptance test #7** (rM2 ↔ Android app ↔ KOReader EPUB position): needs the

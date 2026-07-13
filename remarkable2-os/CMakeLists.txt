@@ -35,6 +35,7 @@ qt_add_executable(ciphercodex-shell
     src/main.cpp
     src/penreader.h src/penreader.cpp
     src/powerbutton.h src/powerbutton.cpp
+    src/idlewatch.h src/idlewatch.cpp
     src/inkitem.h src/inkitem.cpp
     src/epscreenmode.h src/epscreenmode.cpp
     src/notebookcontroller.h src/notebookcontroller.cpp
