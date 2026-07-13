@@ -449,7 +449,7 @@ void Storage::deleteNotebook(qint64 id)
     if (!ds.done())
         return;  // dtor rolls back
     Stmt pt(m_db, "UPDATE page_text SET deleted = 1, updated_at = ?, text = ''"
-                  "  WHERE page_id IN (SELECT id FROM pages WHERE notebook_id = ?)");
+                  "  WHERE deleted = 0 AND page_id IN (SELECT id FROM pages WHERE notebook_id = ?)");
     sqlite3_bind_int64(pt.s, 1, ts);
     sqlite3_bind_int64(pt.s, 2, id);
     if (!pt.done())
@@ -505,6 +505,12 @@ void Storage::deletePage(qint64 pageId)
     sqlite3_bind_int64(ds.s, 1, ts);
     sqlite3_bind_int64(ds.s, 2, pageId);
     if (!ds.done())
+        return;  // dtor rolls back
+    Stmt pt(m_db, "UPDATE page_text SET deleted = 1, updated_at = ?, text = ''"
+                  "  WHERE deleted = 0 AND page_id = ?");
+    sqlite3_bind_int64(pt.s, 1, ts);
+    sqlite3_bind_int64(pt.s, 2, pageId);
+    if (!pt.done())
         return;  // dtor rolls back
     Stmt dp(m_db, "UPDATE pages SET deleted = 1, updated_at = ? WHERE id = ?");
     sqlite3_bind_int64(dp.s, 1, ts);

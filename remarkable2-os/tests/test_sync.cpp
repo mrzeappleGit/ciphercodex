@@ -371,6 +371,48 @@ static void testMissingParent()
     printf("  missing-parent OK\n");
 }
 
+static void testPageTextSync()
+{
+    Dev A = makeDev("device-a");   // stands in for the Android author
+    Dev B = makeDev("device-b");
+    const qint64 nb = A.st->createNotebook("N");
+    const qint64 pg = A.st->createPage(nb);
+    push(A, B);
+    const QString pgGuid = scalarText(A.db(), "SELECT guid FROM pages");
+    runSql(A.db(), QStringLiteral(
+        "INSERT INTO page_text(page_id, text, source_stamp, guid, deleted, updated_at)"
+        " VALUES(%1, 'hello world', 7, 'ptguid0000000000000000000000000a', 0, 1000)").arg(pg));
+
+    push(A, B);   // text follows the page
+    assert(scalarText(B.db(), "SELECT text FROM page_text") == "hello world");
+    assert(scalarInt(B.db(), "SELECT source_stamp FROM page_text") == 7);
+
+    // LWW: newer text on A replaces B's copy
+    runSql(A.db(), QStringLiteral("UPDATE page_text SET text='newer', updated_at=2000"));
+    push(A, B);
+    assert(scalarText(B.db(), "SELECT text FROM page_text") == "newer");
+
+    // missing parent: a text row for an unknown page is skipped, not inserted
+    QJsonObject snap;
+    snap.insert("deviceId", "ghost");
+    QJsonArray arr;
+    QJsonObject r;
+    r.insert("pageGuid", "nosuchpage0000000000000000000000");
+    r.insert("text", "orphan"); r.insert("sourceStamp", 1);
+    r.insert("deleted", 0); r.insert("updatedAt", 9999);
+    arr.append(r); snap.insert("pageTexts", arr);
+    B.ss->applyMerged({snap}, B.id);
+    assert(scalarInt(B.db(), "SELECT COUNT(*) FROM page_text") == 1);
+
+    // carried finding: deletePage tombstones page_text too (Task 9 review, Task 10 fix)
+    A.st->deletePage(pg);
+    push(A, B);
+    assert(scalarInt(B.db(), "SELECT deleted FROM page_text") == 1);
+
+    freeDev(A); freeDev(B);
+    printf("  page-text OK\n");
+}
+
 int main()
 {
     testConvergence();
@@ -380,6 +422,7 @@ int main()
     testBookByDigest();
     testTombstoneVsEdit();
     testMissingParent();
+    testPageTextSync();
     printf("ALL SYNC TESTS PASSED\n");
     return 0;
 }

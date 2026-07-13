@@ -348,6 +348,22 @@ QJsonObject SyncStore::exportSnapshot(const QString &deviceId)
         }
         snap.insert(QStringLiteral("strokes"), a);
     }
+    {  // page_text -> page guid; recognized handwriting, one row per page
+        QJsonArray a;
+        Stmt q(db, "SELECT pt.guid, pg.guid, pt.text, pt.source_stamp, pt.deleted, pt.updated_at"
+                   "  FROM page_text pt JOIN pages pg ON pg.id = pt.page_id");
+        while (q.row()) {
+            QJsonObject r;
+            r.insert(QStringLiteral("guid"), colText(q.s, 0));
+            r.insert(QStringLiteral("pageGuid"), colText(q.s, 1));
+            r.insert(QStringLiteral("text"), colText(q.s, 2));
+            r.insert(QStringLiteral("sourceStamp"), double(sqlite3_column_int64(q.s, 3)));
+            r.insert(QStringLiteral("deleted"), sqlite3_column_int(q.s, 4));
+            r.insert(QStringLiteral("updatedAt"), double(sqlite3_column_int64(q.s, 5)));
+            a.append(r);
+        }
+        snap.insert(QStringLiteral("pageTexts"), a);
+    }
     {
         QJsonArray a;
         Stmt q(db, "SELECT rs.guid, b.digest, rs.started_at, rs.ended_at, rs.pages_turned,"
@@ -404,6 +420,8 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
         [](const QJsonObject &r) { return r.value(QStringLiteral("guid")).toString(); });
     const Merged strokes = mergeTable(snaps, "strokes",
         [](const QJsonObject &r) { return r.value(QStringLiteral("guid")).toString(); });
+    const Merged pageTexts = mergeTable(snaps, "pageTexts",
+        [](const QJsonObject &r) { return r.value(QStringLiteral("pageGuid")).toString(); });
     const Merged sessions = mergeTable(snaps, "sessions",
         [](const QJsonObject &r) { return r.value(QStringLiteral("guid")).toString(); });
 
@@ -622,6 +640,54 @@ SyncStore::MergeStats SyncStore::applyMerged(const QVector<QJsonObject> &remoteS
             sqlite3_bind_int64(up.s, 6, rUpd);
             sqlite3_bind_int(up.s, 7, rDel);
             bindText(up.s, 8, guid);
+            if (!up.done())
+                return stats;
+        }
+        tally(rDel);
+    }
+
+    if (!tx.restart())
+        return stats;
+    // page_text by page guid (one row per page); mint a guid on insert (Android sends none)
+    for (const QJsonObject &r : pageTexts) {
+        const qint64 pageId = idByGuid(db, "pages", jStr(r, "pageGuid"));
+        if (pageId < 0)
+            continue;
+        const qint64 rUpd = jI64(r, "updatedAt");
+        const int rDel = jInt(r, "deleted");
+        LocalMeta m;
+        {
+            Stmt q(db, "SELECT updated_at, deleted FROM page_text WHERE page_id = ?");
+            sqlite3_bind_int64(q.s, 1, pageId);
+            if (q.row()) {
+                m.exists = true;
+                m.updatedAt = sqlite3_column_int64(q.s, 0);
+                m.deleted = sqlite3_column_int(q.s, 1);
+            }
+        }
+        if (!shouldApply(m, rUpd, rDel))
+            continue;
+        if (!m.exists) {
+            Stmt ins(db, "INSERT INTO page_text(page_id, text, source_stamp, guid, deleted,"
+                         "  updated_at) VALUES(?, ?, ?, ?, ?, ?)");
+            const QByteArray guid = jStr(r, "guid");
+            const QByteArray g = guid.isEmpty() ? newGuid() : guid;
+            sqlite3_bind_int64(ins.s, 1, pageId);
+            bindText(ins.s, 2, jStr(r, "text"));
+            sqlite3_bind_int64(ins.s, 3, jI64(r, "sourceStamp"));
+            bindText(ins.s, 4, g);
+            sqlite3_bind_int(ins.s, 5, rDel);
+            sqlite3_bind_int64(ins.s, 6, rUpd);
+            if (!ins.done())
+                return stats;
+        } else {
+            Stmt up(db, "UPDATE page_text SET text = ?, source_stamp = ?, deleted = ?,"
+                        "  updated_at = ? WHERE page_id = ?");
+            bindText(up.s, 1, jStr(r, "text"));
+            sqlite3_bind_int64(up.s, 2, jI64(r, "sourceStamp"));
+            sqlite3_bind_int(up.s, 3, rDel);
+            sqlite3_bind_int64(up.s, 4, rUpd);
+            sqlite3_bind_int64(up.s, 5, pageId);
             if (!up.done())
                 return stats;
         }
