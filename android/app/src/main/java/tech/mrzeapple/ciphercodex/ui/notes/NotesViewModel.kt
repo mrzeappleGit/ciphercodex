@@ -16,7 +16,7 @@ data class NotebookCard(
     val notebook: NotebookEntity,
     val pages: List<NotebookPageEntity>,
 ) {
-    val coverPath: String? get() = pages.firstOrNull { it.imagePath.isNotEmpty() }?.imagePath
+    val coverPage: NotebookPageEntity? get() = pages.firstOrNull { it.imagePath.isNotEmpty() }
 }
 
 class NotesViewModel(application: Application) : AndroidViewModel(application) {

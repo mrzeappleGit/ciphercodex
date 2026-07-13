@@ -25,7 +25,7 @@ import tech.mrzeapple.ciphercodex.ui.notes.NotesScreen
 import tech.mrzeapple.ciphercodex.ui.settings.SettingsScreen
 import tech.mrzeapple.ciphercodex.ui.stats.StatsScreen
 
-/** The tabbed home: Library / Kept / Stats / Settings switched by the bottom bar.
+/** The tabbed home: Library / Kept / Notes / Stats / Apps / Settings switched by the bottom bar.
  *  Reader and OPDS remain full-screen destinations outside this scaffold. */
 @Composable
 fun MainScaffold(

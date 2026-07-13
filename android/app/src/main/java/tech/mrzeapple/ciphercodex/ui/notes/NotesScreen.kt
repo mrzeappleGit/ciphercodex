@@ -46,9 +46,11 @@ import tech.mrzeapple.ciphercodex.ui.components.CipherHeader
 import tech.mrzeapple.ciphercodex.ui.components.CipherPanel
 import tech.mrzeapple.ciphercodex.ui.theme.LocalCipherColors
 
-/** Decode a PNG off the main thread, downsampled to roughly maxDim on the long side. */
+/** Decode a PNG off the main thread, downsampled to roughly maxDim on the long side.
+ *  Keyed on [stamp] too: sync re-renders a changed page to the SAME file path, so
+ *  the path alone would never invalidate an on-screen bitmap. */
 @Composable
-private fun rememberPageBitmap(path: String, maxDim: Int) = produceState<android.graphics.Bitmap?>(null, path) {
+private fun rememberPageBitmap(path: String, stamp: Long, maxDim: Int) = produceState<android.graphics.Bitmap?>(null, path, stamp) {
     value = withContext(Dispatchers.IO) {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(path, bounds)
@@ -116,9 +118,9 @@ private fun NotebookCardView(card: NotebookCard, onOpen: () -> Unit) {
                     .aspectRatio(1404f / 1872f)
                     .background(c.void),
             ) {
-                val cover = card.coverPath
+                val cover = card.coverPage
                 if (cover != null) {
-                    val bmp by rememberPageBitmap(cover, maxDim = 480)
+                    val bmp by rememberPageBitmap(cover.imagePath, cover.contentStamp, maxDim = 480)
                     bmp?.let {
                         Image(
                             bitmap = it.asImageBitmap(),
@@ -179,7 +181,7 @@ private fun PageViewer(card: NotebookCard, onClose: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 if (page.imagePath.isNotEmpty()) {
-                    val bmp by rememberPageBitmap(page.imagePath, maxDim = 1872)
+                    val bmp by rememberPageBitmap(page.imagePath, page.contentStamp, maxDim = 1872)
                     bmp?.let {
                         Image(
                             bitmap = it.asImageBitmap(),
