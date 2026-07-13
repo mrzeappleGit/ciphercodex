@@ -50,6 +50,15 @@ class InkPointsTest {
     }
 
     @Test
+    fun `baseWidth is ignored, device always uses maxW 9`() {
+        // wire baseWidth is a constant 2.0 struct default the device never reads
+        // (inkitem.cpp uses a fixed maxW of 9.0); Android must match, not the wire value.
+        val seg = InkGeometry.strokeSegments(
+            listOf(InkPoint(0f, 0f, 4095), InkPoint(0.1f, 0f, 4095)), baseWidth = 2f).single()
+        assertEquals(9f, seg.width, 1e-3f)
+    }
+
+    @Test
     fun `single point becomes a dot segment`() {
         val seg = InkGeometry.strokeSegments(listOf(InkPoint(0.5f, 0.5f, 4095)), 9f).single()
         assertEquals(seg.x0, seg.x1, 0f)

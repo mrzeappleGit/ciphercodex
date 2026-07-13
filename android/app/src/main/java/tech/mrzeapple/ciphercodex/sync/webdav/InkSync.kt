@@ -76,19 +76,27 @@ class InkSync(private val db: AppDatabase, private val notebooksDir: File) {
         notebooksDir.mkdirs()
         var rendered = 0
         for (page in dao.allPages()) {
+            // A page absent from this pass's merged wire `pages` (missing snapshot, or its
+            // ink arrays failed to decode) must not be treated as stroke-less and blanked —
+            // only a page present with zero live strokes legitimately renders blank.
+            if (!pages.containsKey(page.guid)) continue
             val strokes = strokesByPage[page.guid].orEmpty()
             val stamp = InkMerge.contentStamp(strokes)
             if (stamp == page.contentStamp && page.imagePath.isNotEmpty()) continue
             val dest = File(notebooksDir, "${page.guid}.png")
-            renderPage(strokes, dest)
-            dao.setPageImage(page.guid, dest.absolutePath, stamp)
-            rendered++
+            if (renderPage(strokes, dest)) {
+                dao.setPageImage(page.guid, dest.absolutePath, stamp)
+                rendered++
+            }
         }
         return InkResult(notebooks.count { it.value.deleted == 0 }, rendered, removed)
     }
 
-    /** White 1404x1872 page, black pressure-width ink. Atomic: temp then rename. */
-    private fun renderPage(strokes: List<InkStroke>, dest: File) {
+    /** White 1404x1872 page, black pressure-width ink. Atomic: temp then rename.
+     *  Returns whether the final file actually landed at [dest]; callers must not record a
+     *  rendered stamp when this is false, or a failed rename leaves a page permanently
+     *  blank (stamp matches forever, no image on disk). */
+    private fun renderPage(strokes: List<InkStroke>, dest: File): Boolean {
         val bmp = Bitmap.createBitmap(PAGE_W, PAGE_H, Bitmap.Config.ARGB_8888)
         try {
             val canvas = Canvas(bmp)
@@ -108,7 +116,11 @@ class InkSync(private val db: AppDatabase, private val notebooksDir: File) {
             }
             val tmp = File(dest.parentFile, "${dest.name}.tmp")
             tmp.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            if (!tmp.renameTo(dest)) { dest.delete(); tmp.renameTo(dest) }
+            if (tmp.renameTo(dest)) return true
+            dest.delete()
+            if (tmp.renameTo(dest)) return true
+            tmp.delete()
+            return false
         } finally {
             bmp.recycle()
         }

@@ -41,8 +41,12 @@ object InkGeometry {
         return MIN_W + p * p * (maxW - MIN_W)
     }
 
-    fun strokeSegments(points: List<InkPoint>, baseWidth: Float): List<InkSegment> {
-        val maxW = if (baseWidth > MIN_W) baseWidth else DEFAULT_MAX_W
+    /** baseWidth is wire provenance only: the rM2's own renderer ignores it and always
+     *  uses a fixed maxW of 9.0 (inkitem.cpp:44-48, env-tunable there but not on the wire).
+     *  Matching that keeps Android's render device-true instead of the ~1-2px the old
+     *  baseWidth-driven curve produced. */
+    fun strokeSegments(points: List<InkPoint>, @Suppress("UNUSED_PARAMETER") baseWidth: Float): List<InkSegment> {
+        val maxW = DEFAULT_MAX_W
         if (points.isEmpty()) return emptyList()
         if (points.size == 1) {
             val p = points[0]
