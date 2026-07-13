@@ -1,9 +1,5 @@
 package tech.mrzeapple.ciphercodex.sync.webdav
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import androidx.room.withTransaction
 import tech.mrzeapple.ciphercodex.data.db.AppDatabase
 import tech.mrzeapple.ciphercodex.data.db.NotebookEntity
@@ -24,11 +20,6 @@ class InkSync(
 
     data class InkResult(val notebooks: Int, val pagesRendered: Int, val removed: Int,
                           val pagesRecognized: Int = 0)
-
-    companion object {
-        const val PAGE_W = 1404
-        const val PAGE_H = 1872
-    }
 
     suspend fun apply(snapshotTexts: List<String>): InkResult {
         // A snapshot whose ink arrays fail to decode is skipped (its book arrays
@@ -119,45 +110,11 @@ class InkSync(
             }
             if (stamp == page.contentStamp && page.imagePath.isNotEmpty()) continue
             val dest = File(notebooksDir, "${page.guid}.png")
-            if (renderPage(strokes, dest)) {
+            if (InkRender.renderPage(strokes.map { it.pointsB64 to it.baseWidth }, dest)) {
                 dao.setPageImage(page.guid, dest.absolutePath, stamp)
                 rendered++
             }
         }
         return InkResult(notebooks.count { it.value.deleted == 0 }, rendered, removed, recognized)
-    }
-
-    /** White 1404x1872 page, black pressure-width ink. Atomic: temp then rename.
-     *  Returns whether the final file actually landed at [dest]; callers must not record a
-     *  rendered stamp when this is false, or a failed rename leaves a page permanently
-     *  blank (stamp matches forever, no image on disk). */
-    private fun renderPage(strokes: List<InkStroke>, dest: File): Boolean {
-        val bmp = Bitmap.createBitmap(PAGE_W, PAGE_H, Bitmap.Config.ARGB_8888)
-        try {
-            val canvas = Canvas(bmp)
-            canvas.drawColor(Color.WHITE)
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.BLACK
-                strokeCap = Paint.Cap.ROUND
-                style = Paint.Style.STROKE
-            }
-            for (stroke in strokes) {
-                val points = InkPoints.decode(stroke.pointsB64)
-                for (seg in InkGeometry.strokeSegments(points, stroke.baseWidth)) {
-                    paint.strokeWidth = seg.width
-                    canvas.drawLine(seg.x0 * PAGE_W, seg.y0 * PAGE_H,
-                        seg.x1 * PAGE_W, seg.y1 * PAGE_H, paint)
-                }
-            }
-            val tmp = File(dest.parentFile, "${dest.name}.tmp")
-            tmp.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            if (tmp.renameTo(dest)) return true
-            dest.delete()
-            if (tmp.renameTo(dest)) return true
-            tmp.delete()
-            return false
-        } finally {
-            bmp.recycle()
-        }
     }
 }

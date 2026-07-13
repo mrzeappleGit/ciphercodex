@@ -2,7 +2,11 @@ package tech.mrzeapple.ciphercodex
 
 import android.app.Application
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import tech.mrzeapple.ciphercodex.data.BookRepository
+import tech.mrzeapple.ciphercodex.data.InkAuthor
 import tech.mrzeapple.ciphercodex.data.LibraryRepository
 import tech.mrzeapple.ciphercodex.data.db.AppDatabase
 import tech.mrzeapple.ciphercodex.data.prefs.UserPrefs
@@ -12,6 +16,9 @@ import tech.mrzeapple.ciphercodex.sync.KosyncSyncManager
 import tech.mrzeapple.ciphercodex.sync.SyncManager
 import tech.mrzeapple.ciphercodex.sync.SyncWorker
 import tech.mrzeapple.ciphercodex.sync.webdav.WebDavSyncManager
+
+/** Outlives any ViewModel: editor-exit render + sync must survive screen close. */
+val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 /** Manual DI container. ViewModels reach this via
  *  `application as CipherCodexApp`. */
@@ -26,6 +33,7 @@ class CipherCodexApp : Application() {
     val webdavSync: WebDavSyncManager by lazy {
         WebDavSyncManager(prefs, database, repository, cacheDir, File(filesDir, "notebooks"))
     }
+    val inkAuthor: InkAuthor by lazy { InkAuthor(database, File(filesDir, "notebooks")) }
 
     override fun onCreate() {
         super.onCreate()
