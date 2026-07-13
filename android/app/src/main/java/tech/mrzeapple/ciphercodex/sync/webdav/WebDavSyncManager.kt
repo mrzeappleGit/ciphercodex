@@ -18,6 +18,8 @@ import tech.mrzeapple.ciphercodex.data.db.ProgressEntity
 import tech.mrzeapple.ciphercodex.data.db.ReadingSessionEntity
 import tech.mrzeapple.ciphercodex.data.prefs.UserPrefs
 import tech.mrzeapple.ciphercodex.sync.Guids
+import tech.mrzeapple.ciphercodex.sync.recognition.HandwritingRecognizer
+import tech.mrzeapple.ciphercodex.sync.recognition.RecognitionPass
 import java.io.File
 
 class WebDavSyncManager(
@@ -28,9 +30,9 @@ class WebDavSyncManager(
     private val notebooksDir: File,
 ) {
     data class WebDavSummary(val booksUp: Int = 0, val booksDown: Int = 0, val entities: Int = 0,
-                             val tombstones: Int = 0, val error: String? = null)
+                             val tombstones: Int = 0, val pagesRecognized: Int = 0,
+                             val error: String? = null)
 
-    private val inkSync = InkSync(db, notebooksDir)
     private val mutex = Mutex()
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running
@@ -101,12 +103,23 @@ class WebDavSyncManager(
         dav.move("state/$deviceId.json.tmp", "state/$deviceId.json")
 
         // 6. Ink pass (rM2 notebooks -> local viewer). Contained: never fails book sync.
-        val inkError = try { inkSync.apply(stateTexts); null } catch (e: Exception) {
+        var pagesRecognized = 0
+        val inkError = try {
+            val recognition = if (settings.handwritingRecognition) {
+                try {
+                    val hw = HandwritingRecognizer()
+                    if (hw.modelDownloaded()) RecognitionPass(hw::recognizeLine) else null
+                } catch (t: Throwable) { null }  // recognition must never break sync
+            } else null
+            pagesRecognized = InkSync(db, notebooksDir, recognition).apply(stateTexts).pagesRecognized
+            null
+        } catch (e: Exception) {
             "notes: ${e.message ?: e.javaClass.simpleName}"
         }
 
         prefs.setWebdavLastSyncAt(System.currentTimeMillis())
-        return WebDavSummary(booksUp, booksDown, result.entities, result.tombstones, error = inkError)
+        return WebDavSummary(booksUp, booksDown, result.entities, result.tombstones,
+            pagesRecognized = pagesRecognized, error = inkError)
     }
 
     private data class ApplyResult(val needFiles: List<String>, val entities: Int, val tombstones: Int)

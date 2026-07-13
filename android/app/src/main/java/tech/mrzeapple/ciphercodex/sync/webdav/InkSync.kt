@@ -8,14 +8,22 @@ import androidx.room.withTransaction
 import tech.mrzeapple.ciphercodex.data.db.AppDatabase
 import tech.mrzeapple.ciphercodex.data.db.NotebookEntity
 import tech.mrzeapple.ciphercodex.data.db.NotebookPageEntity
+import tech.mrzeapple.ciphercodex.data.db.PageTextEntity
+import tech.mrzeapple.ciphercodex.sync.recognition.RecStroke
+import tech.mrzeapple.ciphercodex.sync.recognition.RecognitionPass
 import java.io.File
 
 /** Applies the ink arrays of downloaded snapshots: LWW metadata into Room,
  *  tombstones hard-deleted (row + PNG), changed pages re-rendered to PNG.
  *  Android never emits ink, so no tombstones are kept locally. */
-class InkSync(private val db: AppDatabase, private val notebooksDir: File) {
+class InkSync(
+    private val db: AppDatabase,
+    private val notebooksDir: File,
+    private val recognition: RecognitionPass? = null,
+) {
 
-    data class InkResult(val notebooks: Int, val pagesRendered: Int, val removed: Int)
+    data class InkResult(val notebooks: Int, val pagesRendered: Int, val removed: Int,
+                          val pagesRecognized: Int = 0)
 
     companion object {
         const val PAGE_W = 1404
@@ -41,7 +49,10 @@ class InkSync(private val db: AppDatabase, private val notebooksDir: File) {
                 if (n.deleted == 1) {
                     if (local != null) {
                         dao.allPages().filter { it.notebookGuid == guid }
-                            .forEach { if (it.imagePath.isNotEmpty()) orphanFiles.add(it.imagePath) }
+                            .forEach {
+                                if (it.imagePath.isNotEmpty()) orphanFiles.add(it.imagePath)
+                                dao.deletePageText(it.guid)
+                            }
                         dao.deletePagesOf(guid)
                         dao.deleteNotebook(guid)
                         removed++
@@ -57,6 +68,7 @@ class InkSync(private val db: AppDatabase, private val notebooksDir: File) {
                     if (local != null) {
                         if (local.imagePath.isNotEmpty()) orphanFiles.add(local.imagePath)
                         dao.deletePage(guid)
+                        dao.deletePageText(guid)
                         removed++
                     }
                 } else if (dao.notebookByGuid(p.notebookGuid) == null) {
@@ -75,6 +87,7 @@ class InkSync(private val db: AppDatabase, private val notebooksDir: File) {
         // Render pass, outside the transaction: only pages whose content changed.
         notebooksDir.mkdirs()
         var rendered = 0
+        var recognized = 0
         for (page in dao.allPages()) {
             // A page absent from this pass's merged wire `pages` (missing snapshot, or its
             // ink arrays failed to decode) must not be treated as stroke-less and blanked —
@@ -82,6 +95,20 @@ class InkSync(private val db: AppDatabase, private val notebooksDir: File) {
             if (!pages.containsKey(page.guid)) continue
             val strokes = strokesByPage[page.guid].orEmpty()
             val stamp = InkMerge.contentStamp(strokes)
+            // Independent of the render check below: text must catch up even when the PNG
+            // was already current (or vice versa), so this never gates on the render continue.
+            if (recognition != null) {
+                val existing = dao.pageText(page.guid)
+                if (existing?.sourceStamp != stamp) {
+                    val text = if (strokes.isEmpty()) "" else recognition.textFor(strokes.map {
+                        RecStroke(InkPoints.decode(it.pointsB64), it.createdAt)
+                    })
+                    if (text.isEmpty()) dao.deletePageText(page.guid)
+                    else dao.upsertPageText(PageTextEntity(page.guid, text, stamp,
+                        System.currentTimeMillis()))
+                    recognized++
+                }
+            }
             if (stamp == page.contentStamp && page.imagePath.isNotEmpty()) continue
             val dest = File(notebooksDir, "${page.guid}.png")
             if (renderPage(strokes, dest)) {
@@ -89,7 +116,7 @@ class InkSync(private val db: AppDatabase, private val notebooksDir: File) {
                 rendered++
             }
         }
-        return InkResult(notebooks.count { it.value.deleted == 0 }, rendered, removed)
+        return InkResult(notebooks.count { it.value.deleted == 0 }, rendered, removed, recognized)
     }
 
     /** White 1404x1872 page, black pressure-width ink. Atomic: temp then rename.
