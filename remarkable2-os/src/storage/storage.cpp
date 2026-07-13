@@ -98,6 +98,13 @@ struct Tx {
 
 qint64 now() { return QDateTime::currentMSecsSinceEpoch(); }
 
+QString colText(sqlite3_stmt *s, int i)
+{
+    if (sqlite3_column_type(s, i) == SQLITE_NULL)
+        return QString();
+    return QString::fromUtf8(reinterpret_cast<const char *>(sqlite3_column_text(s, i)));
+}
+
 // Global sync identity: UUIDv4, dashes stripped (32 hex chars). Matches the id format the
 // reader already uses for kosync (readercontroller.cpp) so both stay comparable.
 QByteArray newGuid()
@@ -226,6 +233,18 @@ const char *const kSchemaV3 =
     "UPDATE strokes SET updated_at = created_at WHERE updated_at = 0;"
     "UPDATE reading_sessions SET updated_at = started_at WHERE updated_at = 0;";
 
+// Sync'd recognized handwriting (Phase HWR). Authored by the Android app from stroke
+// data; one row per page; travels as the snapshot's "pageText" array.
+const char *const kSchemaV4 =
+    "CREATE TABLE page_text(id INTEGER PRIMARY KEY,"
+    "  page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,"
+    "  text TEXT NOT NULL DEFAULT '',"
+    "  source_stamp INTEGER NOT NULL DEFAULT -1,"
+    "  guid TEXT, deleted INTEGER NOT NULL DEFAULT 0,"
+    "  updated_at INTEGER NOT NULL DEFAULT 0);"
+    "CREATE UNIQUE INDEX page_text_guid ON page_text(guid);"
+    "CREATE UNIQUE INDEX page_text_page ON page_text(page_id);";
+
 // v3 row backfill (runs inside the v3 Tx): a unique guid for every pre-existing row, plus a now()
 // fallback for any updated_at the SQL copy above couldn't seed. rowid is present on all synced
 // tables here (all are rowid tables, including the composite-PK join table), so it keys uniformly.
@@ -294,6 +313,15 @@ bool migrate(sqlite3 *db)
               && exec(db, "UPDATE schema_version SET version=3") && tx.commit()))
             return false;
         v = 3;
+    }
+    // v4 = page_text (recognized handwriting, synced). New rows are born with guid/updated_at
+    // from the writer, so — unlike v3 — no backfill step is needed here.
+    if (v < 4) {
+        Tx tx(db);
+        if (!(tx.active && exec(db, kSchemaV4)
+              && exec(db, "UPDATE schema_version SET version=4") && tx.commit()))
+            return false;
+        v = 4;
     }
     return true;
 }
@@ -419,6 +447,12 @@ void Storage::deleteNotebook(qint64 id)
     sqlite3_bind_int64(ds.s, 1, ts);
     sqlite3_bind_int64(ds.s, 2, id);
     if (!ds.done())
+        return;  // dtor rolls back
+    Stmt pt(m_db, "UPDATE page_text SET deleted = 1, updated_at = ?, text = ''"
+                  "  WHERE page_id IN (SELECT id FROM pages WHERE notebook_id = ?)");
+    sqlite3_bind_int64(pt.s, 1, ts);
+    sqlite3_bind_int64(pt.s, 2, id);
+    if (!pt.done())
         return;  // dtor rolls back
     Stmt dp(m_db, "UPDATE pages SET deleted = 1, updated_at = ? WHERE deleted = 0 AND notebook_id = ?");
     sqlite3_bind_int64(dp.s, 1, ts);
@@ -641,5 +675,33 @@ QVector<StrokeData> Storage::strokes(qint64 pageId)
         s.pts = decodePoints(sqlite3_column_blob(q.s, 3), sqlite3_column_bytes(q.s, 3));
         out.append(s);
     }
+    return out;
+}
+
+QString Storage::pageText(qint64 pageId)
+{
+    Stmt q(m_db, "SELECT text FROM page_text WHERE page_id = ? AND deleted = 0");
+    sqlite3_bind_int64(q.s, 1, pageId);
+    return q.row() ? colText(q.s, 0) : QString();
+}
+
+QVector<NotebookInfo> Storage::notebooks(const QString &query)
+{
+    QVector<NotebookInfo> out;
+    Stmt q(m_db,
+        "SELECT DISTINCT n.id, n.title,"
+        "  (SELECT COUNT(*) FROM pages p2 WHERE p2.notebook_id = n.id AND p2.deleted = 0),"
+        "  n.updated_at"
+        "  FROM notebooks n"
+        "  LEFT JOIN pages p ON p.notebook_id = n.id AND p.deleted = 0"
+        "  LEFT JOIN page_text pt ON pt.page_id = p.id AND pt.deleted = 0"
+        "  WHERE n.deleted = 0 AND (n.title LIKE ? OR pt.text LIKE ?)"
+        "  ORDER BY n.updated_at DESC");
+    const QByteArray like = ("%" + query + "%").toUtf8();
+    sqlite3_bind_text(q.s, 1, like.constData(), like.size(), SQLITE_TRANSIENT);
+    sqlite3_bind_text(q.s, 2, like.constData(), like.size(), SQLITE_TRANSIENT);
+    while (q.row())
+        out.append({sqlite3_column_int64(q.s, 0), colText(q.s, 1), sqlite3_column_int(q.s, 2),
+                    sqlite3_column_int64(q.s, 3)});
     return out;
 }

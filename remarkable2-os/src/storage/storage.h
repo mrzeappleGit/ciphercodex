@@ -29,6 +29,7 @@ public:
     Storage &operator=(const Storage &) = delete;
 
     QVector<NotebookInfo> notebooks();
+    QVector<NotebookInfo> notebooks(const QString &query);  // title OR live page text LIKE match
     qint64 createNotebook(const QString &title);
     void renameNotebook(qint64 id, const QString &title);
     void deleteNotebook(qint64 id);               // soft-deletes (tombstones) notebook+pages+strokes
@@ -43,6 +44,7 @@ public:
     bool replaceStrokes(const QVector<qint64> &removeIds, QVector<StrokeData> &add,
                         bool keepAddIds);
     QVector<StrokeData> strokes(qint64 pageId);   // ordered by id
+    QString pageText(qint64 pageId);              // recognized handwriting text, or empty
 
     // Raw handle so ccx-reader (library/kosync) can prepare its own statements
     // against the same connection (foreign_keys=ON, WAL, synchronous=FULL).

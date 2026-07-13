@@ -162,7 +162,7 @@ static int runAsserts()
     assert(sqlite3_step(q) == SQLITE_ROW);
     assert(sqlite3_column_int(q, 0) == 0);   // no live strokes
     assert(sqlite3_column_int(q, 1) == 0);   // no live pages
-    assert(sqlite3_column_int(q, 2) == 3);   // fresh DB now runs v1, v2, v3
+    assert(sqlite3_column_int(q, 2) == 4);   // fresh DB now runs v1, v2, v3, v4
     assert(sqlite3_column_int(q, 3) > 0);    // stroke tombstones kept
     assert(sqlite3_column_int(q, 4) > 0);    // page tombstones kept
     sqlite3_finalize(q);
