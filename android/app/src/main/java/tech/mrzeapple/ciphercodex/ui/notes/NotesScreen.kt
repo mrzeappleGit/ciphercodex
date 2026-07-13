@@ -5,7 +5,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -171,11 +174,25 @@ private fun PageViewer(card: NotebookCard, onClose: () -> Unit) {
             Box(
                 Modifier
                     .fillMaxSize()
+                    // Consume only pinches and zoomed pans; unzoomed single-finger
+                    // swipes must pass through untouched so the pager can page.
                     .pointerInput(page.guid) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 6f)
-                            offX += pan.x; offY += pan.y
-                            if (scale == 1f) { offX = 0f; offY = 0f }
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            do {
+                                val event = awaitPointerEvent()
+                                if (event.changes.size > 1 || scale > 1f) {
+                                    val zoom = event.calculateZoom()
+                                    val pan = event.calculatePan()
+                                    scale = (scale * zoom).coerceIn(1f, 6f)
+                                    if (scale > 1f) {
+                                        offX += pan.x; offY += pan.y
+                                    } else {
+                                        offX = 0f; offY = 0f
+                                    }
+                                    event.changes.forEach { it.consume() }
+                                }
+                            } while (event.changes.any { it.pressed })
                         }
                     },
                 contentAlignment = Alignment.Center,
