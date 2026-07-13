@@ -68,12 +68,23 @@ Item {
         }
     }
 
-    // Sync JUMP/STAY prompt (PDF: spine is the page index).
+    // Sync JUMP/STAY prompt (PDF: spine is the page index) — hard-offset elevation behind.
+    Rectangle {
+        visible: pdfReader.showSyncPrompt
+        anchors {
+            centerIn: parent
+            horizontalCenterOffset: Theme.lift
+            verticalCenterOffset: Theme.lift
+        }
+        width: 620; height: 220
+        color: "white"; border { color: "black"; width: Theme.chip }
+        z: 10
+    }
     Rectangle {
         visible: pdfReader.showSyncPrompt
         anchors.centerIn: parent
         width: 620; height: 220
-        color: "white"; border { color: "black"; width: 6 }
+        color: "white"; border { color: "black"; width: Theme.chip }
         z: 10
         Column {
             anchors.centerIn: parent
@@ -84,7 +95,7 @@ Item {
                       ? "SYNC // " + pdfReader.syncPull.device + " @ "
                         + Math.round(pdfReader.syncPull.percentage * 100) + "%"
                       : ""
-                font { pixelSize: 28; bold: true }
+                font { family: Theme.mono; pixelSize: Theme.secondary }
             }
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -110,55 +121,59 @@ Item {
         function onSearchFinished(total, canceled) { pdfReader.searching = false }
     }
 
+    // Bordered button (panels/dialogs): Rajdhani Bold 24, chip border, inversion feedback.
     component Btn: Rectangle {
         id: b
         property alias label: t.text
         property bool active: false
         signal tapped()
         readonly property bool dark: btnTap.pressed || b.active
-        width: Math.max(88, t.implicitWidth + 22)
-        height: 90
+        width: Math.max(Theme.touch, t.implicitWidth + 28)
+        height: Theme.touch
         color: b.dark ? "black" : "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.chip }
         Text {
             id: t
             anchors.centerIn: parent
             color: b.dark ? "white" : "black"
-            font { pixelSize: 22; bold: true }
+            font { family: Theme.display; pixelSize: Theme.button; weight: Font.Bold }
         }
-        TapHandler { id: btnTap; onTapped: b.tapped() }
+        // margin pads the hit area to >=90px even when the visual is shorter (e.g. DEL)
+        TapHandler { id: btnTap; margin: Math.max(0, (Theme.touch - b.height) / 2); onTapped: b.tapped() }
+    }
+
+    // Borderless top-bar label: Share Tech Mono 22, inversion when pressed/active.
+    component BarBtn: Rectangle {
+        id: bb
+        property alias label: bt.text
+        property int size: Theme.secondary
+        property bool active: false
+        signal tapped()
+        readonly property bool dark: bbTap.pressed || bb.active
+        width: Math.max(Theme.touch, bt.implicitWidth + 24)
+        height: 88
+        color: bb.dark ? "black" : "white"
+        Text {
+            id: bt
+            anchors.centerIn: parent
+            color: bb.dark ? "white" : "black"
+            font { family: Theme.mono; pixelSize: bb.size }
+        }
+        TapHandler { id: bbTap; margin: 1; onTapped: bb.tapped() }
     }
 
     Rectangle {
         id: toolbar
         width: parent.width
-        height: 100
+        height: 88
         color: "white"
         z: 2
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 4; color: "black" }
         Row {
-            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-            spacing: 6
-            Btn { label: "BACK"; onTapped: pdfReader.StackView.view.pop() }
-            Item {
-                width: 260; height: 90
-                Text {
-                    anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
-                    width: parent.width - 6
-                    elide: Text.ElideRight
-                    text: pdfReader.title
-                    font { pixelSize: 22; bold: true }
-                }
-            }
-            Item {
-                width: 130; height: 90
-                Text {
-                    anchors.centerIn: parent
-                    text: (pdfView.pageIndex + 1) + " / " + pdfView.pageCount
-                    font.pixelSize: 22
-                }
-            }
-            Btn {
+            id: barLeft
+            anchors { left: parent.left; leftMargin: 40; verticalCenter: parent.verticalCenter }
+            spacing: 28
+            BarBtn { label: "←"; size: 30; onTapped: pdfReader.StackView.view.pop() }
+            BarBtn {
                 label: "TOC"
                 active: pdfReader.panel === "toc"
                 onTapped: {
@@ -169,7 +184,7 @@ Item {
                     }
                 }
             }
-            Btn {
+            BarBtn {
                 label: "MARKS"
                 active: pdfReader.panel === "bookmarks"
                 onTapped: {
@@ -177,18 +192,41 @@ Item {
                     else { pdfReader.reloadBookmarks(); pdfReader.panel = "bookmarks" }
                 }
             }
-            Btn {
+            BarBtn {
                 label: "SEARCH"
                 active: pdfReader.panel === "search"
                 onTapped: pdfReader.panel = (pdfReader.panel === "search" ? "" : "search")
             }
-            Btn {
+        }
+        Text {  // title kept from the existing screen (not in the mock); elides to fit
+            anchors { left: barLeft.right; leftMargin: 28; right: barRight.left; rightMargin: 28
+                      verticalCenter: parent.verticalCenter }
+            elide: Text.ElideRight
+            text: pdfReader.title
+            font { family: Theme.mono; pixelSize: Theme.secondary }
+        }
+        Row {
+            id: barRight
+            anchors { right: parent.right; rightMargin: 40; verticalCenter: parent.verticalCenter }
+            spacing: 28
+            BarBtn {
                 label: pdfView.fitMode === 0 ? "FIT: W" : "FIT: P"
                 onTapped: pdfView.setFit(pdfView.fitMode === 0 ? 1 : 0)
             }
-            Btn { label: "Z+"; onTapped: pdfView.zoom = Math.min(4.0, pdfView.zoom * 1.25) }
-            Btn { label: "Z-"; onTapped: pdfView.zoom = Math.max(1.0, pdfView.zoom / 1.25) }
+            BarBtn { label: "Z-"; onTapped: pdfView.zoom = Math.max(1.0, pdfView.zoom / 1.25) }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: Math.round(pdfView.zoom * 100) + "%"
+                font { family: Theme.mono; pixelSize: Theme.secondary }
+            }
+            BarBtn { label: "Z+"; onTapped: pdfView.zoom = Math.min(4.0, pdfView.zoom * 1.25) }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: (pdfView.pageIndex + 1) + " / " + pdfView.pageCount
+                font { family: Theme.mono; pixelSize: Theme.secondary }
+            }
         }
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Theme.chip; color: "black" }
     }
 
     PdfView {
@@ -197,19 +235,26 @@ Item {
         onPageChanged: if (pdfReader.ready) saveTimer.restart()
     }
 
-    // Progress scrubber: tap or drag to jump
-    Rectangle {
+    // Progress rail: a 48px dedicated strip OUTSIDE PdfView (it anchors to scrubber.top),
+    // so seek taps/drags can never double-fire the page-turn zones — no handler margins.
+    // Visual is the design's 12px black rail + 24px thumb at the strip's bottom.
+    Item {
         id: scrubber
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         height: 48
-        color: "white"
         z: 2
-        Rectangle { anchors.top: parent.top; width: parent.width; height: 4; color: "black" }
         Rectangle {
-            anchors { left: parent.left; bottom: parent.bottom; bottomMargin: 8 }
-            height: 20
+            id: rail
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: 12
             color: "black"
-            width: pdfView.pageCount > 0 ? scrubber.width * (pdfView.pageIndex + 1) / pdfView.pageCount : 0
+            Rectangle {
+                width: 24; height: 24
+                y: -6
+                x: pdfView.pageCount > 0
+                   ? (pdfView.pageIndex + 1) / pdfView.pageCount * (rail.width - width) : 0
+                color: "black"
+            }
         }
         TapHandler { onTapped: (ep) => pdfReader.seekTo(ep.position.x / scrubber.width) }
         DragHandler {
@@ -221,15 +266,28 @@ Item {
         }
     }
 
-    // ---- Right-side panels (opaque; overlay PdfView) ----
+    // ---- Right-side panels (opaque floating cards; overlay PdfView) ----
+    // All three share the same geometry, so one offset outline serves whichever is open.
+
+    Rectangle {  // hard-offset elevation behind the open panel
+        visible: pdfReader.panel !== ""
+        anchors { top: toolbar.bottom; topMargin: 24 + Theme.lift
+                  right: parent.right; rightMargin: 24 - Theme.lift
+                  bottom: scrubber.top; bottomMargin: 24 - Theme.lift }
+        width: 560
+        color: "white"
+        border { color: "black"; width: Theme.chip }
+        z: 3
+    }
 
     Rectangle {  // TOC
         id: tocPanel
         visible: pdfReader.panel === "toc"
-        anchors { top: toolbar.bottom; right: parent.right; bottom: scrubber.top }
+        anchors { top: toolbar.bottom; topMargin: 24; right: parent.right; rightMargin: 24
+                  bottom: scrubber.top; bottomMargin: 24 }
         width: 560
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.chip }
         z: 3
         ListView {
             anchors { fill: parent; margins: 16 }
@@ -242,7 +300,7 @@ Item {
                 width: ListView.view.width
                 height: 84
                 color: tocTap.pressed ? "black" : "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.chip }
                 Text {
                     anchors { left: parent.left; right: pageLbl.left
                               leftMargin: 16 + (tocRow.modelData.level || 0) * 24
@@ -250,14 +308,14 @@ Item {
                     elide: Text.ElideRight
                     text: tocRow.modelData.title
                     color: tocTap.pressed ? "white" : "black"
-                    font.pixelSize: 24
+                    font { family: Theme.display; pixelSize: Theme.body; weight: Font.DemiBold }
                 }
                 Text {
                     id: pageLbl
                     anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
                     text: (tocRow.modelData.page + 1)
                     color: tocTap.pressed ? "white" : "black"
-                    font { pixelSize: 22; bold: true }
+                    font { family: Theme.mono; pixelSize: Theme.secondary }
                 }
                 TapHandler {
                     id: tocTap
@@ -270,10 +328,11 @@ Item {
     Rectangle {  // BOOKMARKS
         id: bmPanel
         visible: pdfReader.panel === "bookmarks"
-        anchors { top: toolbar.bottom; right: parent.right; bottom: scrubber.top }
+        anchors { top: toolbar.bottom; topMargin: 24; right: parent.right; rightMargin: 24
+                  bottom: scrubber.top; bottomMargin: 24 }
         width: 560
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.chip }
         z: 3
         Btn {
             id: addBm
@@ -297,14 +356,14 @@ Item {
                 width: ListView.view.width
                 height: 84
                 color: bmTap.pressed ? "black" : "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.chip }
                 Text {
                     anchors { left: parent.left; leftMargin: 16; right: delBm.left; rightMargin: 12
                               verticalCenter: parent.verticalCenter }
                     elide: Text.ElideRight
                     text: bmRow.modelData.label
                     color: bmTap.pressed ? "white" : "black"
-                    font.pixelSize: 24
+                    font { family: Theme.display; pixelSize: Theme.body; weight: Font.DemiBold }
                 }
                 TapHandler {
                     id: bmTap
@@ -327,10 +386,11 @@ Item {
     Rectangle {  // SEARCH
         id: searchPanel
         visible: pdfReader.panel === "search"
-        anchors { top: toolbar.bottom; right: parent.right; bottom: scrubber.top }
+        anchors { top: toolbar.bottom; topMargin: 24; right: parent.right; rightMargin: 24
+                  bottom: scrubber.top; bottomMargin: 24 }
         width: 560
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.chip }
         z: 3
         Row {
             id: searchRow
@@ -339,20 +399,20 @@ Item {
             Rectangle {
                 width: parent.width - 150; height: 84
                 color: "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: searchField.activeFocus ? Theme.frame : Theme.hairline }
                 Text {
                     visible: searchField.text === ""
                     anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                     text: "FIND"
                     color: "#999999"
-                    font { pixelSize: 24; bold: true }
+                    font { family: Theme.reading; pixelSize: Theme.button }
                 }
                 TextInput {
                     id: searchField
                     anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
                     verticalAlignment: TextInput.AlignVCenter
                     clip: true
-                    font { pixelSize: 24; bold: true }
+                    font { family: Theme.reading; pixelSize: Theme.button }
                     onAccepted: pdfReader.runSearch(text)
                 }
             }
@@ -374,12 +434,12 @@ Item {
                 width: ListView.view.width
                 height: 84
                 color: hitTap.pressed ? "black" : "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.chip }
                 Text {
                     anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                     text: "Page " + (hitRow.modelData.page + 1) + "  (" + hitRow.modelData.count + ")"
                     color: hitTap.pressed ? "white" : "black"
-                    font.pixelSize: 24
+                    font { family: Theme.mono; pixelSize: Theme.secondary }
                 }
                 TapHandler {
                     id: hitTap

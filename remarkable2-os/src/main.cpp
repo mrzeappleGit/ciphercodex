@@ -1,3 +1,4 @@
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QMetaEnum>
 #include <QMetaObject>
@@ -34,6 +35,15 @@ int main(int argc, char *argv[])
         return probeScreenMode();
 
     QGuiApplication app(argc, argv);
+
+    // Design fonts (embedded, OFL): Rajdhani display, Share Tech Mono captions, Courier
+    // Prime reading. The device's own fonts stay as fallback for glyphs these lack.
+    for (const char *f : {"Rajdhani-Bold.ttf", "Rajdhani-SemiBold.ttf", "Rajdhani-Medium.ttf",
+                          "ShareTechMono-Regular.ttf", "CourierPrime-Regular.ttf",
+                          "CourierPrime-Bold.ttf", "CourierPrime-Italic.ttf"})
+        QFontDatabase::addApplicationFont(
+            QStringLiteral(":/qt/qml/CipherCodex/assets/fonts/") + QLatin1String(f));
+
     QQmlApplicationEngine engine;
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, []() { QCoreApplication::exit(1); },

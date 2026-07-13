@@ -41,11 +41,16 @@ qt_add_executable(ciphercodex-shell
     src/pdf/pdfview.h src/pdf/pdfview.cpp
     src/epub/epubview.h src/epub/epubview.cpp
 )
+# Theme.qml is a pure-QML singleton (design tokens).
+set_source_files_properties(src/qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qt_add_qml_module(ciphercodex-shell
     URI CipherCodex
     VERSION 1.0
     QML_FILES
         src/Main.qml
+        src/qml/Theme.qml
+        src/qml/DotGrid.qml
+        src/qml/Hatch.qml
         src/qml/HomeScreen.qml
         src/qml/NotebookListScreen.qml
         src/qml/PageScreen.qml
@@ -56,6 +61,14 @@ qt_add_qml_module(ciphercodex-shell
         src/qml/SettingsScreen.qml
         src/qml/KeptScreen.qml
         src/qml/Keyboard.qml
+    RESOURCES
+        assets/fonts/Rajdhani-Bold.ttf
+        assets/fonts/Rajdhani-SemiBold.ttf
+        assets/fonts/Rajdhani-Medium.ttf
+        assets/fonts/ShareTechMono-Regular.ttf
+        assets/fonts/CourierPrime-Regular.ttf
+        assets/fonts/CourierPrime-Bold.ttf
+        assets/fonts/CourierPrime-Italic.ttf
 )
 # src/pdf + src/epub on the path so generated QML type registration finds the headers by basename
 target_include_directories(ciphercodex-shell PRIVATE src src/pdf src/epub)

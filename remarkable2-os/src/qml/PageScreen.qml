@@ -30,10 +30,10 @@ Item {
     }
 
     // PageScreen sits at scene (0,0) — StackView fills the window, no transitions —
-    // so the ink scene rect is just everything below the toolbar.
+    // so the ink scene rect is just everything right of the tool rail.
     function syncCanvasRect() {
-        pageScreen.pen.canvasRect = Qt.rect(0, toolbar.height,
-                                            pageScreen.width, pageScreen.height - toolbar.height)
+        pageScreen.pen.canvasRect = Qt.rect(rail.width, 0,
+                                            pageScreen.width - rail.width, pageScreen.height)
     }
 
     Component.onCompleted: {
@@ -52,101 +52,133 @@ Item {
 
     // pen->canvas connection is made in C++ (openPage): no per-sample JS hop, all args intact
 
-    component Btn: Rectangle {
-        id: b
-        property alias label: btnText.text
+    // 90x90 rail button: glyph text or Rectangle-built icon (default slot) over a mono
+    // 13px label. Pressed/active = full inversion; disabled = hairline border, no fill.
+    component RailBtn: Rectangle {
+        id: rb
+        default property alias icon: iconBox.data
+        property alias glyph: glyphText.text
+        property alias label: labelText.text
         property bool active: false
+        readonly property bool dark: rb.active || (rb.enabled && tap.pressed)
+        readonly property color fg: rb.dark ? "white" : "black"
         signal tapped()
-        width: Math.max(88, btnText.implicitWidth + 20)
+        width: 90
         height: 90
-        color: (btnTap.pressed || b.active) ? "black" : "white"
-        border { color: b.enabled ? "black" : "#999999"; width: 4 }
-        Text {
-            id: btnText
+        color: rb.dark ? "black" : "white"
+        border { color: "black"; width: rb.enabled ? Theme.chip : Theme.hairline }
+        Column {
             anchors.centerIn: parent
-            color: !b.enabled ? "#999999"
-                              : ((btnTap.pressed || b.active) ? "white" : "black")
-            font { pixelSize: 22; bold: true }
+            spacing: 2
+            Item {
+                id: iconBox
+                width: 60; height: 34
+                anchors.horizontalCenter: parent.horizontalCenter
+                Text {
+                    id: glyphText
+                    anchors.centerIn: parent
+                    visible: text.length > 0
+                    color: rb.fg
+                    font.pixelSize: 30
+                }
+            }
+            Text {
+                id: labelText
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: text.length > 0
+                color: rb.fg
+                font { family: Theme.mono; pixelSize: 13 }
+            }
         }
-        TapHandler { id: btnTap; onTapped: b.tapped() }
+        TapHandler { id: tap; onTapped: rb.tapped() }
+    }
+
+    component RailDivider: Item {
+        width: 90; height: 18
+        Rectangle { anchors.centerIn: parent; width: 70; height: 2; color: "black" }
     }
 
     Rectangle {
-        id: toolbar
-        width: parent.width
-        height: 100
+        id: rail
+        width: 130
+        height: parent.height
+        z: 1  // chrome above the full-screen InkItem
         color: "white"
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 4; color: "black" }
+        Rectangle {
+            anchors.right: parent.right
+            width: Theme.frame; height: parent.height
+            color: "black"
+        }
 
-        Row {
-            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-            spacing: 6
+        Column {
+            anchors { top: parent.top; topMargin: 24; horizontalCenter: parent.horizontalCenter }
+            spacing: 14
 
-            Btn { label: "BACK"; onTapped: pageScreen.StackView.view.pop() }
-            Item {
-                width: 130; height: 90
-                Text {
-                    anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
-                    width: parent.width - 6
-                    elide: Text.ElideRight
-                    text: pageScreen.notebookTitle
-                    font { pixelSize: 22; bold: true }
-                }
-            }
-            Item {
-                width: 64; height: 90
-                Text {
-                    anchors.centerIn: parent
-                    text: (pageScreen.pageIndex + 1) + "/" + pageScreen.pageIds.length
-                    font.pixelSize: 22
-                }
-            }
-            Btn {
-                label: "PREV"
-                enabled: pageScreen.pageIndex > 0
-                onTapped: pageScreen.loadPage(pageScreen.pageIndex - 1)
-            }
-            Btn {
-                label: "NEXT"
-                enabled: pageScreen.pageIndex < pageScreen.pageIds.length - 1
-                onTapped: pageScreen.loadPage(pageScreen.pageIndex + 1)
-            }
-            Btn {
-                label: "+PAGE"
-                onTapped: {
-                    pageScreen.controller.createPage(pageScreen.notebookId)
-                    pageScreen.reloadPages()
-                    pageScreen.loadPage(pageScreen.pageIds.length - 1)
-                }
-            }
-            Btn {
-                label: "PENCIL"
+            // ← « » : the only arrows the device fonts cover (↩↶↷ are tofu on hardware)
+            RailBtn { glyph: "←"; label: "BACK"; onTapped: pageScreen.StackView.view.pop() }
+            RailDivider {}
+            RailBtn {
+                id: penBtn
+                label: "PEN"
                 active: pageScreen.activeTool === 0
                 onTapped: pageScreen.activeTool = 0
+                // pen icon: rotated thin shaft + square tip at the lower-left end
+                Item {
+                    anchors.centerIn: parent
+                    width: 30; height: 30
+                    Rectangle { x: 2; y: 13; width: 26; height: 5; rotation: -45; color: penBtn.fg }
+                    Rectangle { x: 3; y: 22; width: 6; height: 6; color: penBtn.fg }
+                }
             }
-            Btn {
-                label: "STROKE"  // stroke eraser: whole strokes
+            RailBtn {
+                id: eraseBtn
+                label: "ERASE"   // stroke eraser: whole strokes
                 active: pageScreen.activeTool === 1
                 onTapped: pageScreen.activeTool = 1
+                // erase icon: small bordered rect
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 26; height: 18
+                    color: eraseBtn.dark ? "black" : "white"
+                    border { color: eraseBtn.fg; width: 3 }
+                }
             }
-            Btn {
+            RailBtn {
+                id: areaBtn
                 label: "AREA"    // area eraser: partial, splits strokes
                 active: pageScreen.activeTool === 2
                 onTapped: pageScreen.activeTool = 2
+                // area icon: dashed-feel rect from 4 short bars (open corners)
+                Item {
+                    anchors.centerIn: parent
+                    width: 28; height: 20
+                    Rectangle { x: 7; y: 0; width: 14; height: 3; color: areaBtn.fg }
+                    Rectangle { x: 7; y: 17; width: 14; height: 3; color: areaBtn.fg }
+                    Rectangle { x: 0; y: 6; width: 3; height: 8; color: areaBtn.fg }
+                    Rectangle { x: 25; y: 6; width: 3; height: 8; color: areaBtn.fg }
+                }
             }
-            Btn {
-                label: "UNDO"
+            RailDivider {}
+            RailBtn {
+                glyph: "«"; label: "UNDO"
                 enabled: pageScreen.controller.canUndo
                 onTapped: pageScreen.controller.undo()
             }
-            Btn {
-                label: "REDO"
+            RailBtn {
+                glyph: "»"; label: "REDO"
                 enabled: pageScreen.controller.canRedo
                 onTapped: pageScreen.controller.redo()
             }
-            Btn {
+        }
+
+        Column {
+            anchors { bottom: parent.bottom; bottomMargin: 24; horizontalCenter: parent.horizontalCenter }
+            spacing: 8
+
+            RailBtn {
                 id: pdfBtn
-                label: "PDF"
+                glyph: "PDF"
+                label: "EXPORT"
                 onTapped: {
                     const ok = pageScreen.controller.exportNotebookPdf(pageScreen.notebookId,
                         "/home/root/ciphercodex/notebook-" + pageScreen.notebookId + ".pdf")
@@ -154,14 +186,49 @@ Item {
                     pdfResetTimer.restart()
                 }
             }
+            RailBtn {
+                glyph: "←"; label: "PREV"
+                enabled: pageScreen.pageIndex > 0
+                onTapped: pageScreen.loadPage(pageScreen.pageIndex - 1)
+            }
+            RailBtn {
+                glyph: "→"; label: "NEXT"
+                enabled: pageScreen.pageIndex < pageScreen.pageIds.length - 1
+                onTapped: pageScreen.loadPage(pageScreen.pageIndex + 1)
+            }
+            Rectangle {
+                // page indicator (not tappable)
+                width: 90; height: 64
+                color: "white"
+                border { color: "black"; width: Theme.chip }
+                Text {
+                    anchors.centerIn: parent
+                    text: (pageScreen.pageIndex + 1) + "/" + pageScreen.pageIds.length
+                    color: "black"
+                    font { family: Theme.mono; pixelSize: Theme.caption }
+                }
+            }
+            RailBtn {
+                glyph: "+"; label: "PAGE"
+                onTapped: {
+                    pageScreen.controller.createPage(pageScreen.notebookId)
+                    pageScreen.reloadPages()
+                    pageScreen.loadPage(pageScreen.pageIds.length - 1)
+                }
+            }
         }
     }
 
-    Timer { id: pdfResetTimer; interval: 2000; onTriggered: pdfBtn.label = "PDF" }
+    Timer { id: pdfResetTimer; interval: 2000; onTriggered: pdfBtn.label = "EXPORT" }
 
     InkItem {
         id: ink
-        anchors { top: toolbar.bottom; left: parent.left; right: parent.right; bottom: parent.bottom }
+        // Full-screen sheet: 1404x1872 is exactly the 3:4 virtual page (pageHeight() =
+        // width*4/3), so every visible pixel has y_norm <= 1.0 and PDF export loses nothing,
+        // and pre-rail pages render pixel-identical. The rail overlays the left edge as
+        // opaque chrome (z above); pen-downs there route to buttons via pen.canvasRect,
+        // so the strip under the rail is a physical margin you can't draw in.
+        anchors.fill: parent
         // Marker Plus rubber end overrides the toolbar pick while in proximity (untested on hw)
         tool: pageScreen.pen.eraser ? 1 : pageScreen.activeTool
     }

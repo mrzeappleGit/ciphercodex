@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import CipherCodex
 
 // On-screen keyboard for the reMarkable (no hardware keys). Operates on `target` — any focused
 // TextInput/TextEdit — via its native insert()/remove()/cursorPosition, so no per-field wiring is
@@ -12,8 +13,9 @@ Item {
     property bool shift: false
     property bool symbols: false
 
-    readonly property real keyH: 96
-    readonly property real gap: 8
+    readonly property real keyH: 104
+    readonly property real gap: 8      // between keys in a row
+    readonly property real rowGap: 10  // between rows
 
     // Three layers. Space/backspace/shift/symbols/done are special tokens handled below.
     readonly property var lettersLower: [
@@ -53,14 +55,18 @@ Item {
         if (p > 0) { target.remove(p - 1, p) }
     }
 
-    // 5 rows (4 letter/number rows + the space/DONE bar), 4 inter-row gaps, 2 margin gaps.
-    height: 5 * keyH + 6 * gap
+    // Content-fit: 5 rows x 104 + 4 x rowGap + top/bottom padding. The mock's literal 750
+    // left a ~136px dead strip under the bottom row; fit instead (more page stays visible).
+    height: Theme.frame + 20 + 5 * 104 + 4 * rowGap + 30
     // opaque panel so page content behind it never shows through on e-ink
-    Rectangle { anchors.fill: parent; color: "white"; border { color: "black"; width: 4 } }
+    Rectangle { anchors.fill: parent; color: "white" }
+    // frame border along the top edge only, per the design
+    Rectangle { anchors { top: parent.top; left: parent.left; right: parent.right }
+                height: Theme.frame; color: "black" }
 
     Column {
-        anchors { fill: parent; margins: kb.gap }
-        spacing: kb.gap
+        anchors { fill: parent; topMargin: Theme.frame + 20; leftMargin: 20; rightMargin: 20; bottomMargin: 30 }
+        spacing: kb.rowGap
         Repeater {
             model: kb.rows
             Row {
@@ -75,16 +81,17 @@ Item {
                         required property string modelData
                         readonly property bool special: modelData.startsWith("{")
                         // special keys are wider so the alpha rows stay aligned
-                        width: modelData === "{shift}" || modelData === "{bs}" ? 150 : 96
+                        width: key.special ? 160 : 120
                         height: kb.keyH
                         color: keyTap.pressed ? "black" : "white"
-                        border { color: "black"; width: 3 }
+                        border { color: "black"; width: Theme.hairline }
                         Text {
                             anchors.centerIn: parent
                             color: keyTap.pressed ? "white" : "black"
-                            font { pixelSize: key.special ? 26 : 34; bold: true }
+                            font { family: Theme.display; weight: Font.Bold
+                                   pixelSize: key.special ? 26 : 28 }
                             text: key.modelData === "{shift}" ? (kb.shift ? "SHFT" : "shft")
-                                  : key.modelData === "{bs}" ? "⌫"
+                                  : key.modelData === "{bs}" ? "DEL"  // no device font covers U+232B (was tofu)
                                   : key.modelData
                         }
                         TapHandler {
@@ -99,30 +106,37 @@ Item {
                 }
             }
         }
-        // Bottom bar: layer toggle, space, done.
+        // Bottom bar: layer toggle, space, return (drops focus -> Main.qml hides the board).
         Row {
             spacing: kb.gap
             anchors.horizontalCenter: parent.horizontalCenter
             Rectangle {
-                width: 150; height: kb.keyH
-                color: symTap.pressed ? "black" : "white"; border { color: "black"; width: 3 }
+                width: 180; height: kb.keyH
+                color: symTap.pressed ? "black" : "white"
+                border { color: "black"; width: Theme.hairline }
                 Text { anchors.centerIn: parent; text: kb.symbols ? "ABC" : "?123"
-                       color: symTap.pressed ? "white" : "black"; font { pixelSize: 26; bold: true } }
+                       color: symTap.pressed ? "white" : "black"
+                       font { family: Theme.display; weight: Font.Bold; pixelSize: 24 } }
                 // Clear shift on layer switch so a one-shot shift never bleeds across layers.
                 TapHandler { id: symTap; onTapped: { kb.symbols = !kb.symbols; kb.shift = false } }
             }
             Rectangle {
-                width: 560; height: kb.keyH
-                color: spTap.pressed ? "black" : "white"; border { color: "black"; width: 3 }
-                Text { anchors.centerIn: parent; text: "space"
-                       color: spTap.pressed ? "white" : "black"; font { pixelSize: 26; bold: true } }
+                width: 700; height: kb.keyH
+                color: spTap.pressed ? "black" : "white"
+                border { color: "black"; width: Theme.hairline }
+                Text { anchors.centerIn: parent; text: "SPACE"
+                       color: spTap.pressed ? "white" : "black"
+                       font { family: Theme.display; weight: Font.Bold; pixelSize: 24; letterSpacing: 4 } }
                 TapHandler { id: spTap; onTapped: kb.type(" ", false) }
             }
             Rectangle {
-                width: 220; height: kb.keyH
-                color: doneTap.pressed ? "black" : "white"; border { color: "black"; width: 4 }
-                Text { anchors.centerIn: parent; text: "DONE"
-                       color: doneTap.pressed ? "white" : "black"; font { pixelSize: 28; bold: true } }
+                // primary action: inverted at rest, inverts back when pressed
+                width: 260; height: kb.keyH
+                color: doneTap.pressed ? "white" : "black"
+                border { color: "black"; width: Theme.hairline }
+                Text { anchors.centerIn: parent; text: "RETURN"
+                       color: doneTap.pressed ? "black" : "white"
+                       font { family: Theme.display; weight: Font.Bold; pixelSize: 24 } }
                 // Drop focus -> Main.qml hides the board.
                 TapHandler { id: doneTap; onTapped: if (kb.target) kb.target.focus = false }
             }

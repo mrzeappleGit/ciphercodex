@@ -25,9 +25,12 @@ constexpr int kParaFirstLineIndentPx = 16;  // Pagination: TextIndent(firstLine 
 constexpr char16_t kImageChar = 0xFFFC;
 constexpr char16_t kLineSep = 0x2028;  // QChar::LineSeparator: keeps <br> inside one QTextBlock
 
-// Map a UI font token to an installed device family (Noto Serif/Sans/Mono, EB Garamond).
+// Map a UI font token to an installed device family (Noto Serif/Sans/Mono, EB Garamond)
+// or an embedded app font (Courier Prime — the design's reading face).
 QString familyFor(const QString &token)
 {
+    if (token.compare(QLatin1String("Typewriter"), Qt::CaseInsensitive) == 0)
+        return QStringLiteral("Courier Prime");
     if (token.compare(QLatin1String("Sans"), Qt::CaseInsensitive) == 0)
         return QStringLiteral("Noto Sans");
     if (token.compare(QLatin1String("Mono"), Qt::CaseInsensitive) == 0)

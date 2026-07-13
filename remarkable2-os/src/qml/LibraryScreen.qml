@@ -30,66 +30,82 @@ Item {
         function onSyncedDataChanged() { lib.reload() }
     }
 
-    component Btn: Rectangle {
-        id: b
-        property alias label: t.text
-        property bool inverted: false
+    // Filter chip — Theme.chip border, 12/24 padding, inverted when active or pressed
+    // Transparent 90px-tall hit wrapper around the visual chip: vertical touch padding
+    // without handler margins, so adjacent chips' hit zones can never overlap sideways.
+    component Chip: Item {
+        id: c
+        property alias label: ct.text
         property bool active: false
         signal tapped()
-        readonly property bool dark: b.active || (btnTap.pressed !== b.inverted)
-        width: Math.max(90, t.implicitWidth + 40)
-        height: 90
-        color: b.dark ? "black" : "white"
-        border { color: b.inverted ? "white" : "black"; width: 4 }
-        Text {
-            id: t
+        readonly property bool dark: c.active !== chipTap.pressed
+        width: chipBox.width
+        height: Theme.touch
+        Rectangle {
+            id: chipBox
             anchors.centerIn: parent
-            color: b.dark ? "white" : "black"
-            font { pixelSize: 26; bold: true }
-        }
-        TapHandler { id: btnTap; onTapped: b.tapped() }
-    }
-
-    Rectangle {
-        id: header
-        width: parent.width; height: 120
-        color: "black"
-        Btn {
-            anchors { left: parent.left; leftMargin: 30; verticalCenter: parent.verticalCenter }
-            label: "BACK"
-            inverted: true
-            onTapped: lib.StackView.view.pop()
-        }
-        Text {
-            anchors.centerIn: parent
-            text: "LIBRARY"
-            color: "white"
-            font { pixelSize: 44; letterSpacing: 10; bold: true }
-        }
-        Row {
-            anchors { right: parent.right; rightMargin: 40; verticalCenter: parent.verticalCenter }
-            spacing: 10
-            Repeater {
-                model: [46, 70, 96, 70, 46]
-                Rectangle {
-                    required property int modelData
-                    width: 14; height: modelData; color: "white"
-                    anchors.verticalCenter: parent.verticalCenter
-                }
+            width: ct.implicitWidth + 48
+            height: ct.implicitHeight + 24
+            color: c.dark ? "black" : "white"
+            border { color: "black"; width: Theme.chip }
+            Text {
+                id: ct
+                anchors.centerIn: parent
+                color: c.dark ? "white" : "black"
+                font { family: Theme.display; weight: Font.Bold; pixelSize: 22 }
             }
         }
+        TapHandler { id: chipTap; onTapped: c.tapped() }
     }
 
-    // Toolbar: IMPORT / SORT / search
-    Item {
-        id: toolbar
-        anchors { top: header.bottom; left: parent.left; right: parent.right }
-        height: 130
-        Row {
-            anchors { left: parent.left; leftMargin: 60; verticalCenter: parent.verticalCenter }
-            spacing: 20
-            Btn {
-                label: lib.flash !== "" ? lib.flash : "IMPORT"
+    // Header band — 140px solid black: ← LIBRARY left, IMPORT chip right
+    Rectangle {
+        id: header
+        width: parent.width; height: Theme.headerBand
+        color: "black"
+
+        Rectangle {  // back affordance (whole left group pops)
+            id: backArea
+            anchors { left: parent.left; leftMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+            width: backRow.implicitWidth + 24
+            height: Theme.touch
+            color: backTap.pressed ? "white" : "black"
+            Row {
+                id: backRow
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 24
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "←"
+                    color: backTap.pressed ? "black" : "white"
+                    font.pixelSize: 34
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "LIBRARY"
+                    color: backTap.pressed ? "black" : "white"
+                    font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.h2; letterSpacing: 2 }
+                }
+            }
+            TapHandler { id: backTap; onTapped: lib.StackView.view.pop() }
+        }
+
+        Rectangle {  // IMPORT action chip (doubles as the flash message)
+            anchors { right: parent.right; rightMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+            width: importLabel.implicitWidth + 56
+            height: 88
+            color: importTap.pressed ? "white" : "black"
+            border { color: "white"; width: Theme.chip }
+            Text {
+                id: importLabel
+                anchors.centerIn: parent
+                text: lib.flash !== "" ? lib.flash : "IMPORT"
+                color: importTap.pressed ? "black" : "white"
+                font { family: Theme.display; weight: Font.Bold; pixelSize: 26; letterSpacing: 1 }
+            }
+            TapHandler {
+                id: importTap
+                margin: 1  // 88px chip + 1px each side = the 90px touch floor
                 onTapped: {
                     const s = lib.reader.importInbox()
                     lib.flash = "+" + s.imported + " DUP " + s.duplicates + " FAIL " + s.failed
@@ -97,52 +113,107 @@ Item {
                     lib.reload()
                 }
             }
-            Btn {
-                label: "SORT: " + lib.sortNames[lib.sortMode]
-                onTapped: { lib.sortMode = (lib.sortMode + 1) % 5; lib.reload() }
-            }
-            Rectangle {
-                width: 460; height: 90
-                color: "white"
-                border { color: "black"; width: 4 }
-                Text {
-                    visible: searchInput.text === ""
-                    anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                    text: "SEARCH"
-                    color: "#999999"
-                    font { pixelSize: 26; bold: true }
-                }
-                TextInput {
-                    id: searchInput
-                    anchors { fill: parent; leftMargin: 20; rightMargin: 20 }
-                    verticalAlignment: TextInput.AlignVCenter
-                    clip: true
-                    font { pixelSize: 26; bold: true }
-                    onTextChanged: { lib.query = text; lib.reload() }
-                }
-            }
         }
     }
 
     Timer { id: flashTimer; interval: 2500; onTriggered: lib.flash = "" }
 
-    // Filter chips with full-library counts
-    Row {
+    // Search row — 96px, Theme.frame bottom border
+    Item {
+        id: searchRow
+        anchors { top: header.bottom; left: parent.left; right: parent.right }
+        height: 96
+
+        Item {  // magnifier built from rectangles (glyph policy)
+            id: searchIcon
+            anchors { left: parent.left; leftMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+            width: 30; height: 30
+            Rectangle {
+                width: 20; height: 20; radius: 10
+                color: "white"
+                border { color: "black"; width: 3 }
+            }
+            Rectangle {
+                x: 14; y: 16
+                width: 3; height: 12
+                rotation: 45
+                color: "black"
+            }
+        }
+
+        Text {
+            visible: searchInput.text === ""
+            anchors { left: searchIcon.right; leftMargin: 20; verticalCenter: parent.verticalCenter }
+            text: "Search library..."
+            color: "#999999"
+            font { family: Theme.reading; pixelSize: 26 }
+        }
+        TextInput {
+            id: searchInput
+            anchors {
+                left: searchIcon.right; leftMargin: 20
+                right: parent.right; rightMargin: Theme.pad
+                top: parent.top; bottom: parent.bottom
+            }
+            verticalAlignment: TextInput.AlignVCenter
+            clip: true
+            color: "black"
+            font { family: Theme.reading; pixelSize: 26 }
+            onTextChanged: { lib.query = text; lib.reload() }
+        }
+
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: Theme.frame
+            color: "black"
+        }
+    }
+
+    // Filter chips row — 96px, sort control right
+    Item {
         id: chips
-        anchors { top: toolbar.bottom; left: parent.left; leftMargin: 60 }
-        spacing: 20
-        Btn { label: "ALL " + lib.counts.all; active: lib.filter === 0; onTapped: { lib.filter = 0; lib.reload() } }
-        Btn { label: "UNREAD " + lib.counts.unread; active: lib.filter === 1; onTapped: { lib.filter = 1; lib.reload() } }
-        Btn { label: "READING " + lib.counts.reading; active: lib.filter === 2; onTapped: { lib.filter = 2; lib.reload() } }
-        Btn { label: "FINISHED " + lib.counts.finished; active: lib.filter === 3; onTapped: { lib.filter = 3; lib.reload() } }
+        anchors { top: searchRow.bottom; left: parent.left; right: parent.right }
+        height: 96
+
+        Row {
+            anchors { left: parent.left; leftMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+            spacing: 16
+            Chip { label: "ALL " + lib.counts.all; active: lib.filter === 0; onTapped: { lib.filter = 0; lib.reload() } }
+            Chip { label: "UNREAD " + lib.counts.unread; active: lib.filter === 1; onTapped: { lib.filter = 1; lib.reload() } }
+            Chip { label: "READING " + lib.counts.reading; active: lib.filter === 2; onTapped: { lib.filter = 2; lib.reload() } }
+            Chip { label: "FINISHED " + lib.counts.finished; active: lib.filter === 3; onTapped: { lib.filter = 3; lib.reload() } }
+        }
+
+        Item {  // sort cycler
+            anchors { right: parent.right; rightMargin: Theme.pad; top: parent.top; bottom: parent.bottom }
+            width: Math.max(Theme.touch, sortLabel.implicitWidth + 24)
+            Rectangle {
+                anchors.fill: parent
+                color: sortTap.pressed ? "black" : "white"
+            }
+            Text {
+                id: sortLabel
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                text: "SORT: " + lib.sortNames[lib.sortMode] + " ▼"  // U+25BC: on device; U+25BE is not
+                color: sortTap.pressed ? "white" : "black"
+                font { family: Theme.mono; pixelSize: 20 }
+            }
+            TapHandler { id: sortTap; onTapped: { lib.sortMode = (lib.sortMode + 1) % 5; lib.reload() } }
+        }
+
+        Rectangle {  // top rule of the list
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: Theme.hairline
+            color: "black"
+        }
     }
 
     Text {  // empty-library / no-results placeholder
         visible: lib.books.length === 0
         anchors { top: chips.bottom; topMargin: 120; horizontalCenter: parent.horizontalCenter }
         horizontalAlignment: Text.AlignHCenter
-        color: "#6B6B6B"
-        font.pixelSize: 28
+        color: "black"
+        font { family: Theme.reading; pixelSize: 26 }
         text: lib.counts.all === 0
               ? "No books yet\nDrop PDFs into the inbox and tap IMPORT"
               : "No matches"
@@ -151,98 +222,182 @@ Item {
     ListView {
         id: list
         anchors {
-            top: chips.bottom; topMargin: 30
-            left: parent.left; leftMargin: 60
-            right: parent.right; rightMargin: 60
-            bottom: parent.bottom; bottomMargin: 30
+            top: chips.bottom
+            left: parent.left; right: parent.right
+            bottom: parent.bottom
         }
         clip: true
-        spacing: 20
         model: lib.books
         delegate: Rectangle {
             id: row
             required property var modelData
             property bool confirming: false
+            readonly property bool inverted: rowTap.pressed && !row.confirming
             width: list.width
-            height: 200
-            color: rowTap.pressed && !row.confirming ? "black" : "white"
-            border { color: "black"; width: 4 }
+            height: 154
+            color: row.inverted ? "black" : "white"
+            border { color: "black"; width: row.confirming ? Theme.frame : 0 }
 
-            Rectangle {  // cover box (image or title-block fallback)
+            Rectangle {  // cover box: real cover or dot-grid + letter badge
                 id: coverBox
                 visible: !row.confirming
-                anchors { left: parent.left; leftMargin: 24; verticalCenter: parent.verticalCenter }
-                width: 116; height: 160
+                anchors { left: parent.left; leftMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+                width: 88; height: 118
                 color: "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.chip }
                 Image {
                     id: cover
-                    anchors { fill: parent; margins: 3 }
+                    anchors { fill: parent; margins: Theme.chip }
                     fillMode: Image.PreserveAspectFit
                     cache: false
                     source: row.modelData.coverPath !== "" ? "file://" + row.modelData.coverPath : ""
                 }
-                Text {
+                DotGrid {
                     visible: cover.status !== Image.Ready
-                    anchors { fill: parent; margins: 8 }
-                    text: row.modelData.title
-                    wrapMode: Text.WordWrap
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                    maximumLineCount: 5
-                    font { pixelSize: 16; bold: true }
+                    anchors { fill: parent; margins: Theme.chip }
+                    pitch: 7; dot: 1.6
+                }
+                Rectangle {  // corner letter badge on the placeholder
+                    visible: cover.status !== Image.Ready
+                    anchors { left: parent.left; bottom: parent.bottom }
+                    width: 32; height: 32
+                    color: "black"
+                    Text {
+                        anchors.centerIn: parent
+                        text: row.modelData.title.charAt(0).toUpperCase()
+                        color: "white"
+                        font { family: Theme.display; weight: Font.Bold; pixelSize: 22 }
+                    }
+                }
+            }
+
+            Item {  // status mark: unread ○ / reading half-disc / finished ●
+                id: statusMark
+                visible: !row.confirming
+                anchors { left: coverBox.right; leftMargin: 24; verticalCenter: parent.verticalCenter }
+                width: 30; height: 30
+                readonly property color ink: row.inverted ? "white" : "black"
+                Rectangle {
+                    anchors.fill: parent
+                    radius: width / 2
+                    color: row.modelData.state === 2 ? statusMark.ink : "transparent"
+                    border { color: statusMark.ink; width: 3 }
+                }
+                Item {  // left half-disc for reading
+                    visible: row.modelData.state === 1
+                    width: parent.width / 2; height: parent.height
+                    clip: true
+                    Rectangle {
+                        width: statusMark.width; height: statusMark.height
+                        radius: width / 2
+                        color: statusMark.ink
+                    }
                 }
             }
 
             Column {
                 visible: !row.confirming
                 anchors {
-                    left: coverBox.right; leftMargin: 30
-                    right: parent.right; rightMargin: 30
+                    left: statusMark.right; leftMargin: 24
+                    right: progressText.left; rightMargin: 24
                     verticalCenter: parent.verticalCenter
                 }
-                spacing: 10
+                spacing: 6
                 Text {
                     width: parent.width
                     elide: Text.ElideRight
                     text: row.modelData.title
-                    color: rowTap.pressed ? "white" : "black"
-                    font { pixelSize: 34; bold: true }
+                    color: row.inverted ? "white" : "black"
+                    font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.body; letterSpacing: 1 }
                 }
                 Text {
                     width: parent.width
                     elide: Text.ElideRight
-                    visible: row.modelData.author !== ""
-                    text: row.modelData.author
-                    color: rowTap.pressed ? "white" : "black"
-                    font.pixelSize: 26
+                    text: (row.modelData.author !== "" ? row.modelData.author + " · " : "")
+                          + (row.modelData.format === 1 ? "EPUB" : "PDF")
+                    color: row.inverted ? "white" : "black"
+                    font { family: Theme.mono; pixelSize: Theme.caption }
+                }
+            }
+
+            Text {
+                id: progressText
+                visible: !row.confirming
+                anchors { right: parent.right; rightMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+                text: row.modelData.state === 0 ? "NEW"
+                    : row.modelData.state === 2 ? "DONE"
+                    : Math.round(row.modelData.percentage * 100) + "%"
+                color: row.inverted ? "white" : "black"
+                // no bold: Share Tech Mono ships one weight; synthesis smears on 1-bit e-ink
+                font { family: Theme.mono; pixelSize: Theme.secondary }
+            }
+
+            Item {  // in-place confirm: DELETE THIS BOOK? · CANCEL · CONFIRM
+                visible: row.confirming
+                anchors { fill: parent; leftMargin: Theme.pad; rightMargin: 24 }
+                Text {
+                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                    text: "DELETE THIS BOOK?"
+                    color: "black"
+                    font { family: Theme.display; weight: Font.Bold; pixelSize: 22 }
                 }
                 Row {
-                    spacing: 16
-                    Text {
-                        text: row.modelData.format === 1 ? "EPUB" : "PDF"
-                        color: rowTap.pressed ? "white" : "black"
-                        font { pixelSize: 22; bold: true }
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    spacing: 24
+                    // 90px-tall wrapper Items carry the taps with NO handler margin: hit zones
+                    // stay horizontally exact so a CANCEL edge tap can never reach CONFIRM.
+                    Item {
+                        width: cancelBox.width
+                        height: Theme.touch
+                        anchors.verticalCenter: parent.verticalCenter
+                        Rectangle {
+                            id: cancelBox
+                            anchors.centerIn: parent
+                            width: cancelLabel.implicitWidth + 40
+                            height: cancelLabel.implicitHeight + 20
+                            color: cancelTap.pressed ? "black" : "white"
+                            border { color: "black"; width: Theme.chip }
+                            Text {
+                                id: cancelLabel
+                                anchors.centerIn: parent
+                                text: "CANCEL"
+                                color: cancelTap.pressed ? "white" : "black"
+                                font { family: Theme.display; weight: Font.Bold; pixelSize: 22 }
+                            }
+                        }
+                        TapHandler { id: cancelTap; onTapped: row.confirming = false }
                     }
-                    Text {
-                        text: row.modelData.state === 0 ? "UNREAD"
-                            : Math.round(row.modelData.percentage * 100) + "%"
-                        color: rowTap.pressed ? "white" : "black"
-                        font.pixelSize: 22
+                    Item {
+                        width: confirmBox.width
+                        height: Theme.touch
+                        anchors.verticalCenter: parent.verticalCenter
+                        Rectangle {
+                            id: confirmBox
+                            anchors.centerIn: parent
+                            width: confirmLabel.implicitWidth + 40
+                            height: confirmLabel.implicitHeight + 20
+                            color: confirmTap.pressed ? "white" : "black"
+                            border { color: "black"; width: Theme.chip }
+                            Text {
+                                id: confirmLabel
+                                anchors.centerIn: parent
+                                text: "CONFIRM"
+                                color: confirmTap.pressed ? "black" : "white"
+                                font { family: Theme.display; weight: Font.Bold; pixelSize: 22 }
+                            }
+                        }
+                        TapHandler {
+                            id: confirmTap
+                            onTapped: { lib.reader.deleteBook(row.modelData.id); lib.reload() }
+                        }
                     }
                 }
             }
 
-            Row {
-                visible: row.confirming
-                anchors.centerIn: parent
-                spacing: 40
-                Btn {
-                    label: "DELETE"
-                    onTapped: { lib.reader.deleteBook(row.modelData.id); lib.reload() }
-                }
-                Btn { label: "CANCEL"; onTapped: row.confirming = false }
+            Rectangle {  // row divider
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: Theme.hairline
+                color: "black"
             }
 
             TapHandler {

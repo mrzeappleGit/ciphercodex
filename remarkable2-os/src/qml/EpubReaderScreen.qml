@@ -35,10 +35,11 @@ Item {
     property bool addingNote: false    // note editor open for a fresh selection
     property var editHl: null          // tapped highlight -> edit/delete sheet (null = closed)
 
-    // Typography (persisted in the settings table).
-    property string fontName: "Serif"
+    // Typography (persisted in the settings table). Design defaults: Courier Prime
+    // ("Typewriter" token, embedded app font) at 34px / 1.75 line; saved settings win.
+    property string fontName: "Typewriter"
     property int fontSize: 34
-    property real lineSpacing: 1.5
+    property real lineSpacing: 1.75
     property int margins: 90
     property bool justify: false
 
@@ -83,9 +84,9 @@ Item {
     }
 
     function loadTypo() {
-        epubReader.fontName = epubReader.reader.setting("epub_font", "Serif")
+        epubReader.fontName = epubReader.reader.setting("epub_font", "Typewriter")
         epubReader.fontSize = parseInt(epubReader.reader.setting("epub_size", "34"))
-        epubReader.lineSpacing = parseFloat(epubReader.reader.setting("epub_line", "1.5"))
+        epubReader.lineSpacing = parseFloat(epubReader.reader.setting("epub_line", "1.75"))
         epubReader.margins = parseInt(epubReader.reader.setting("epub_margins", "90"))
         epubReader.justify = epubReader.reader.setting("epub_justify", "0") === "1"
     }
@@ -148,56 +149,99 @@ Item {
         }
     }
 
+    // Panel/dialog button (secondary = bordered, active/pressed = full inversion).
     component Btn: Rectangle {
         id: b
         property alias label: t.text
         property bool active: false
         signal tapped()
         readonly property bool dark: btnTap.pressed || b.active
-        width: Math.max(88, t.implicitWidth + 22)
-        height: 90
+        width: Math.max(Theme.touch, t.implicitWidth + 28)
+        height: Theme.touch
         color: b.dark ? "black" : "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.chip }
         Text {
             id: t
             anchors.centerIn: parent
             color: b.dark ? "white" : "black"
-            font { pixelSize: 22; bold: true }
+            font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.button; letterSpacing: 1 }
         }
         TapHandler { id: btnTap; onTapped: b.tapped() }
     }
 
+    // Selection-toolbar action: full-height cell, pressed = inversion, styled per the design card.
+    component SelAction: Item {
+        id: sa
+        property alias label: sat.text
+        signal tapped()
+        width: sat.implicitWidth + 44
+        height: 90
+        Rectangle { anchors.fill: parent; color: "black"; visible: saTap.pressed }
+        Text {
+            id: sat
+            anchors.centerIn: parent
+            color: saTap.pressed ? "white" : "black"
+            font { family: Theme.display; weight: Font.Bold; pixelSize: 22; letterSpacing: 1 }
+        }
+        TapHandler { id: saTap; onTapped: sa.tapped() }
+    }
+    component SelSep: Rectangle { width: Theme.hairline; height: 90; color: "black" }
+
+    // Thin-bar text action: 90x90 touch zone, visual inversion band inside the 72px strip.
+    component StripBtn: Item {
+        id: sb
+        property alias label: sbt.text
+        property bool active: false
+        signal tapped()
+        readonly property bool dark: sbTap.pressed || sb.active
+        width: Math.max(Theme.touch, sbt.implicitWidth + 28)
+        height: Theme.touch
+        Rectangle { anchors.centerIn: parent; width: parent.width; height: 56; color: "black"; visible: sb.dark }
+        Text {
+            id: sbt
+            anchors.centerIn: parent
+            color: sb.dark ? "white" : "black"
+            font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.caption; letterSpacing: 1 }
+        }
+        TapHandler { id: sbTap; onTapped: sb.tapped() }
+    }
+
+    // ---- Top strip: 72px thin bar — back, chapter/book label, panel actions, percentage ----
     Rectangle {
         id: toolbar
         width: parent.width
-        height: 100
+        height: 72
         color: "white"
         z: 2
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 4; color: "black" }
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Theme.hairline; color: "black" }
+
+        Item {
+            id: backBtn
+            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+            width: Theme.touch
+            height: Theme.touch
+            Rectangle { anchors.centerIn: parent; width: parent.width; height: 56; color: "black"; visible: backTap.pressed }
+            Text {
+                anchors.centerIn: parent
+                text: "←"
+                color: backTap.pressed ? "white" : "black"
+                font.pixelSize: 34
+            }
+            TapHandler { id: backTap; onTapped: epubReader.StackView.view.pop() }
+        }
+        Text {
+            anchors { left: backBtn.right; leftMargin: 16; right: stripActions.left; rightMargin: 16
+                      verticalCenter: parent.verticalCenter }
+            elide: Text.ElideRight
+            text: "CH. " + (epubView.spineIndex + 1) + "/" + epubView.spineCount
+                  + (epubReader.title !== "" ? " — " + epubReader.title.toUpperCase() : "")
+            font { family: Theme.mono; pixelSize: Theme.caption }
+        }
         Row {
-            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-            spacing: 6
-            Btn { label: "BACK"; onTapped: epubReader.StackView.view.pop() }
-            Item {
-                width: 240; height: 90
-                Text {
-                    anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
-                    width: parent.width - 6
-                    elide: Text.ElideRight
-                    text: epubReader.title
-                    font { pixelSize: 22; bold: true }
-                }
-            }
-            Item {
-                width: 200; height: 90
-                Text {
-                    anchors.centerIn: parent
-                    text: "CH " + (epubView.spineIndex + 1) + "/" + epubView.spineCount
-                          + "  p" + (epubView.pageInSpine + 1) + "/" + epubView.pagesInSpine
-                    font.pixelSize: 20
-                }
-            }
-            Btn {
+            id: stripActions
+            anchors { right: parent.right; rightMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+            spacing: 8
+            StripBtn {
                 label: "TOC"
                 active: epubReader.panel === "toc"
                 onTapped: {
@@ -208,7 +252,7 @@ Item {
                     }
                 }
             }
-            Btn {
+            StripBtn {
                 label: "MARKS"
                 active: epubReader.panel === "bookmarks"
                 onTapped: {
@@ -216,15 +260,21 @@ Item {
                     else { epubReader.reloadBookmarks(); epubReader.panel = "bookmarks" }
                 }
             }
-            Btn {
+            StripBtn {
                 label: "SEARCH"
                 active: epubReader.panel === "search"
                 onTapped: epubReader.panel = (epubReader.panel === "search" ? "" : "search")
             }
-            Btn {
-                label: "Aa"
-                active: epubReader.panel === "type"
-                onTapped: epubReader.panel = (epubReader.panel === "type" ? "" : "type")
+            Item {
+                width: pctText.implicitWidth + 16
+                height: Theme.touch
+                anchors.verticalCenter: parent.verticalCenter
+                Text {
+                    id: pctText
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    text: Math.round(epubView.percentage * 100) + "%"
+                    font { family: Theme.mono; pixelSize: Theme.caption }
+                }
             }
         }
     }
@@ -250,26 +300,61 @@ Item {
         onTapped: { epubView.back(); epubReader.jumpDepth -= 1 }
     }
 
-    // Whole-book progress scrubber: tap to jump (chapter-granular); fill reflects percentage.
+    // ---- Bottom strip: 72px thin bar — page indicator, seek zone (whole-book scrubber), Aa chip ----
     Rectangle {
         id: scrubber
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: 48
+        height: 72
         color: "white"
         z: 2
-        Rectangle { anchors.top: parent.top; width: parent.width; height: 4; color: "black" }
+        Rectangle { anchors.top: parent.top; width: parent.width; height: Theme.hairline; color: "black" }
+        // Whole-book progress fill (kept from the old scrubber; fill reflects percentage).
         Rectangle {
-            anchors { left: parent.left; bottom: parent.bottom; bottomMargin: 8 }
-            height: 20
+            anchors { left: parent.left; bottom: parent.bottom }
+            height: 6
             color: "black"
             width: scrubber.width * epubView.percentage
         }
         Text {
-            anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-            text: Math.round(epubView.percentage * 100) + "%"
-            font { pixelSize: 20; bold: true }
+            id: pageText
+            anchors { left: parent.left; leftMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+            text: "p. " + (epubView.pageInSpine + 1) + " / " + epubView.pagesInSpine
+            font { family: Theme.mono; pixelSize: Theme.caption }
         }
-        TapHandler { onTapped: (ep) => epubReader.seekTo(ep.position.x / scrubber.width) }
+        // Tap-to-seek (chapter-granular) across the middle of the strip, as the old scrubber did.
+        Item {
+            id: seekZone
+            anchors { left: pageText.right; leftMargin: 24; right: aaChip.left; rightMargin: 24
+                      top: parent.top; bottom: parent.bottom }
+            TapHandler {
+                // fraction is zone-relative so the full 0..1 range (first/last chapters)
+                // stays reachable even though the zone starts right of the page label
+                onTapped: (ep) => epubReader.seekTo(ep.position.x / seekZone.width)
+            }
+        }
+        // "Aa" chip — toggles the existing typography panel.
+        Item {
+            id: aaChip
+            anchors { right: parent.right; rightMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+            width: Theme.touch
+            height: Theme.touch
+            readonly property bool dark: aaTap.pressed || epubReader.panel === "type"
+            Rectangle {
+                anchors.centerIn: parent
+                width: aaText.implicitWidth + 32
+                height: 52
+                color: aaChip.dark ? "black" : "white"
+                border { color: "black"; width: Theme.hairline }
+                Text {
+                    id: aaText
+                    anchors.centerIn: parent
+                    text: "Aa"
+                    color: aaChip.dark ? "white" : "black"
+                    font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.button }
+                }
+            }
+            TapHandler { id: aaTap; onTapped: epubReader.panel = (epubReader.panel === "type" ? "" : "type") }
+        }
     }
 
     // ---- Right-side panels (opaque; overlay EpubView) ----
@@ -279,7 +364,7 @@ Item {
         anchors { top: toolbar.bottom; right: parent.right; bottom: scrubber.top }
         width: 560
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.frame }
         z: 3
         ListView {
             anchors { fill: parent; margins: 16 }
@@ -292,18 +377,18 @@ Item {
                 width: ListView.view.width
                 height: 84
                 color: tocTap.pressed ? "black" : "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.chip }
                 Text {
                     anchors { left: parent.left; leftMargin: 16; right: parent.right; rightMargin: 16
                               verticalCenter: parent.verticalCenter }
                     elide: Text.ElideRight
                     text: tocRow.modelData.title
                     color: tocTap.pressed ? "white" : "black"
-                    font.pixelSize: 24
+                    font { family: Theme.display; weight: Font.DemiBold; pixelSize: 24 }
                 }
                 TapHandler {
                     id: tocTap
-                    onTapped: { epubView.goToSpine(tocRow.modelData.spineIndex); epubReader.panel = "" }
+                    onTapped: { epubView.goToSpine(tocRow.modelData.spine); epubReader.panel = "" }
                 }
             }
         }
@@ -314,7 +399,7 @@ Item {
         anchors { top: toolbar.bottom; right: parent.right; bottom: scrubber.top }
         width: 560
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.frame }
         z: 3
         Btn {
             id: addBm
@@ -339,14 +424,14 @@ Item {
                 width: ListView.view.width
                 height: 84
                 color: bmTap.pressed ? "black" : "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.chip }
                 Text {
                     anchors { left: parent.left; leftMargin: 16; right: delBm.left; rightMargin: 12
                               verticalCenter: parent.verticalCenter }
                     elide: Text.ElideRight
                     text: bmRow.modelData.label + "  " + Math.round(bmRow.modelData.percentage * 100) + "%"
                     color: bmTap.pressed ? "white" : "black"
-                    font.pixelSize: 24
+                    font { family: Theme.display; weight: Font.DemiBold; pixelSize: 24 }
                 }
                 TapHandler {
                     id: bmTap
@@ -374,7 +459,7 @@ Item {
         anchors { top: toolbar.bottom; right: parent.right; bottom: scrubber.top }
         width: 560
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.frame }
         z: 3
         Row {
             id: searchRow
@@ -383,20 +468,20 @@ Item {
             Rectangle {
                 width: parent.width - 150; height: 84
                 color: "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.hairline }
                 Text {
                     visible: searchField.text === ""
                     anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                     text: "FIND"
                     color: "#999999"
-                    font { pixelSize: 24; bold: true }
+                    font { family: Theme.reading; pixelSize: 24 }
                 }
                 TextInput {
                     id: searchField
                     anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
                     verticalAlignment: TextInput.AlignVCenter
                     clip: true
-                    font { pixelSize: 24; bold: true }
+                    font { family: Theme.reading; pixelSize: 24 }
                     onAccepted: epubReader.runSearch(text)
                 }
             }
@@ -411,7 +496,7 @@ Item {
             visible: epubReader.searchTruncated
             anchors { top: searchRow.bottom; topMargin: 12; horizontalCenter: parent.horizontalCenter }
             text: "showing first " + epubReader.searchHits.length + " matches"
-            color: "#6B6B6B"; font.pixelSize: 20
+            font { family: Theme.mono; pixelSize: Theme.caption }
         }
         ListView {
             anchors { top: capNote.visible ? capNote.bottom : searchRow.bottom; topMargin: 16
@@ -426,7 +511,7 @@ Item {
                 width: ListView.view.width
                 height: 96
                 color: hitTap.pressed ? "black" : "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.chip }
                 Column {
                     anchors { left: parent.left; leftMargin: 16; right: parent.right; rightMargin: 16
                               verticalCenter: parent.verticalCenter }
@@ -434,14 +519,14 @@ Item {
                     Text {
                         text: "Ch " + (hitRow.modelData.spine + 1)
                         color: hitTap.pressed ? "white" : "black"
-                        font { pixelSize: 20; bold: true }
+                        font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.caption }
                     }
                     Text {
                         width: hitRow.width - 32
                         elide: Text.ElideRight
                         text: hitRow.modelData.snippet
                         color: hitTap.pressed ? "white" : "black"
-                        font.pixelSize: 22
+                        font { family: Theme.mono; pixelSize: Theme.secondary }
                     }
                 }
                 TapHandler {
@@ -460,17 +545,17 @@ Item {
         anchors { top: toolbar.bottom; right: parent.right; bottom: scrubber.top }
         width: 560
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.frame }
         z: 3
         Column {
             anchors { fill: parent; margins: 20 }
             spacing: 20
-            Text { text: "FONT"; font { pixelSize: 22; bold: true } }
+            Text { text: "FONT"; font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.secondary; letterSpacing: 1 } }
             Grid {
                 columns: 2
                 spacing: 12
                 Repeater {
-                    model: ["Serif", "Sans", "Mono", "Garamond"]
+                    model: ["Typewriter", "Serif", "Sans", "Mono", "Garamond"]
                     Btn {
                         required property string modelData
                         width: 244
@@ -486,7 +571,7 @@ Item {
                     width: 200
                     anchors.verticalCenter: parent.verticalCenter
                     text: "SIZE " + epubReader.fontSize
-                    font { pixelSize: 22; bold: true }
+                    font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.secondary; letterSpacing: 1 }
                 }
                 Btn { label: "A-"; onTapped: { epubReader.fontSize = Math.max(20, epubReader.fontSize - 2); epubReader.commitTypo() } }
                 Btn { label: "A+"; onTapped: { epubReader.fontSize = Math.min(64, epubReader.fontSize + 2); epubReader.commitTypo() } }
@@ -497,7 +582,7 @@ Item {
                     width: 200
                     anchors.verticalCenter: parent.verticalCenter
                     text: "LINE " + epubReader.lineSpacing.toFixed(1)
-                    font { pixelSize: 22; bold: true }
+                    font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.secondary; letterSpacing: 1 }
                 }
                 Btn { label: "-"; onTapped: { epubReader.lineSpacing = Math.max(1.0, epubReader.lineSpacing - 0.1); epubReader.commitTypo() } }
                 Btn { label: "+"; onTapped: { epubReader.lineSpacing = Math.min(2.5, epubReader.lineSpacing + 0.1); epubReader.commitTypo() } }
@@ -508,7 +593,7 @@ Item {
                     width: 200
                     anchors.verticalCenter: parent.verticalCenter
                     text: "MARGIN " + epubReader.margins
-                    font { pixelSize: 22; bold: true }
+                    font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.secondary; letterSpacing: 1 }
                 }
                 Btn { label: "-"; onTapped: { epubReader.margins = Math.max(20, epubReader.margins - 20); epubReader.commitTypo() } }
                 Btn { label: "+"; onTapped: { epubReader.margins = Math.min(220, epubReader.margins + 20); epubReader.commitTypo() } }
@@ -521,75 +606,113 @@ Item {
         }
     }
 
-    // ---- Footnote popup (short same-chapter link targets) ----
+    // ---- Footnote strip (short same-chapter link targets) — bottom-bar style, tap to dismiss ----
     Rectangle {
         visible: epubReader.footnoteText !== ""
-        anchors.centerIn: parent
-        width: 900
-        height: Math.min(700, ftCol.implicitHeight + 120)
+        anchors { left: parent.left; right: parent.right; bottom: scrubber.top }
+        height: Math.max(Theme.touch, ftFlick.height + 44 + closeHint.height + 8)
         color: "white"
-        border { color: "black"; width: 4 }
         z: 5
-        Column {
-            id: ftCol
-            anchors { fill: parent; margins: 24 }
-            spacing: 20
-            Flickable {
-                width: parent.width
-                height: parent.height - 110
-                clip: true
-                contentHeight: ftBody.implicitHeight
-                Text {
-                    id: ftBody
-                    width: parent.width
-                    wrapMode: Text.WordWrap
-                    text: epubReader.footnoteText
-                    font.pixelSize: 28
-                }
-            }
-            Btn {
-                anchors.horizontalCenter: parent.horizontalCenter
-                label: "CLOSE"
-                onTapped: epubReader.footnoteText = ""
+        Rectangle { anchors.top: parent.top; width: parent.width; height: Theme.hairline; color: "black" }
+        Flickable {
+            id: ftFlick
+            anchors { top: parent.top; topMargin: 22; left: parent.left; leftMargin: Theme.pad
+                      right: parent.right; rightMargin: Theme.pad }
+            height: Math.min(ftBody.implicitHeight, 260)
+            clip: true
+            contentHeight: ftBody.implicitHeight
+            Text {
+                id: ftBody
+                width: ftFlick.width
+                wrapMode: Text.WordWrap
+                text: epubReader.footnoteText
+                font { family: Theme.mono; pixelSize: Theme.micro }
             }
         }
+        Text {
+            id: closeHint
+            anchors { top: ftFlick.bottom; topMargin: 8; right: parent.right; rightMargin: Theme.pad }
+            text: "TAP TO CLOSE"
+            font { family: Theme.mono; pixelSize: Theme.micro }
+        }
+        TapHandler { onTapped: epubReader.footnoteText = "" }
     }
 
-    // ---- Sync JUMP/STAY prompt (remote position is ahead) ----
+    // ---- POSITION CONFLICT card (remote position is ahead) ----
     Rectangle {
         visible: epubReader.showSyncPrompt
         anchors.centerIn: parent
-        width: 900
-        height: 340
+        width: 1040
+        height: conflictCol.implicitHeight + 96
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.frame }
         z: 6
+        // Hard-offset elevation outline (painted behind via z: -1).
+        Rectangle {
+            z: -1; x: Theme.lift; y: Theme.lift; width: parent.width; height: parent.height
+            color: "white"; border { color: "black"; width: Theme.frame }
+        }
         Column {
-            anchors.centerIn: parent
-            spacing: 30
+            id: conflictCol
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 48 }
+            spacing: 28
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
+                text: "POSITION CONFLICT"
+                font { family: Theme.display; weight: Font.Bold; pixelSize: 32; letterSpacing: 1 }
+            }
+            Text {
+                width: parent.width
+                lineHeight: 1.6
                 text: epubReader.syncPull
-                      ? "SYNC // " + epubReader.syncPull.device + " @ "
+                      ? "THIS DEVICE — " + Math.round(epubView.percentage * 100) + "%\n"
+                        + "OTHER DEVICE — " + epubReader.syncPull.device + " · "
                         + Math.round(epubReader.syncPull.percentage * 100) + "%"
                       : ""
-                font { pixelSize: 34; bold: true }
+                font { family: Theme.mono; pixelSize: Theme.secondary }
             }
             Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 40
-                Btn {
-                    label: "JUMP"
-                    onTapped: {
-                        // spine<0 = foreign xpointer with no offset: land near the remote percentage
-                        if (epubReader.syncPull.spine < 0)
-                            epubReader.seekTo(epubReader.syncPull.percentage)
-                        else
-                            epubView.goToLocation(epubReader.syncPull.spine, epubReader.syncPull.charOffset)
-                        epubReader.showSyncPrompt = false
+                width: parent.width
+                spacing: 20
+                // Keep local position (was STAY) — inverted primary.
+                Rectangle {
+                    width: (parent.width - 20) / 2
+                    height: Theme.touch
+                    color: stayTap.pressed ? "white" : "black"
+                    border { color: "black"; width: Theme.chip }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "USE THIS DEVICE"
+                        color: stayTap.pressed ? "black" : "white"
+                        font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.button }
+                    }
+                    TapHandler { id: stayTap; onTapped: epubReader.showSyncPrompt = false }
+                }
+                // Jump to remote position (was JUMP) — bordered secondary.
+                Rectangle {
+                    width: (parent.width - 20) / 2
+                    height: Theme.touch
+                    color: jumpTap.pressed ? "black" : "white"
+                    border { color: "black"; width: Theme.chip }
+                    Text {
+                        anchors.centerIn: parent
+                        text: epubReader.syncPull
+                              ? "USE OTHER (" + Math.round(epubReader.syncPull.percentage * 100) + "%)"
+                              : "USE OTHER"
+                        color: jumpTap.pressed ? "white" : "black"
+                        font { family: Theme.display; weight: Font.Bold; pixelSize: Theme.button }
+                    }
+                    TapHandler {
+                        id: jumpTap
+                        onTapped: {
+                            // spine<0 = foreign xpointer with no offset: land near the remote percentage
+                            if (epubReader.syncPull.spine < 0)
+                                epubReader.seekTo(epubReader.syncPull.percentage)
+                            else
+                                epubView.goToLocation(epubReader.syncPull.spine, epubReader.syncPull.charOffset)
+                            epubReader.showSyncPrompt = false
+                        }
                     }
                 }
-                Btn { label: "STAY"; onTapped: epubReader.showSyncPrompt = false }
             }
         }
     }
@@ -598,16 +721,20 @@ Item {
     Rectangle {
         visible: epubView.hasSelection && !epubReader.addingNote
         anchors { horizontalCenter: parent.horizontalCenter; bottom: scrubber.top; bottomMargin: 20 }
-        width: selRow.width + 24
-        height: 110
+        width: selRow.width + 2 * Theme.chip
+        height: 96
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.chip }
         z: 4
+        // Hard-offset elevation outline (painted behind via z: -1).
+        Rectangle {
+            z: -1; x: Theme.lift; y: Theme.lift; width: parent.width; height: parent.height
+            color: "white"; border { color: "black"; width: Theme.chip }
+        }
         Row {
             id: selRow
             anchors.centerIn: parent
-            spacing: 10
-            Btn {
+            SelAction {
                 label: "HIGHLIGHT"
                 onTapped: {
                     const a = epubView.selectionAnchor()
@@ -617,9 +744,12 @@ Item {
                     epubView.clearSelection()
                 }
             }
-            Btn { label: "COPY"; onTapped: { epubView.copySelection(); epubView.clearSelection() } }
-            Btn { label: "NOTE"; onTapped: { newNote.text = ""; epubReader.addingNote = true } }
-            Btn { label: "X"; onTapped: epubView.clearSelection() }
+            SelSep {}
+            SelAction { label: "NOTE"; onTapped: { newNote.text = ""; epubReader.addingNote = true } }
+            SelSep {}
+            SelAction { label: "COPY"; onTapped: { epubView.copySelection(); epubView.clearSelection() } }
+            SelSep {}
+            SelAction { label: "X"; onTapped: epubView.clearSelection() }
         }
     }
 
@@ -630,30 +760,34 @@ Item {
         width: 900
         height: 460
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.frame }
         z: 7
+        Rectangle {
+            z: -1; x: Theme.lift; y: Theme.lift; width: parent.width; height: parent.height
+            color: "white"; border { color: "black"; width: Theme.frame }
+        }
         Column {
             anchors { fill: parent; margins: 24 }
             spacing: 20
-            Text { text: "NOTE"; font { pixelSize: 26; bold: true } }
+            Text { text: "NOTE"; font { family: Theme.display; weight: Font.Bold; pixelSize: 26; letterSpacing: 1 } }
             Rectangle {
                 width: parent.width
                 height: 240
                 color: "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.hairline }
                 Text {
                     visible: newNote.text === ""
                     anchors { left: parent.left; leftMargin: 14; top: parent.top; topMargin: 12 }
                     text: "type a note"
                     color: "#999999"
-                    font.pixelSize: 24
+                    font { family: Theme.reading; pixelSize: 24 }
                 }
                 TextEdit {
                     id: newNote
                     anchors { fill: parent; margins: 14 }
                     wrapMode: TextEdit.Wrap
                     clip: true
-                    font.pixelSize: 24
+                    font { family: Theme.reading; pixelSize: 24 }
                 }
             }
             Row {
@@ -682,8 +816,12 @@ Item {
         width: 900
         height: Math.min(760, editCol.implicitHeight + 48)
         color: "white"
-        border { color: "black"; width: 4 }
+        border { color: "black"; width: Theme.frame }
         z: 7
+        Rectangle {
+            z: -1; x: Theme.lift; y: Theme.lift; width: parent.width; height: parent.height
+            color: "white"; border { color: "black"; width: Theme.frame }
+        }
         Column {
             id: editCol
             anchors { fill: parent; margins: 24 }
@@ -698,28 +836,28 @@ Item {
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: epubReader.editHl ? ("“" + epubReader.editHl.text + "”") : ""
-                    font.pixelSize: 26
+                    font { family: Theme.reading; pixelSize: 26 }
                 }
             }
-            Text { text: "NOTE"; font { pixelSize: 24; bold: true } }
+            Text { text: "NOTE"; font { family: Theme.display; weight: Font.Bold; pixelSize: 24; letterSpacing: 1 } }
             Rectangle {
                 width: parent.width
                 height: 200
                 color: "white"
-                border { color: "black"; width: 3 }
+                border { color: "black"; width: Theme.hairline }
                 Text {
                     visible: editNote.text === ""
                     anchors { left: parent.left; leftMargin: 14; top: parent.top; topMargin: 12 }
                     text: "type a note"
                     color: "#999999"
-                    font.pixelSize: 24
+                    font { family: Theme.reading; pixelSize: 24 }
                 }
                 TextEdit {
                     id: editNote
                     anchors { fill: parent; margins: 14 }
                     wrapMode: TextEdit.Wrap
                     clip: true
-                    font.pixelSize: 24
+                    font { family: Theme.reading; pixelSize: 24 }
                 }
             }
             Row {

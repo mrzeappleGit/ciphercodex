@@ -74,6 +74,19 @@ here.)
   driving the focused TextInput/TextEdit. Unblocks self-serve credential entry.
 - Two adversarial-review passes on the sync/keyboard code; all confirmed findings fixed
   (per-table merge txns, PDFium mutex, password-clobber, WebDAV truncation, etc.).
+- **CipherCodex OS design implemented** (claude.ai/design project "CipherCodex OS.dc.html",
+  pulled via the claude_design MCP): all 10 screens restyled to the 1-bit design system —
+  embedded OFL fonts (Rajdhani display / Share Tech Mono captions / Courier Prime reading,
+  `assets/fonts/`, loaded in main.cpp), `Theme.qml` singleton tokens, `DotGrid`/`Hatch`
+  pattern components, 140px header bands, in-row confirm pattern, offset-outline elevation,
+  left tool rail on the notebook page (InkItem now full-screen under it — exact 3:4 sheet, PDF
+  export loses nothing; ink at x<130 on pre-rail pages hides under the rail but stays in DB +
+  export), Home sync-status chip + live tile counts, EPUB "Typewriter" (Courier Prime) default
+  reading font, keyboard restyle + number row. Two adversarial review rounds (15 confirmed
+  findings fixed, incl. a pre-existing EPUB TOC always-jumps-to-chapter-1 bug, overlapping
+  delete-confirm hit zones, and device-font tofu glyphs — the device covers ← → « » ▼ but NOT
+  ↩ ↶ ↷ ▾ ⌫). Deployed to hardware, log clean. NOT yet eyeballed on device by the owner:
+  waveform behavior of the rail inside the Pen(0) region + overall look.
 - **Automatic sync triggers** — event-driven, never polled: syncNow() 1.5s after app open and
   on every return to Home (StackView depth 1); debounced Timer in `Main.qml`, only STARTS from
   Home, silent when unconfigured. **App-open trigger live-verified on hardware** (nginx showed

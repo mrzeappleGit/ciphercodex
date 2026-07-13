@@ -65,120 +65,136 @@ Item {
         function onSyncedDataChanged() { kept.reload() }
     }
 
-    component Btn: Rectangle {
-        id: b
-        property alias label: btnText.text
-        property bool inverted: false
-        signal tapped()
-        width: Math.max(90, btnText.implicitWidth + 48)
-        height: 90
-        color: (btnTap.pressed !== b.inverted) ? "black" : "white"
-        border { color: b.inverted ? "white" : "black"; width: 4 }
-        Text {
-            id: btnText
-            anchors.centerIn: parent
-            color: (btnTap.pressed !== b.inverted) ? "white" : "black"
-            font { pixelSize: 28; bold: true }
-        }
-        TapHandler { id: btnTap; onTapped: b.tapped() }
-    }
-
+    // Header band — 140px solid black, back + title left, action chip right
     Rectangle {
         id: header
-        width: parent.width; height: 120
+        width: parent.width; height: Theme.headerBand
         color: "black"
-        Btn {
-            anchors { left: parent.left; leftMargin: 30; verticalCenter: parent.verticalCenter }
-            label: "BACK"
-            inverted: true
-            onTapped: kept.StackView.view.pop()
-        }
-        Row {
-            anchors.centerIn: parent
-            spacing: 20
+
+        Item {  // back zone: full band height, padded past the visible glyphs
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+            width: backRow.width + Theme.pad * 2
+            Rectangle { anchors.fill: parent; color: "white"; visible: keptBackTap.pressed }
             Row {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 8
-                Repeater {
-                    model: [30, 46, 62, 46, 30]
-                    Rectangle {
-                        required property int modelData
-                        width: 10; height: modelData; color: "white"
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
+                id: backRow
+                anchors { left: parent.left; leftMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+                spacing: 24
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "←"; color: keptBackTap.pressed ? "black" : "white"
+                    font.pixelSize: 34  // default family: Rajdhani has no U+2190
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "KEPT"; color: keptBackTap.pressed ? "black" : "white"
+                    font { family: Theme.display; pixelSize: Theme.h2; weight: Font.Bold; letterSpacing: 2 }
                 }
             }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "KEPT"
-                color: "white"
-                font { pixelSize: 44; letterSpacing: 10; bold: true }
+            TapHandler { id: keptBackTap; onTapped: kept.StackView.view.pop() }
+        }
+
+        Item {  // export zone: full band height so the touch target is >= 90px
+            anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+            width: exportChip.width + Theme.pad * 2
+            Rectangle {
+                id: exportChip
+                anchors { right: parent.right; rightMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+                width: exportText.implicitWidth + 56; height: 88
+                color: exportTap.pressed ? "white" : "black"
+                border { color: exportTap.pressed ? "black" : "white"; width: Theme.chip }
+                Text {
+                    id: exportText
+                    anchors.centerIn: parent
+                    text: "EXPORT"
+                    color: exportTap.pressed ? "black" : "white"
+                    font { family: Theme.display; pixelSize: 26; weight: Font.Bold; letterSpacing: 1 }
+                }
+            }
+            TapHandler {
+                id: exportTap
+                onTapped: {
+                    const ok = kept.reader.exportKeptMarkdown("/home/root/ciphercodex/kept.md")
+                    kept.flash = ok ? "Wrote /home/root/ciphercodex/kept.md" : "Export failed"
+                }
             }
         }
     }
 
-    Row {
-        id: actions
-        anchors { top: header.bottom; topMargin: 24; left: parent.left; leftMargin: 60 }
-        spacing: 30
-        Btn {
-            label: "EXPORT MARKDOWN"
-            onTapped: {
-                const ok = kept.reader.exportKeptMarkdown("/home/root/ciphercodex/kept.md")
-                kept.flash = ok ? "Wrote /home/root/ciphercodex/kept.md" : "Export failed"
-            }
-        }
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: kept.flash !== ""
-            text: kept.flash
-            font.pixelSize: 22
-        }
+    Text {  // export result flash; 0-height when empty so the list sits flush under the band
+        id: flashLine
+        anchors { top: header.bottom; topMargin: visible ? 20 : 0
+                  left: parent.left; leftMargin: Theme.pad
+                  right: parent.right; rightMargin: Theme.pad }
+        visible: kept.flash !== ""
+        height: visible ? implicitHeight : 0
+        elide: Text.ElideRight
+        text: kept.flash
+        color: "black"
+        font { family: Theme.mono; pixelSize: Theme.caption }
     }
 
     Text {
         visible: kept.rows.length === 0
         anchors.centerIn: parent
         text: "NOTHING KEPT YET"
-        color: "#6B6B6B"
-        font { pixelSize: 34; bold: true }
+        color: "black"
+        font { family: Theme.display; pixelSize: 34; weight: Font.Bold; letterSpacing: 2 }
     }
 
     ListView {
         id: list
         anchors {
-            top: actions.bottom; topMargin: 24
-            left: parent.left; leftMargin: 60
-            right: parent.right; rightMargin: 60
-            bottom: parent.bottom; bottomMargin: 30
+            top: flashLine.bottom; topMargin: 40
+            left: parent.left; leftMargin: Theme.pad
+            right: parent.right; rightMargin: Theme.pad
+            bottom: parent.bottom; bottomMargin: 40
         }
         clip: true
-        spacing: 16
+        spacing: 24
         model: kept.rows
         delegate: Rectangle {
             id: row
             required property var modelData
             width: list.width
-            height: row.modelData.header ? 96 : 160
+            height: row.modelData.header
+                    ? 96
+                    : Math.max(Theme.touch, quoteCol.implicitHeight + 16)
             color: (!row.modelData.header && rowTap.pressed) ? "black" : "white"
-            border { color: "black"; width: row.modelData.header ? 0 : 3 }
 
-            Text {  // book header
+            // Book group header: Rajdhani Bold 30 over a 3px rule, bottom-anchored so the
+            // slack above it reads as group separation.
+            Rectangle {
                 visible: row.modelData.header
-                anchors { left: parent.left; leftMargin: 8; right: parent.right; rightMargin: 8
-                          verticalCenter: parent.verticalCenter }
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: Theme.chip
+                color: "black"
+            }
+            Text {
+                visible: row.modelData.header
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 17 }
                 elide: Text.ElideRight
                 text: row.modelData.header
                       ? (row.modelData.author
-                         ? row.modelData.title + "  —  " + row.modelData.author
+                         ? row.modelData.title + " — " + row.modelData.author
                          : row.modelData.title)
                       : ""
-                font { pixelSize: 32; bold: true }
+                font { family: Theme.display; pixelSize: 30; weight: Font.Bold
+                       capitalization: Font.AllUppercase }
             }
 
-            Column {  // highlight
+            // Highlight row: 6px leader bar, italic quote, mono meta, → affordance
+            Rectangle {
+                id: leader
                 visible: !row.modelData.header
-                anchors { left: parent.left; leftMargin: 20; right: parent.right; rightMargin: 20
+                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                width: 6
+                color: rowTap.pressed ? "white" : "black"
+            }
+            Column {
+                id: quoteCol
+                visible: !row.modelData.header
+                anchors { left: leader.right; leftMargin: 24
+                          right: arrow.left; rightMargin: 24
                           verticalCenter: parent.verticalCenter }
                 spacing: 8
                 Text {
@@ -186,19 +202,31 @@ Item {
                     wrapMode: Text.WordWrap
                     maximumLineCount: 3
                     elide: Text.ElideRight
+                    lineHeight: 1.5
                     text: row.modelData.header ? "" : ("“" + row.modelData.h.text + "”")
                     color: rowTap.pressed ? "white" : "black"
-                    font.pixelSize: 26
+                    font { family: Theme.reading; italic: true; pixelSize: 26 }
                 }
                 Text {
-                    visible: !row.modelData.header && row.modelData.h.note
-                            && row.modelData.h.note !== ""
                     width: parent.width
                     elide: Text.ElideRight
-                    text: row.modelData.header ? "" : row.modelData.h.note
+                    text: row.modelData.header ? ""
+                          : ((row.modelData.h.format === 1
+                              ? "ch. " + (row.modelData.h.spineIndex + 1)
+                              : "p. " + (row.modelData.h.spineIndex + 1))
+                             + (row.modelData.h.note && row.modelData.h.note !== ""
+                                ? " · note: " + row.modelData.h.note : ""))
                     color: rowTap.pressed ? "white" : "black"
-                    font { pixelSize: 22; italic: true }
+                    font { family: Theme.mono; pixelSize: Theme.micro }
                 }
+            }
+            Text {
+                id: arrow
+                visible: !row.modelData.header
+                anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                text: "→"
+                color: rowTap.pressed ? "white" : "black"
+                font.pixelSize: 26
             }
 
             TapHandler {

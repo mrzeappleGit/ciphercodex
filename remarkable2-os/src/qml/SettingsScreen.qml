@@ -72,20 +72,40 @@ Item {
         property bool active: false
         signal tapped()
         readonly property bool dark: b.active || (btnTap.pressed !== b.inverted)
-        width: Math.max(90, t.implicitWidth + 40)
-        height: 90
+        width: t.implicitWidth + 64          // 0 32 padding
+        height: 88
         color: b.dark ? "black" : "white"
-        border { color: b.inverted ? "white" : "black"; width: 4 }
+        border { color: "black"; width: Theme.chip }
         Text {
             id: t
             anchors.centerIn: parent
             color: b.dark ? "white" : "black"
-            font { pixelSize: 26; bold: true }
+            font { family: Theme.display; pixelSize: Theme.button; weight: Font.Bold }
         }
-        TapHandler { id: btnTap; onTapped: b.tapped() }
+        // 88px visual, ≥90px touch target
+        Item {
+            anchors.fill: parent
+            anchors.margins: -2
+            TapHandler { id: btnTap; onTapped: b.tapped() }
+        }
     }
 
-    // Labeled text field (border box + placeholder), matching the library search style.
+    // Solid black section header strip for the cards.
+    component CardHeader: Rectangle {
+        property alias title: ht.text
+        width: parent.width
+        height: 64
+        color: "black"
+        Text {
+            id: ht
+            anchors { left: parent.left; leftMargin: 28; verticalCenter: parent.verticalCenter }
+            color: "white"
+            font { family: Theme.display; pixelSize: Theme.button; weight: Font.Bold; letterSpacing: 2 }
+        }
+    }
+
+    // Labeled text field: mono micro label above a hairline-bordered value box.
+    // Border thickens to Theme.frame while focused (component sheet ACTIVE state).
     component Field: Column {
         id: f
         property alias label: cap.text
@@ -94,17 +114,17 @@ Item {
         property bool secret: false
         width: 760
         spacing: 8
-        Text { id: cap; font { pixelSize: 24; bold: true } }
+        Text { id: cap; font { family: Theme.mono; pixelSize: Theme.micro } }
         Rectangle {
-            width: parent.width; height: 90
+            width: parent.width; height: 72
             color: "white"
-            border { color: "black"; width: 4 }
+            border { color: "black"; width: input.activeFocus ? Theme.frame : Theme.hairline }
             Text {
                 visible: input.text === ""
                 anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
                 text: f.placeholder
                 color: "#999999"
-                font { pixelSize: 26; bold: true }
+                font { family: Theme.reading; pixelSize: 24 }
             }
             TextInput {
                 id: input
@@ -112,121 +132,227 @@ Item {
                 verticalAlignment: TextInput.AlignVCenter
                 clip: true
                 echoMode: f.secret ? TextInput.Password : TextInput.Normal
-                font { pixelSize: 26; bold: true }
+                font { family: Theme.reading; pixelSize: 24 }
                 // Once focused (keyboard now up, Flickable height settled), scroll this field into view.
                 onActiveFocusChanged: if (activeFocus) Qt.callLater(settings.ensureVisible, f)
+            }
+        }
+        // Label + box together are ≥90px tall: tap anywhere on the field to focus.
+        TapHandler { onTapped: input.forceActiveFocus() }
+    }
+
+    // Mono caption status line with a filled-circle bullet (glyph-safe ●).
+    component StatusLine: Row {
+        property alias text: st.text
+        visible: st.text !== ""
+        width: 760
+        spacing: 12
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            width: 12; height: 12; radius: 6; color: "black"
+        }
+        Text {
+            id: st
+            width: parent.width - 24
+            wrapMode: Text.WordWrap
+            font { family: Theme.mono; pixelSize: Theme.caption }
+        }
+    }
+
+    // Hatched non-interactive "coming soon" row with white-backed labels.
+    component SoonRow: Rectangle {
+        property alias name: nm.text
+        width: parent.width
+        height: 80
+        color: "white"
+        border { color: "black"; width: Theme.hairline }
+        Hatch { anchors.fill: parent; anchors.margins: Theme.hairline }
+        Rectangle {
+            anchors { left: parent.left; leftMargin: 24; verticalCenter: parent.verticalCenter }
+            width: nm.implicitWidth + 20; height: nm.implicitHeight + 8
+            Text {
+                id: nm
+                anchors.centerIn: parent
+                font { family: Theme.display; pixelSize: 24; weight: Font.Medium }
+            }
+        }
+        Rectangle {
+            anchors { right: parent.right; rightMargin: 24; verticalCenter: parent.verticalCenter }
+            width: cs.implicitWidth + 20; height: cs.implicitHeight + 8
+            Text {
+                id: cs
+                anchors.centerIn: parent
+                text: "COMING SOON"
+                font { family: Theme.mono; pixelSize: 16 }
             }
         }
     }
 
     Rectangle {
         id: header
-        width: parent.width; height: 120
+        width: parent.width; height: Theme.headerBand
         color: "black"
-        Btn {
-            anchors { left: parent.left; leftMargin: 30; verticalCenter: parent.verticalCenter }
-            label: "BACK"
-            inverted: true
-            onTapped: settings.StackView.view.pop()
-        }
-        Text {
-            anchors.centerIn: parent
-            text: "SETTINGS"
-            color: "white"
-            font { pixelSize: 44; letterSpacing: 10; bold: true }
+        Item {
+            // full-height back target over the arrow+title zone; press = inversion
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+            width: settingsBackRow.width + Theme.pad * 2
+            Rectangle { anchors.fill: parent; color: "white"; visible: settingsBackTap.pressed }
+            Row {
+                id: settingsBackRow
+                anchors { left: parent.left; leftMargin: Theme.pad; verticalCenter: parent.verticalCenter }
+                spacing: 24
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "←"
+                    color: settingsBackTap.pressed ? "black" : "white"
+                    font.pixelSize: 34
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "SETTINGS"
+                    color: settingsBackTap.pressed ? "black" : "white"
+                    font { family: Theme.display; pixelSize: Theme.h2; weight: Font.Bold; letterSpacing: 2 }
+                }
+            }
+            TapHandler { id: settingsBackTap; onTapped: settings.StackView.view.pop() }
         }
     }
 
     Flickable {
         id: flick
         anchors { top: header.bottom; left: parent.left; right: parent.right; bottom: parent.bottom
-                  topMargin: 50; leftMargin: 80; rightMargin: 40 }
-        contentHeight: form.height + 60
+                  topMargin: 40; leftMargin: Theme.pad; rightMargin: Theme.pad }
+        contentHeight: form.height + 40
         clip: true
     Column {
         id: form
-        width: 820
-        spacing: 30
+        width: flick.width
+        spacing: 36
 
-        Row {
-            spacing: 30
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "KOREADER SYNC"
-                font { pixelSize: 34; letterSpacing: 4; bold: true }
-            }
-            Btn {
-                label: settings.syncEnabled ? "SYNC: ON" : "SYNC: OFF"
-                active: settings.syncEnabled
-                onTapped: {
-                    settings.commit()
-                    settings.syncEnabled = !settings.syncEnabled
-                    settings.reader.setSyncEnabled(settings.syncEnabled)
+        // ---- kosync position sync ----
+        Rectangle {
+            width: parent.width; height: koCol.height
+            border { color: "black"; width: Theme.frame }
+            Column {
+                id: koCol
+                width: parent.width
+                CardHeader {
+                    title: "KOREADER SYNC"
+                    Rectangle {
+                        id: chip
+                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                        width: chipText.implicitWidth + 40
+                        height: 48
+                        readonly property bool lit: settings.syncEnabled !== chipTap.pressed
+                        color: chip.lit ? "white" : "black"
+                        border { color: "white"; width: Theme.chip }
+                        Text {
+                            id: chipText
+                            anchors.centerIn: parent
+                            text: settings.syncEnabled ? "SYNC: ON" : "SYNC: OFF"
+                            color: chip.lit ? "black" : "white"
+                            font { family: Theme.display; pixelSize: 20; weight: Font.Bold }
+                        }
+                        Item {
+                            // 48px visual chip, ≥90px touch target
+                            anchors.fill: parent
+                            anchors.margins: -21
+                            TapHandler {
+                                id: chipTap
+                                onTapped: {
+                                    settings.commit()
+                                    settings.syncEnabled = !settings.syncEnabled
+                                    settings.reader.setSyncEnabled(settings.syncEnabled)
+                                }
+                            }
+                        }
+                    }
+                }
+                Column {
+                    width: parent.width
+                    padding: 28
+                    spacing: 20
+                    Field { id: serverField; label: "SERVER"; placeholder: "https://sync.example.org" }
+                    Field { id: userField; label: "USERNAME"; placeholder: "username" }
+                    Field { id: passField; label: "PASSWORD"; placeholder: "password"; secret: true }
+                    Field { id: deviceField; label: "DEVICE NAME"; placeholder: "reMarkable 2" }
+                    Row {
+                        spacing: 16
+                        Btn {
+                            label: "TEST"
+                            onTapped: {
+                                settings.commit()
+                                const r = settings.reader.testConnection()
+                                settings.status = r.ok ? "CONNECTION OK" : ("FAILED: " + r.message)
+                            }
+                        }
+                        Btn {
+                            label: "REGISTER"
+                            inverted: true
+                            onTapped: {
+                                settings.commit()
+                                const r = settings.reader.registerUser()
+                                settings.status = r.ok ? "REGISTERED" : ("FAILED: " + r.message)
+                            }
+                        }
+                    }
+                    StatusLine { text: settings.status }
                 }
             }
-        }
-
-        Field { id: serverField; label: "SERVER URL"; placeholder: "https://sync.example.org" }
-        Field { id: userField; label: "USERNAME"; placeholder: "username" }
-        Field { id: passField; label: "PASSWORD"; placeholder: "password"; secret: true }
-        Field { id: deviceField; label: "DEVICE NAME"; placeholder: "reMarkable 2" }
-
-        Row {
-            spacing: 30
-            Btn {
-                label: "TEST CONNECTION"
-                onTapped: {
-                    settings.commit()
-                    const r = settings.reader.testConnection()
-                    settings.status = r.ok ? "CONNECTION OK" : ("FAILED: " + r.message)
-                }
-            }
-            Btn {
-                label: "REGISTER"
-                onTapped: {
-                    settings.commit()
-                    const r = settings.reader.registerUser()
-                    settings.status = r.ok ? "REGISTERED" : ("FAILED: " + r.message)
-                }
-            }
-        }
-
-        Text {
-            visible: settings.status !== ""
-            text: settings.status
-            font { pixelSize: 26; bold: true }
         }
 
         // ---- WebDAV books + notes sync ----
-        Rectangle { width: 820; height: 4; color: "black" }
-        Text {
-            text: "BOOKS + NOTES SYNC (WebDAV)"
-            font { pixelSize: 34; letterSpacing: 4; bold: true }
-        }
-        Field { id: davUrlField; label: "WEBDAV URL"; placeholder: "https://host/dav/" }
-        Field { id: davUserField; label: "USERNAME"; placeholder: "user" }
-        Field { id: davPassField; label: "PASSWORD"; placeholder: "app password"; secret: true }
-        Row {
-            spacing: 30
-            Btn {
-                label: "TEST"
-                onTapped: {
-                    settings.commitDav()
-                    const r = settings.reader.testWebdav()
-                    settings.davStatus = r.ok ? "WEBDAV OK" : ("FAILED: " + r.message)
+        Rectangle {
+            width: parent.width; height: davCol.height
+            border { color: "black"; width: Theme.frame }
+            Column {
+                id: davCol
+                width: parent.width
+                CardHeader { title: "BOOKS + NOTES SYNC (WEBDAV)" }
+                Column {
+                    width: parent.width
+                    padding: 28
+                    spacing: 20
+                    Field { id: davUrlField; label: "URL"; placeholder: "https://host/dav/" }
+                    Field { id: davUserField; label: "USERNAME"; placeholder: "user" }
+                    Field { id: davPassField; label: "PASSWORD"; placeholder: "app password"; secret: true }
+                    Row {
+                        spacing: 16
+                        Btn {
+                            label: "TEST"
+                            onTapped: {
+                                settings.commitDav()
+                                const r = settings.reader.testWebdav()
+                                settings.davStatus = r.ok ? "WEBDAV OK" : ("FAILED: " + r.message)
+                            }
+                        }
+                        Btn {
+                            label: settings.syncing ? "SYNCING..." : "SYNC NOW"
+                            inverted: true
+                            active: settings.syncing
+                            onTapped: { if (!settings.syncing) { settings.commitDav(); settings.reader.syncNow() } }
+                        }
+                    }
+                    StatusLine { text: settings.davStatus }
                 }
             }
-            Btn {
-                label: settings.syncing ? "SYNCING..." : "SYNC NOW"
-                active: settings.syncing
-                onTapped: { if (!settings.syncing) { settings.commitDav(); settings.reader.syncNow() } }
-            }
         }
-        Text {
-            visible: settings.davStatus !== ""
-            text: settings.davStatus
-            width: 820; wrapMode: Text.WordWrap
-            font { pixelSize: 26; bold: true }
+
+        // ---- coming soon (non-interactive) ----
+        Column {
+            width: parent.width
+            spacing: 14
+            Text {
+                text: "COMING SOON"
+                font { family: Theme.mono; pixelSize: Theme.micro; letterSpacing: 2 }
+            }
+            Column {
+                width: parent.width
+                spacing: -Theme.hairline   // shared borders between rows
+                SoonRow { name: "WI-FI" }
+                SoonRow { name: "STORAGE" }
+                SoonRow { name: "BATTERY · HANDEDNESS" }
+            }
         }
     }
     }
