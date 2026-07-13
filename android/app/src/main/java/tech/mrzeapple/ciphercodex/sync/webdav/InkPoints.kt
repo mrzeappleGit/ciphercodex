@@ -4,8 +4,8 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Base64
 
-/** One pen sample. x/y are page-normalized 0..1; pressure is raw 0..4095. */
-data class InkPoint(val x: Float, val y: Float, val pressure: Int)
+/** One pen sample. x/y are page-normalized 0..1; pressure is raw 0..4095; t is milliseconds relative to stroke start. */
+data class InkPoint(val x: Float, val y: Float, val pressure: Int, val t: Long = 0)
 
 /** A drawable segment in normalized page coords; width is in page pixels. */
 data class InkSegment(val x0: Float, val y0: Float, val x1: Float, val y1: Float, val width: Float)
@@ -23,8 +23,9 @@ object InkPoints {
             val x = buf.float
             val y = buf.float
             val pressure = buf.short.toInt() and 0xFFFF
-            buf.short; buf.short; buf.int // tiltX, tiltY, tMs — unused in v1
-            out.add(InkPoint(x, y, pressure))
+            buf.short; buf.short // tiltX, tiltY — unused
+            val tMs = buf.int.toLong() and 0xFFFFFFFFL
+            out.add(InkPoint(x, y, pressure, t = tMs))
         }
         return out
     }

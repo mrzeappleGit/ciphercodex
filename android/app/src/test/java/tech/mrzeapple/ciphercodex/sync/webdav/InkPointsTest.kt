@@ -66,6 +66,20 @@ class InkPointsTest {
     }
 
     @Test
+    fun `decode carries the relative timestamp`() {
+        val buf = ByteBuffer.allocate(36).order(ByteOrder.LITTLE_ENDIAN)
+        buf.putFloat(0.25f); buf.putFloat(0.5f); buf.putShort(2000); buf.putShort(0); buf.putShort(0)
+        buf.putInt(0)          // first point at t=0
+        buf.putFloat(0.26f); buf.putFloat(0.5f); buf.putShort(2100); buf.putShort(0); buf.putShort(0)
+        buf.putInt(17)         // 17 ms later
+        val b64 = Base64.getEncoder().encodeToString(buf.array())
+        val pts = InkPoints.decode(b64)
+        assertEquals(2, pts.size)
+        assertEquals(0L, pts[0].t)
+        assertEquals(17L, pts[1].t)
+    }
+
+    @Test
     fun `ink snapshot decodes wire json and ignores unknown keys`() {
         val s = InkSnapshotJson.decode("""
         {"deviceId":"aabb01","generatedAt":1,"books":[{"digest":"d1"}],
