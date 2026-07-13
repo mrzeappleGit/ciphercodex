@@ -57,6 +57,14 @@ val CipherIconApps: ImageVector = strokeIcon(
     "M4 17h3v3H4z", "M10.5 17h3v3h-3z", "M17 17h3v3h-3z",
 )
 
+/** Document with text lines — the NOTES (rM2 notebooks) tab. */
+val CipherIconNotes: ImageVector = strokeIcon(
+    "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z",
+    "M14 2v6h6",
+    "M16 13H8",
+    "M16 17H8",
+)
+
 /** Gear — the SET(tings) tab. */
 val CipherIconSettings: ImageVector = strokeIcon(
     "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",

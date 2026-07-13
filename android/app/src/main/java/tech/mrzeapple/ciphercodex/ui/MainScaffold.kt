@@ -16,10 +16,12 @@ import tech.mrzeapple.ciphercodex.ui.components.CipherBottomNav
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconApps
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconKept
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconLibrary
+import tech.mrzeapple.ciphercodex.ui.components.CipherIconNotes
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconSettings
 import tech.mrzeapple.ciphercodex.ui.components.CipherIconStats
 import tech.mrzeapple.ciphercodex.ui.kept.KeptScreen
 import tech.mrzeapple.ciphercodex.ui.library.LibraryScreen
+import tech.mrzeapple.ciphercodex.ui.notes.NotesScreen
 import tech.mrzeapple.ciphercodex.ui.settings.SettingsScreen
 import tech.mrzeapple.ciphercodex.ui.stats.StatsScreen
 
@@ -35,6 +37,7 @@ fun MainScaffold(
     val tabs = listOf(
         CipherIconLibrary to "LIBRARY",
         CipherIconKept to "KEPT",
+        CipherIconNotes to "NOTES",
         CipherIconStats to "STATS",
         CipherIconApps to "APPS",
         CipherIconSettings to "SET",
@@ -48,8 +51,9 @@ fun MainScaffold(
             when (tab) {
                 0 -> LibraryScreen(onOpenBook = onOpenBookDetail, onOpenOpds = onOpenOpds)
                 1 -> KeptScreen(onOpenBook = onOpenReader)
-                2 -> StatsScreen()
-                3 -> AppsScreen()
+                2 -> NotesScreen()
+                3 -> StatsScreen()
+                4 -> AppsScreen()
                 else -> SettingsScreen()
             }
         }
