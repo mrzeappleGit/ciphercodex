@@ -104,7 +104,8 @@ here.)
   on every return to Home (StackView depth 1); debounced Timer in `Main.qml`, only STARTS from
   Home, silent when unconfigured. **App-open trigger live-verified on hardware** (nginx showed
   the full MKCOL/PROPFIND/PUT pass 4s after launch, no interaction). Home-return trigger is the
-  same code path but needs a hands-on confirm (walk into a notebook and back, watch the server).
+  same code path, **now also live-verified** (the handwriting-recognition E2E rode it repeatedly:
+  write → Home → server PUT observed each time).
   Hardening that came out of its two review rounds:
   - **CRITICAL regression fix**: the earlier "WebDAV truncation" fix made `finish()` report every
     4xx/5xx as a transport error (Qt maps them to reply errors) — mkcol's 405-means-exists never
@@ -124,7 +125,27 @@ here.)
   - Library/NotebookList/Kept reload on syncedDataChanged; SettingsScreen seeds its `syncing`
     state from `webdavConfig().syncing` so an in-flight auto-sync shows SYNCING... on open.
 
+- **Handwriting recognition** (2026-07-13, branch `handwriting-recognition`, hardware-E2E-verified):
+  handwriting in rM2 notebooks is recognized into text by the Android app (ML Kit digital-ink,
+  on-device, opt-in Settings toggle + ~20MB en-US model) during WebDAV sync and travels back.
+  rM2 side: schema v4 `page_text` (NOT in kSyncedTables — backfill trap), LWW merge + re-export
+  under the additive `pageTexts` wire array, TEXT rail overlay on pages (pen gated via empty
+  `pen.canvasRect` while open — raw pen bypasses QML), notebook search over title + recognized
+  text. Android side: v0.7.0 (stroke timestamps, y-band line segmentation, Room v9 `page_texts`,
+  recognition pass stamp-gated in the sync ink loop, NOTES search + TEXT panel, ✎N in sync
+  status). Full loop proven on hardware: "Hello fable" recognized verbatim, erase converges to
+  empty text via always-upsert LWW (never delete-on-empty — a stale live row would resurrect),
+  notebook delete tombstones → Android hard-delete. Pre-v4 device backup at
+  `device-backups/data-v3-pre-hwr-2026-07-13.db(+wal/shm)`.
+
 ## KNOWN GAPS / DEFERRED (nothing blocking; pick from these)
+
+- **Handwriting-recognition deferred nits** (triaged ship-as-is by the final branch review, detail
+  in `.superpowers/sdd/final-review-report.md`): en-US recognition only (no language setting);
+  greedy y-band line segmentation merges column layouts; TEXT overlay doesn't live-refresh if a
+  merge lands while open (reload on toggle/page-change) and has no tap-outside dismiss; notebook
+  search LIKE treats literal %/_ as wildcards; a device's own pageTexts export lags one sync cycle
+  (no loss window — converges).
 
 - **Auto-sync deferred nits** (all self-healing / cosmetic, from the review rounds): list screens
   snap to top when a merge reloads them mid-scroll (save/restore contentY if it annoys);
@@ -150,13 +171,12 @@ here.)
 experience; the InkItem + document-relative anchors exist:
 1. Overlay an InkItem on PdfView/EpubView; anchor strokes document-relative (PDF: page + page-space
    rect; EPUB: spine + char-offset range like highlights survive reflow).
-2. New synced table (schema v4) for document ink, following the strokes table pattern (guid,
-   updated_at, deleted) so it rides the existing WebDAV merge unchanged.
+2. New synced table (schema v5 — v4 is `page_text`) for document ink, following the strokes table
+   pattern (guid, updated_at, deleted) so it rides the existing WebDAV merge unchanged.
 3. Host-test the anchor model; verify on device over a PDF page and an EPUB chapter reflow.
 
 Alternative next tracks: PDF text highlighting (page+rect anchor model), or the backup/packaging
-track toward a shippable image (Phase 4). Quick manual check worth doing first: the Home-return
-auto-sync trigger (draw in a notebook, back out to Home, watch the server snapshot rewrite).
+track toward a shippable image (Phase 4).
 
 ## Pointers
 
