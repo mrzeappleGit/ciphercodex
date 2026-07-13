@@ -13,12 +13,75 @@ Window {
     PenReader { id: pen }
     NotebookController { id: controller }
     ReaderController { id: reader }
+    PowerButton { id: power; onPressed: root.powerPressed() }
+
+    // Sleep: "" awake · "arming" face is flushing to the EPD · "suspended" suspend issued.
+    // Wake-dismiss paths: the waking power press, any tap, or the wall-clock jump probe.
+    // Press/tap dismissals within 5s of issuing the suspend are ignored: the freeze lands
+    // seconds after systemctl returns, and a "wake" in that gap would freeze the live UI
+    // on glass and turn the real wake press into a second suspend.
+    property string sleepState: ""
+    property double suspendedAt: 0
+    property double wokeAt: 0
+    function powerPressed() {
+        if (root.sleepState === "arming")
+            return  // ignore presses while the face is still flushing
+        if (root.sleepState === "suspended") {
+            if (Date.now() - root.suspendedAt >= 5000)
+                root.wakeUp()
+            return
+        }
+        root.sleepState = "arming"
+        armTimer.restart()
+    }
+    function wakeUp() {
+        root.sleepState = ""
+        root.wokeAt = Date.now()
+        armTimer.stop()
+        // waking is an app-open moment: queue an auto sync when we're sitting at Home
+        if (stack.depth === 1)
+            autoSync.restart()
+    }
+    Timer {
+        id: armTimer
+        // No completion signal exists for the EPD flush (the waveform drive runs inside
+        // this process); 1400ms is margin for a full-screen GC16 pass, unmeasured.
+        interval: 1400
+        onTriggered: {
+            root.sleepState = "suspended"
+            root.suspendedAt = Date.now()
+            power.suspend()
+        }
+    }
+    Timer {
+        // Backup wake detector: while suspended the process is frozen, so a wall-clock
+        // jump between ticks means we resumed (covers wakes whose key event is lost).
+        id: resumeProbe
+        interval: 2000
+        repeat: true
+        running: root.sleepState === "suspended"
+        property double last: 0
+        onRunningChanged: last = Date.now()
+        onTriggered: {
+            const now = Date.now()
+            if (now - last > 10000)
+                root.wakeUp()
+            last = now
+        }
+    }
 
     // A WebDAV sync merged notebook rows into the DB: refresh the open page so it never shows
     // stale strokes vs the merged truth. No-op when no page is open.
     Connections {
         target: reader
         function onSyncedDataChanged() { controller.reloadOpenPage() }
+        // A sync frozen mid-transfer by suspend times out up to 30s AFTER resume (monotonic
+        // timers don't advance across sleep) and the wake auto-sync no-ops on its guard.
+        // Retry once the zombie run reports failure, only shortly after a wake, from Home.
+        function onSyncFinished(ok, summary) {
+            if (!ok && stack.depth === 1 && Date.now() - root.wokeAt < 45000)
+                autoSync.restart()
+        }
     }
 
     // Auto sync (event-driven, never polled): on app open and on returning to Home after a
@@ -44,6 +107,11 @@ Window {
 
     StackView {
         id: stack
+        // Hidden while sleeping: belt-and-braces against input pass-through, and it takes
+        // an open PageScreen's InkItem (and its Pen-waveform EPScreenModeItem region tag)
+        // out of the scene so the sleep face flushes with the quality grays waveform
+        // instead of the fast 2-level pen mode (no held ghosting through the standby face).
+        visible: root.sleepState === ""
         // Back at Home => queue an auto sync; navigating deeper cancels a queued one.
         onDepthChanged: depth === 1 ? autoSync.restart() : autoSync.stop()
         anchors { top: parent.top; left: parent.left; right: parent.right
@@ -64,5 +132,17 @@ Window {
         visible: root.kbTarget !== null
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         z: 100
+    }
+
+    SleepScreen {
+        // ponytail: raw pen events still route to an open notebook canvas beneath this
+        // overlay until suspend lands (~1.4s window); gate pen.canvasRect if it ever matters.
+        visible: root.sleepState !== ""
+        anchors.fill: parent
+        z: 300
+        onDismissed: {
+            if (root.sleepState === "suspended" && Date.now() - root.suspendedAt >= 5000)
+                root.wakeUp()
+        }
     }
 }

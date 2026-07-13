@@ -34,6 +34,7 @@ target_link_libraries(ccx-reader PUBLIC
 qt_add_executable(ciphercodex-shell
     src/main.cpp
     src/penreader.h src/penreader.cpp
+    src/powerbutton.h src/powerbutton.cpp
     src/inkitem.h src/inkitem.cpp
     src/epscreenmode.h src/epscreenmode.cpp
     src/notebookcontroller.h src/notebookcontroller.cpp
@@ -61,6 +62,7 @@ qt_add_qml_module(ciphercodex-shell
         src/qml/SettingsScreen.qml
         src/qml/KeptScreen.qml
         src/qml/Keyboard.qml
+        src/qml/SleepScreen.qml
     RESOURCES
         assets/fonts/Rajdhani-Bold.ttf
         assets/fonts/Rajdhani-SemiBold.ttf

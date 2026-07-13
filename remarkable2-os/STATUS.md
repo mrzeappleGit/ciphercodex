@@ -74,6 +74,16 @@ here.)
   driving the focused TextInput/TextEdit. Unblocks self-serve credential entry.
 - Two adversarial-review passes on the sync/keyboard code; all confirmed findings fixed
   (per-table merge txns, PDFium mutex, password-clobber, WebDAV truncation, etc.).
+- **Sleep** (2026-07-13) — power button (KEY_POWER on event0; logind ships HandlePowerKey=ignore
+  so the key is ours) → design-11 sleep face (SleepScreen.qml) → 1.4s EPD flush → `systemctl
+  suspend`; e-ink holds the face at zero power. Wake = power press / tap / wall-clock-jump probe,
+  and wake-at-Home queues an auto-sync with a retry window (a sync frozen mid-transfer times out
+  up to 30s after resume — monotonic timers don't tick while asleep). Review-hardened: the face
+  CONSUMES input (MouseArea, StackView hidden beneath — also removes the Pen-waveform region so
+  the face flushes clean grays), and dismissals within 5s of issuing suspend are ignored (the
+  freeze lands seconds after systemctl returns). Live-verified twice on hardware via injected
+  KEY_POWER (suspend confirmed by SSH drop; shell + wake sync survived resume). No idle
+  auto-sleep yet (power button only).
 - **CipherCodex OS design implemented** (claude.ai/design project "CipherCodex OS.dc.html",
   pulled via the claude_design MCP): all 10 screens restyled to the 1-bit design system —
   embedded OFL fonts (Rajdhani display / Share Tech Mono captions / Courier Prime reading,
@@ -124,8 +134,8 @@ here.)
 - **PDF text highlighting**: EPUB highlights done; PDF needs a page+rect anchor model (follow-on).
 - **Marker Plus eraser**: BTN_TOOL_RUBBER path implemented, untested (owner's Marker has no eraser).
 - **Scripted glass-to-ink latency number**: currently owner-assessed parity only.
-- **Phase 3 remaining**: full backup/restore archive; USB/web transfer UI; sleep screens; rest of
-  Settings (Wi-Fi, storage, battery, handedness).
+- **Phase 3 remaining**: full backup/restore archive; USB/web transfer UI; idle auto-sleep
+  (power-button sleep is DONE); rest of Settings (Wi-Fi, storage, battery, handedness).
 - **Phase 4**: reproducible image/update artifact, signed checksums, rollback/watchdog, tested
   recovery, final handoff docs.
 - **Cross-device sync acceptance test #7** (rM2 ↔ Android app ↔ KOReader EPUB position): needs the
