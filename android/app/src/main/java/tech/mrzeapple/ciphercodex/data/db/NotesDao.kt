@@ -29,4 +29,19 @@ interface NotesDao {
     @Query("DELETE FROM notebook_pages WHERE guid = :guid") suspend fun deletePage(guid: String)
     @Query("DELETE FROM notebook_pages WHERE notebookGuid = :notebookGuid")
     suspend fun deletePagesOf(notebookGuid: String)
+
+    @Query("SELECT * FROM page_texts WHERE pageGuid = :guid")
+    suspend fun pageText(guid: String): PageTextEntity?
+
+    @Query("SELECT * FROM page_texts")
+    suspend fun allPageTexts(): List<PageTextEntity>
+
+    @Query("SELECT * FROM page_texts")
+    fun observeAllPageTexts(): Flow<List<PageTextEntity>>
+
+    @Upsert
+    suspend fun upsertPageText(t: PageTextEntity)
+
+    @Query("DELETE FROM page_texts WHERE pageGuid = :pageGuid")
+    suspend fun deletePageText(pageGuid: String)
 }

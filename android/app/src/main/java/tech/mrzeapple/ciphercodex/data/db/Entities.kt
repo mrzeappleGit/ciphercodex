@@ -158,3 +158,13 @@ data class NotebookPageEntity(
     val contentStamp: Long,
     val imagePath: String,
 )
+
+/** Recognized handwriting per rM2 page. Derived from strokes at sync time (sourceStamp =
+ *  the contentStamp it was computed from); hard-deleted with its page like all ink data. */
+@Entity(tableName = "page_texts")
+data class PageTextEntity(
+    @PrimaryKey val pageGuid: String,
+    val text: String,
+    val sourceStamp: Long,
+    val updatedAt: Long,
+)
