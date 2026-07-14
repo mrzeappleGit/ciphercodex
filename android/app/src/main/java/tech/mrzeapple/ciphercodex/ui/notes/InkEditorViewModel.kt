@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import tech.mrzeapple.ciphercodex.CipherCodexApp
 import tech.mrzeapple.ciphercodex.appScope
 import tech.mrzeapple.ciphercodex.data.db.StrokeEntity
@@ -41,13 +43,17 @@ class InkEditorViewModel(private val app: CipherCodexApp, val pageGuid: String) 
     val canRedo = MutableStateFlow(false)
     private fun bump() { canUndo.value = undoStack.isNotEmpty(); canRedo.value = redoStack.isNotEmpty() }
 
-    fun commitStroke(points: List<InkPoint>) {
+    fun commitStroke(points: List<InkPoint>, onCommitted: (() -> Unit)? = null) {
         viewModelScope.launch {
             opMutex.withLock {
                 author.commitStroke(pageGuid, points)?.let {
                     undoStack.addLast(Add(it)); redoStack.clear(); bump()
                 }
             }
+            // InProgressStrokesView.removeFinishedStrokes must run on the UI thread;
+            // viewModelScope is already Main.immediate but hop explicitly so this holds
+            // even if the Room suspend call ever resumes on another dispatcher.
+            withContext(Dispatchers.Main) { onCommitted?.invoke() }
         }
     }
 

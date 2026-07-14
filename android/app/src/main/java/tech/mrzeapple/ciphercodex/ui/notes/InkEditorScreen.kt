@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -167,81 +168,94 @@ fun InkEditorScreen(
                 if (tool == EditorTool.PEN) {
                     // Wet ink: a real InProgressStrokesView driven directly off the raw
                     // MotionEvent stream, stylus pointers only. A finished stroke is
-                    // converted to InkPoints and committed, then immediately removed
-                    // from this view's own overlay so it isn't drawn twice.
-                    AndroidView(
-                        modifier = Modifier.fillMaxSize(),
-                        factory = { ctx ->
-                            InProgressStrokesView(ctx).also { view ->
-                                view.addFinishedStrokesListener(object : InProgressStrokesFinishedListener {
-                                    override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
-                                        val viewW = view.width.toFloat().coerceAtLeast(1f)
-                                        val viewH = view.height.toFloat().coerceAtLeast(1f)
-                                        for ((_, stroke) in strokes) {
-                                            val inputs = stroke.inputs
-                                            val points = (0 until inputs.size).map { i ->
-                                                val inp = inputs.get(i)
-                                                InkPoint(
-                                                    x = inp.x / viewW,
-                                                    y = inp.y / viewH,
-                                                    // ponytail: NO_PRESSURE (-1f) devices coerce to 0, same
-                                                    // clamp path as real low-pressure samples.
-                                                    pressure = (inp.pressure * 4095).toInt().coerceIn(0, 4095),
-                                                    t = inp.elapsedTimeMillis,
+                    // converted to InkPoints and committed; the wet overlay only drops it
+                    // once that commit lands in Room (see commitStroke's onCommitted).
+                    // key(pageGuid): AndroidView's factory runs once per node, so without
+                    // this the closures below would keep capturing the FIRST page's `vm`
+                    // across ‹/›/+PAGE navigation (the call site never unmounts).
+                    key(pageGuid) {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { ctx ->
+                                InProgressStrokesView(ctx).also { view ->
+                                    view.addFinishedStrokesListener(object : InProgressStrokesFinishedListener {
+                                        override fun onStrokesFinished(finished: Map<InProgressStrokeId, Stroke>) {
+                                            val viewW = view.width.toFloat().coerceAtLeast(1f)
+                                            val viewH = view.height.toFloat().coerceAtLeast(1f)
+                                            for ((_, stroke) in finished) {
+                                                val inputs = stroke.inputs
+                                                val points = (0 until inputs.size).map { i ->
+                                                    val inp = inputs.get(i)
+                                                    InkPoint(
+                                                        x = inp.x / viewW,
+                                                        y = inp.y / viewH,
+                                                        // ponytail: NO_PRESSURE (-1f) devices coerce to 0, same
+                                                        // clamp path as real low-pressure samples.
+                                                        pressure = (inp.pressure * 4095).toInt().coerceIn(0, 4095),
+                                                        t = inp.elapsedTimeMillis,
+                                                    )
+                                                }
+                                                vm.commitStroke(points) { view.removeFinishedStrokes(finished.keys) }
+                                            }
+                                        }
+                                    })
+                                    val pointerIdToStrokeId = HashMap<Int, InProgressStrokeId>()
+                                    view.setOnTouchListener { v, event ->
+                                        val actingIndex = event.actionIndex
+                                        val pointerId = event.getPointerId(actingIndex)
+                                        when (event.actionMasked) {
+                                            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                                                if (event.getToolType(actingIndex) != MotionEvent.TOOL_TYPE_STYLUS) {
+                                                    return@setOnTouchListener false
+                                                }
+                                                // ponytail: epsilon 0.1f is the stock-brush sample tolerance
+                                                // (stroke-space mesh simplification); revisit if strokes facet.
+                                                val brush = Brush.createWithColorIntArgb(
+                                                    StockBrushes.pressurePenLatest,
+                                                    android.graphics.Color.BLACK,
+                                                    9f * v.width / InkRender.PAGE_W,
+                                                    0.1f,
                                                 )
+                                                pointerIdToStrokeId[pointerId] = view.startStroke(event, pointerId, brush)
+                                                true
                                             }
-                                            vm.commitStroke(points)
-                                        }
-                                        view.removeFinishedStrokes(strokes.keys)
-                                    }
-                                })
-                                val pointerIdToStrokeId = HashMap<Int, InProgressStrokeId>()
-                                view.setOnTouchListener { v, event ->
-                                    val actingIndex = event.actionIndex
-                                    if (event.getToolType(actingIndex) != MotionEvent.TOOL_TYPE_STYLUS) {
-                                        return@setOnTouchListener false
-                                    }
-                                    val pointerId = event.getPointerId(actingIndex)
-                                    when (event.actionMasked) {
-                                        MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                                            // ponytail: epsilon 0.1f is the stock-brush sample tolerance
-                                            // (stroke-space mesh simplification); revisit if strokes facet.
-                                            val brush = Brush.createWithColorIntArgb(
-                                                StockBrushes.pressurePenLatest,
-                                                android.graphics.Color.BLACK,
-                                                9f * v.width / InkRender.PAGE_W,
-                                                0.1f,
-                                            )
-                                            pointerIdToStrokeId[pointerId] = view.startStroke(event, pointerId, brush)
-                                            true
-                                        }
-                                        MotionEvent.ACTION_MOVE -> {
-                                            for (i in 0 until event.pointerCount) {
-                                                if (event.getToolType(i) != MotionEvent.TOOL_TYPE_STYLUS) continue
-                                                val pid = event.getPointerId(i)
-                                                val sid = pointerIdToStrokeId[pid] ?: continue
-                                                view.addToStroke(event, pid, sid)
+                                            MotionEvent.ACTION_MOVE -> {
+                                                // No top-level tool-type gate here: actionIndex is always slot 0
+                                                // on ACTION_MOVE, so a resting palm/finger in slot 0 would drop
+                                                // the whole batch. Filter per-pointer instead.
+                                                for (i in 0 until event.pointerCount) {
+                                                    if (event.getToolType(i) != MotionEvent.TOOL_TYPE_STYLUS) continue
+                                                    val pid = event.getPointerId(i)
+                                                    val sid = pointerIdToStrokeId[pid] ?: continue
+                                                    view.addToStroke(event, pid, sid)
+                                                }
+                                                true
                                             }
-                                            true
+                                            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                                                if (event.getToolType(actingIndex) != MotionEvent.TOOL_TYPE_STYLUS) {
+                                                    return@setOnTouchListener false
+                                                }
+                                                val sid = pointerIdToStrokeId.remove(pointerId)
+                                                    ?: return@setOnTouchListener false
+                                                view.finishStroke(event, pointerId, sid)
+                                                true
+                                            }
+                                            MotionEvent.ACTION_CANCEL -> {
+                                                if (event.getToolType(actingIndex) != MotionEvent.TOOL_TYPE_STYLUS) {
+                                                    return@setOnTouchListener false
+                                                }
+                                                val sid = pointerIdToStrokeId.remove(pointerId)
+                                                    ?: return@setOnTouchListener false
+                                                view.cancelStroke(sid, event)
+                                                true
+                                            }
+                                            else -> false
                                         }
-                                        MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                                            val sid = pointerIdToStrokeId.remove(pointerId)
-                                                ?: return@setOnTouchListener false
-                                            view.finishStroke(event, pointerId, sid)
-                                            true
-                                        }
-                                        MotionEvent.ACTION_CANCEL -> {
-                                            val sid = pointerIdToStrokeId.remove(pointerId)
-                                                ?: return@setOnTouchListener false
-                                            view.cancelStroke(sid, event)
-                                            true
-                                        }
-                                        else -> false
                                     }
                                 }
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
                 } else {
                     Box(
                         Modifier
