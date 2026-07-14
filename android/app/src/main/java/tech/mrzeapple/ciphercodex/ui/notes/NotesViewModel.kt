@@ -23,6 +23,7 @@ data class NotebookCard(
 
 class NotesViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = (application as CipherCodexApp).database.notesDao()
+    private val author = (application as CipherCodexApp).inkAuthor
 
     /** Search box above the grid; empty = show everything. */
     val query = MutableStateFlow("")
@@ -53,4 +54,12 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Returns the new page guid so the UI can jump straight into the editor. */
+    suspend fun newNotebook(title: String): String {
+        val nb = author.createNotebook(title.ifBlank { "Notebook" })
+        return author.createPage(nb)
+    }
+
+    suspend fun newPage(notebookGuid: String): String = author.createPage(notebookGuid)
 }

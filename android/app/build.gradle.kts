@@ -80,6 +80,11 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.mlkit.digital.ink)
     implementation(libs.androidx.ink.authoring)
+    // ink-authoring's compile-scope (java-api) variant only ships version *constraints* for
+    // these — the actual classes are runtime-only unless declared directly (androidx.ink's
+    // "atomic group" convention: consumers add each artifact they reference by name).
+    implementation(libs.androidx.ink.brush)
+    implementation(libs.androidx.ink.strokes)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
 }

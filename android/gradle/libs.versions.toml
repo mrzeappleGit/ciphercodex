@@ -36,6 +36,8 @@ androidx-documentfile = { module = "androidx.documentfile:documentfile", version
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 mlkit-digital-ink = { group = "com.google.mlkit", name = "digital-ink-recognition", version.ref = "mlkitDigitalInk" }
 androidx-ink-authoring = { module = "androidx.ink:ink-authoring", version.ref = "ink" }
+androidx-ink-brush = { module = "androidx.ink:ink-brush", version.ref = "ink" }
+androidx-ink-strokes = { module = "androidx.ink:ink-strokes", version.ref = "ink" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 junit = { module = "junit:junit", version = "4.13.2" }
