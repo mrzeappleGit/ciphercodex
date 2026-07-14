@@ -225,6 +225,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefs.setEinkMode(value) }
     }
 
+    fun setReadingBold(value: Boolean) {
+        viewModelScope.launch { prefs.setReadingBold(value) }
+    }
+
     private val _hwrStatus = MutableStateFlow<String?>(null)
     val hwrStatus: StateFlow<String?> = _hwrStatus.asStateFlow()
 
@@ -306,6 +310,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             webdavPass = "",
             webdavLastSyncAt = 0L,
             handwritingRecognition = false,
+            readingBold = false,
         )
     }
 }

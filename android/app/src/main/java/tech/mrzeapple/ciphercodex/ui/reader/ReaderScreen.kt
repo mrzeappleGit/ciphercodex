@@ -160,6 +160,7 @@ private data class PaginationResult(
     val lineSpacing: Float,
     val fontFamily: String,
     val justify: Boolean,
+    val bold: Boolean,
     val sysFontScale: Float,
     val sysDensity: Float,
     val chapter: PaginatedChapter,
@@ -496,6 +497,7 @@ private fun ReaderContent(
             val lineSpacing = settings.lineSpacing
             val fontFamilyName = settings.readingFont.name
             val justify = settings.justify
+            val bold = settings.readingBold
             // The ViewModel's page cache outlives config changes; the system
             // font scale (and density) must invalidate it or cached page cuts
             // no longer match how the text renders.
@@ -504,21 +506,23 @@ private fun ReaderContent(
             val sysDensity = density.density
             val spineIndex = position.spineIndex
             val measurer = rememberTextMeasurer()
-            val pageStyle = remember(theme, ink, fontScale, lineSpacing, settings.readingFont) {
+            val pageStyle = remember(theme, ink, fontScale, lineSpacing, settings.readingFont, bold) {
                 ReadingBodyStyle.copy(
                     color = ink,
                     fontFamily = readingFontFamily(settings.readingFont),
                     fontSize = ReadingBodyStyle.fontSize * fontScale,
                     lineHeight = ReadingBodyStyle.lineHeight * fontScale * lineSpacing,
+                    // BOLD wins over CONTRAST's heavier-stroke Medium; otherwise
                     // E-INK reads darker with a heavier stroke on color e-ink.
-                    fontWeight = if (theme == ReadingTheme.CONTRAST) FontWeight.Medium
+                    fontWeight = if (bold) FontWeight.Bold
+                        else if (theme == ReadingTheme.CONTRAST) FontWeight.Medium
                         else ReadingBodyStyle.fontWeight,
                 )
             }
 
             val result by produceState<PaginationResult?>(
                 initialValue = null,
-                spineIndex, widthPx, heightPx, fontScale, lineSpacing, fontFamilyName, justify,
+                spineIndex, widthPx, heightPx, fontScale, lineSpacing, fontFamilyName, justify, bold,
                 sysFontScale, sysDensity, theme, // theme: CONTRAST's heavier weight re-breaks lines
             ) {
                 value = try {
@@ -530,11 +534,12 @@ private fun ReaderContent(
                             lineSpacing = lineSpacing,
                             fontFamily = fontFamilyName,
                             justify = justify,
+                            bold = bold,
                             sysFontScale = sysFontScale,
                             sysDensity = sysDensity,
                             chapter = vm.paginated(
                                 spineIndex, widthPx, heightPx, fontScale, lineSpacing,
-                                fontFamilyName, justify, sysFontScale, sysDensity, measurer, pageStyle,
+                                fontFamilyName, justify, bold, sysFontScale, sysDensity, measurer, pageStyle,
                             ),
                         )
                     }
@@ -557,6 +562,7 @@ private fun ReaderContent(
                     fresh.lineSpacing == lineSpacing &&
                     fresh.fontFamily == fontFamilyName &&
                     fresh.justify == justify &&
+                    fresh.bold == bold &&
                     fresh.sysFontScale == sysFontScale &&
                     fresh.sysDensity == sysDensity &&
                     fresh.chapter.spineIndex == position.spineIndex

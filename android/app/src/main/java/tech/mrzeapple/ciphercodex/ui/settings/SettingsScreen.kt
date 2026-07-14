@@ -1,5 +1,6 @@
 package tech.mrzeapple.ciphercodex.ui.settings
 
+import tech.mrzeapple.ciphercodex.BuildConfig
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -158,6 +159,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
                 onAdjustLineSpacing = vm::adjustLineSpacing,
                 onReaderMargin = vm::setReaderMargin,
                 onJustify = vm::setJustify,
+                onReadingBold = vm::setReadingBold,
                 onReadingFont = vm::setReadingFont,
                 onBrightnessOverride = vm::setBrightnessOverride,
                 onBrightness = vm::setBrightness,
@@ -358,6 +360,7 @@ private fun ReadingPanel(
     onAdjustLineSpacing: (Float) -> Unit,
     onReaderMargin: (ReaderMargin) -> Unit,
     onJustify: (Boolean) -> Unit,
+    onReadingBold: (Boolean) -> Unit,
     onReadingFont: (ReadingFontChoice) -> Unit,
     onBrightnessOverride: (Boolean) -> Unit,
     onBrightness: (Float) -> Unit,
@@ -428,6 +431,7 @@ private fun ReadingPanel(
                 }
             }
             SwitchRow("JUSTIFY TEXT", "ALIGN BOTH EDGES", settings.justify, onJustify)
+            SwitchRow("BOLD", "HEAVIER STROKE WEIGHT", settings.readingBold, onReadingBold)
             SwitchRow(
                 "ADJUST BRIGHTNESS", "OVERRIDE SYSTEM WHILE READING",
                 settings.brightnessOverride, onBrightnessOverride,
@@ -617,7 +621,7 @@ private fun AboutPanel(deviceId: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                CipherCaption("v0.4.14", color = c.cyan)
+                CipherCaption("v${BuildConfig.VERSION_NAME}", color = c.cyan)
             }
             CipherCaption("DEVICE ID // ${deviceId.ifEmpty { "GENERATING..." }}")
             Text(

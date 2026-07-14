@@ -138,6 +138,7 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         val lineSpacing: Float,
         val fontFamily: String,
         val justify: Boolean,
+        val bold: Boolean,
         // System font scale / display density are part of the layout identity:
         // this ViewModel outlives config changes, so a system font-size change
         // must not serve page cuts measured under the old Density.
@@ -221,13 +222,14 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         lineSpacing: Float,
         fontFamily: String,
         justify: Boolean,
+        bold: Boolean,
         sysFontScale: Float,
         sysDensity: Float,
         measurer: TextMeasurer,
         style: TextStyle,
     ): PaginatedChapter {
         val key = PageCacheKey(
-            spineIndex, widthPx, heightPx, fontScale, lineSpacing, fontFamily, justify,
+            spineIndex, widthPx, heightPx, fontScale, lineSpacing, fontFamily, justify, bold,
             sysFontScale, sysDensity,
         )
         synchronized(pageCache) { pageCache[key]?.let { return it } }

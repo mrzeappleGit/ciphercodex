@@ -66,6 +66,8 @@ data class Settings(
     val webdavLastSyncAt: Long,
     /** Opt-in: recognize rM2 handwritten notes to text at sync (downloads an on-device model). */
     val handwritingRecognition: Boolean,
+    /** Render the whole book text bold. */
+    val readingBold: Boolean,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -99,6 +101,7 @@ class UserPrefs(private val context: Context) {
         val webdavPass = stringPreferencesKey("webdav_pass")
         val webdavLastSyncAt = longPreferencesKey("webdav_last_sync_at")
         val handwritingRecognition = booleanPreferencesKey("handwriting_recognition")
+        val readingBold = booleanPreferencesKey("reading_bold")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -133,6 +136,7 @@ class UserPrefs(private val context: Context) {
             webdavPass = p[Keys.webdavPass] ?: "",
             webdavLastSyncAt = p[Keys.webdavLastSyncAt] ?: 0L,
             handwritingRecognition = p[Keys.handwritingRecognition] ?: false,
+            readingBold = p[Keys.readingBold] ?: false,
         )
     }
 
@@ -176,6 +180,7 @@ class UserPrefs(private val context: Context) {
     suspend fun setWebdavPass(value: String) = context.dataStore.edit { it[Keys.webdavPass] = value }
     suspend fun setWebdavLastSyncAt(value: Long) = context.dataStore.edit { it[Keys.webdavLastSyncAt] = value }
     suspend fun setHandwritingRecognition(value: Boolean) = context.dataStore.edit { it[Keys.handwritingRecognition] = value }
+    suspend fun setReadingBold(value: Boolean) = context.dataStore.edit { it[Keys.readingBold] = value }
 
     companion object {
         const val DEFAULT_SERVER = "https://sync.koreader.rocks"
