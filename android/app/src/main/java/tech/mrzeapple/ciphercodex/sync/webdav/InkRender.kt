@@ -36,7 +36,12 @@ object InkRender {
                         seg.x1 * PAGE_W, seg.y1 * PAGE_H, paint)
                 }
             }
-            val tmp = File(dest.parentFile, "${dest.name}.tmp")
+            // Unique per invocation: InkAuthor.renderPageNow (appScope, editor close) and
+            // InkSync.apply's render pass (sync mutex) can both stamp-gate on the same stale
+            // contentStamp and race to render the same page. A shared tmp name let one writer
+            // truncate the other's in-progress file, and the surviving rename would still
+            // record the stamp — sticking a corrupt PNG until the strokes next change.
+            val tmp = File(dest.parentFile, "${dest.name}.${System.nanoTime()}.tmp")
             tmp.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
             if (tmp.renameTo(dest)) return true
             dest.delete()

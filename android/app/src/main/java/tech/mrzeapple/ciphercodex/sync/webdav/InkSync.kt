@@ -40,6 +40,10 @@ class InkSync(
             for ((guid, n) in notebooks) {
                 val local = dao.notebookByGuid(guid)
                 if (n.deleted == 1) {
+                    // Bounded to this device's known pages (not a full orphan sweep): the rM2's
+                    // own deleteNotebook (storage.cpp) tombstones every descendant page too, so
+                    // those pages' strokes/text are independently swept by the page-tombstone
+                    // branch below (which runs even when the page row is already gone locally).
                     if (local != null) {
                         dao.allPages().filter { it.notebookGuid == guid }
                             .forEach {
@@ -59,11 +63,16 @@ class InkSync(
             for ((guid, p) in pages) {
                 val local = dao.pageByGuid(guid)
                 if (p.deleted == 1) {
+                    // Stroke/text cleanup runs even when local == null: an in-flight editor
+                    // commit or undo-restore landing after this merge (page row absent here,
+                    // written later) would otherwise orphan stroke rows that export forever via
+                    // allStrokes(). The tombstone re-arrives every sync, so this sweep repeats
+                    // until nothing is left to clean.
+                    if (local != null && local.imagePath.isNotEmpty()) orphanFiles.add(local.imagePath)
+                    dao.deletePageText(guid)
+                    dao.deleteStrokesOf(guid)
                     if (local != null) {
-                        if (local.imagePath.isNotEmpty()) orphanFiles.add(local.imagePath)
                         dao.deletePage(guid)
-                        dao.deletePageText(guid)
-                        dao.deleteStrokesOf(guid)
                         removed++
                     }
                 } else if (dao.notebookByGuid(p.notebookGuid) == null) {

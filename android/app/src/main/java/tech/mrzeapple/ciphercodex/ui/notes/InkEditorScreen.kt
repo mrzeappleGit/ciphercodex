@@ -230,7 +230,7 @@ fun InkEditorScreen(
                                                 val brush = Brush.createWithColorIntArgb(
                                                     StockBrushes.pressurePenLatest,
                                                     android.graphics.Color.BLACK,
-                                                    9f * v.width / InkRender.PAGE_W,
+                                                    (9f * v.width / InkRender.PAGE_W).coerceAtLeast(0.1f),
                                                     0.1f,
                                                 )
                                                 pointerIdToStrokeId[pointerId] = view.startStroke(event, pointerId, brush)
