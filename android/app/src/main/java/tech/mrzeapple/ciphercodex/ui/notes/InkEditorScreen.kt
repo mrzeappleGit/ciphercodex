@@ -60,6 +60,9 @@ fun InkEditorScreen(
 ) {
     val c = LocalCipherColors.current
     val app = LocalContext.current.applicationContext as CipherCodexApp
+    // Deliberate: keyed viewModel() accumulates one VM per pageGuid in the ViewModelStore for
+    // the screen's lifetime (never cleared on navigation) — an in-flight commitStroke on the
+    // OLD page's VM must keep running (mutex-serialized Room write) after ‹/›/+PAGE navigates.
     val vm: InkEditorViewModel = viewModel(
         key = pageGuid,
         factory = InkEditorViewModel.factory(app, pageGuid),
@@ -182,7 +185,8 @@ fun InkEditorScreen(
                                         override fun onStrokesFinished(finished: Map<InProgressStrokeId, Stroke>) {
                                             val viewW = view.width.toFloat().coerceAtLeast(1f)
                                             val viewH = view.height.toFloat().coerceAtLeast(1f)
-                                            for ((_, stroke) in finished) {
+                                            val entries = finished.entries.toList()
+                                            entries.forEachIndexed { index, (_, stroke) ->
                                                 val inputs = stroke.inputs
                                                 val points = (0 until inputs.size).map { i ->
                                                     val inp = inputs.get(i)
@@ -195,7 +199,15 @@ fun InkEditorScreen(
                                                         t = inp.elapsedTimeMillis,
                                                     )
                                                 }
-                                                vm.commitStroke(points) { view.removeFinishedStrokes(finished.keys) }
+                                                // Only the LAST stroke's commit removes the wet batch: opMutex
+                                                // is fair/FIFO, so its onCommitted fires after every earlier
+                                                // commit in this batch has landed in Room — removing per-stroke
+                                                // would drop wet ink for strokes whose Room write is still queued.
+                                                if (index == entries.lastIndex) {
+                                                    vm.commitStroke(points) { view.removeFinishedStrokes(finished.keys) }
+                                                } else {
+                                                    vm.commitStroke(points)
+                                                }
                                             }
                                         }
                                     })
@@ -206,7 +218,12 @@ fun InkEditorScreen(
                                         when (event.actionMasked) {
                                             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                                                 if (event.getToolType(actingIndex) != MotionEvent.TOOL_TYPE_STYLUS) {
-                                                    return@setOnTouchListener false
+                                                    // Palm-first posture: a non-stylus ACTION_DOWN must still be
+                                                    // consumed (return true, start no stroke) or Android drops the
+                                                    // whole gesture stream, so the stylus's later POINTER_DOWN
+                                                    // (normal handwriting: palm rests down before the pen touches)
+                                                    // would never arrive.
+                                                    return@setOnTouchListener true
                                                 }
                                                 // ponytail: epsilon 0.1f is the stock-brush sample tolerance
                                                 // (stroke-space mesh simplification); revisit if strokes facet.
@@ -241,12 +258,12 @@ fun InkEditorScreen(
                                                 true
                                             }
                                             MotionEvent.ACTION_CANCEL -> {
-                                                if (event.getToolType(actingIndex) != MotionEvent.TOOL_TYPE_STYLUS) {
-                                                    return@setOnTouchListener false
-                                                }
-                                                val sid = pointerIdToStrokeId.remove(pointerId)
-                                                    ?: return@setOnTouchListener false
-                                                view.cancelStroke(sid, event)
+                                                // CANCEL is single-pointer/slot-0 but ends the WHOLE gesture, so
+                                                // drain every in-flight stroke (no tool-type gate) rather than
+                                                // just the acting pointer — otherwise other pointers' wet ink
+                                                // leaks until the view is recreated by page navigation.
+                                                pointerIdToStrokeId.values.forEach { view.cancelStroke(it, event) }
+                                                pointerIdToStrokeId.clear()
                                                 true
                                             }
                                             else -> false
