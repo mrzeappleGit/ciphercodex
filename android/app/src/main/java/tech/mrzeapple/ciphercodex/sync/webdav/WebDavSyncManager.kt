@@ -98,8 +98,8 @@ class WebDavSyncManager(
             } finally { tmp.delete() }
         }
 
-        // 5. Push our snapshot (full state incl. tombstones), atomically.
-        val out = SnapshotJson.encode(exportSnapshot(deviceId))
+        // 5. Push our snapshot (full state incl. tombstones, plus ink arrays), atomically.
+        val out = InkSnapshotJson.encodeMerged(exportSnapshot(deviceId), exportInk(deviceId))
         dav.put("state/$deviceId.json.tmp", out.encodeToByteArray())
         dav.move("state/$deviceId.json.tmp", "state/$deviceId.json")
 
@@ -312,6 +312,25 @@ class WebDavSyncManager(
                     deleted = d(s.deleted), updatedAt = s.updatedAt) },
             pageTexts = db.notesDao().allPageTexts().map {
                 SnapPageText(it.pageGuid, it.text, it.sourceStamp, 0, it.updatedAt) },
+        )
+    }
+
+    /** Full local ink state. Notebooks/pages have no deleted column (inbound tombstones
+     *  hard-delete), so they always emit deleted = 0; stroke tombstones DO travel. */
+    private suspend fun exportInk(deviceId: String): InkSnapshot {
+        val dao = db.notesDao()
+        return InkSnapshot(
+            deviceId = deviceId,
+            notebooks = dao.allNotebooks().map {
+                InkNotebook(guid = it.guid, title = it.title, createdAt = it.createdAt,
+                    deleted = 0, updatedAt = it.updatedAt) },
+            pages = dao.allPages().map {
+                InkPage(guid = it.guid, notebookGuid = it.notebookGuid, seq = it.seq,
+                    deleted = 0, updatedAt = it.updatedAt) },
+            strokes = dao.allStrokes().map {
+                InkStroke(guid = it.guid, pageGuid = it.pageGuid, tool = it.tool,
+                    baseWidth = it.baseWidth, pointsB64 = it.pointsB64,
+                    createdAt = it.createdAt, deleted = it.deleted, updatedAt = it.updatedAt) },
         )
     }
 }
