@@ -160,7 +160,7 @@ private data class PaginationResult(
     val lineSpacing: Float,
     val fontFamily: String,
     val justify: Boolean,
-    val bold: Boolean,
+    val fontWeight: Int,
     val sysFontScale: Float,
     val sysDensity: Float,
     val chapter: PaginatedChapter,
@@ -534,12 +534,12 @@ private fun ReaderContent(
                             lineSpacing = lineSpacing,
                             fontFamily = fontFamilyName,
                             justify = justify,
-                            bold = bold,
+                            fontWeight = pageStyle.fontWeight?.weight ?: 400,
                             sysFontScale = sysFontScale,
                             sysDensity = sysDensity,
                             chapter = vm.paginated(
                                 spineIndex, widthPx, heightPx, fontScale, lineSpacing,
-                                fontFamilyName, justify, bold, sysFontScale, sysDensity, measurer, pageStyle,
+                                fontFamilyName, justify, sysFontScale, sysDensity, measurer, pageStyle,
                             ),
                         )
                     }
@@ -562,7 +562,7 @@ private fun ReaderContent(
                     fresh.lineSpacing == lineSpacing &&
                     fresh.fontFamily == fontFamilyName &&
                     fresh.justify == justify &&
-                    fresh.bold == bold &&
+                    fresh.fontWeight == (pageStyle.fontWeight?.weight ?: 400) &&
                     fresh.sysFontScale == sysFontScale &&
                     fresh.sysDensity == sysDensity &&
                     fresh.chapter.spineIndex == position.spineIndex

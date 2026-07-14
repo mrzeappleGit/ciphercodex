@@ -138,7 +138,10 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         val lineSpacing: Float,
         val fontFamily: String,
         val justify: Boolean,
-        val bold: Boolean,
+        // Resolved font weight: both BOLD and the CONTRAST theme's heavier
+        // Medium reflow the page, and both funnel into this same value, so
+        // the cache keys on the weight actually measured, not on theme/bold.
+        val fontWeight: Int,
         // System font scale / display density are part of the layout identity:
         // this ViewModel outlives config changes, so a system font-size change
         // must not serve page cuts measured under the old Density.
@@ -212,8 +215,11 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
     }
 
     /** Measures + cuts the chapter, memoized on (spine, size, fontScale,
-     *  system font scale/density) — theme only recolors, it never reflows.
-     *  Blocking; call off the main thread. */
+     *  system font scale/density, resolved font weight). Theme is NOT
+     *  purely cosmetic: CONTRAST forces a heavier weight (Medium) and BOLD
+     *  forces Bold, and either reflows the page — the cache keys on the
+     *  weight actually measured (from [style]), not on theme or bold
+     *  directly. Blocking; call off the main thread. */
     fun paginated(
         spineIndex: Int,
         widthPx: Int,
@@ -222,14 +228,14 @@ class ReaderViewModel(application: Application, private val bookId: Long) :
         lineSpacing: Float,
         fontFamily: String,
         justify: Boolean,
-        bold: Boolean,
         sysFontScale: Float,
         sysDensity: Float,
         measurer: TextMeasurer,
         style: TextStyle,
     ): PaginatedChapter {
+        val fontWeight = style.fontWeight?.weight ?: 400
         val key = PageCacheKey(
-            spineIndex, widthPx, heightPx, fontScale, lineSpacing, fontFamily, justify, bold,
+            spineIndex, widthPx, heightPx, fontScale, lineSpacing, fontFamily, justify, fontWeight,
             sysFontScale, sysDensity,
         )
         synchronized(pageCache) { pageCache[key]?.let { return it } }
