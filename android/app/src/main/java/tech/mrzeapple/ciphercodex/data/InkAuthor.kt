@@ -7,6 +7,7 @@ import tech.mrzeapple.ciphercodex.data.db.NotebookEntity
 import tech.mrzeapple.ciphercodex.data.db.NotebookPageEntity
 import tech.mrzeapple.ciphercodex.data.db.StrokeEntity
 import tech.mrzeapple.ciphercodex.sync.Guids
+import tech.mrzeapple.ciphercodex.sync.webdav.InkMerge
 import tech.mrzeapple.ciphercodex.sync.webdav.InkPoint
 import tech.mrzeapple.ciphercodex.sync.webdav.InkPoints
 import tech.mrzeapple.ciphercodex.sync.webdav.InkRender
@@ -65,8 +66,7 @@ class InkAuthor(private val db: AppDatabase, private val notebooksDir: File) {
     suspend fun renderPageNow(pageGuid: String) {
         val page = dao.pageByGuid(pageGuid) ?: return
         val live = dao.liveStrokesForPage(pageGuid)
-        // Task 4 replaces with InkMerge.contentStamp(live) once that overload exists.
-        val stamp = if (live.isEmpty()) 0L else live.maxOf { it.updatedAt } * 31 + live.size
+        val stamp = InkMerge.contentStamp(live)
         if (stamp == page.contentStamp && page.imagePath.isNotEmpty()) return
         notebooksDir.mkdirs()
         val dest = File(notebooksDir, "$pageGuid.png")

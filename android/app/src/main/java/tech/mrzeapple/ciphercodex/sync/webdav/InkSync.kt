@@ -5,13 +5,15 @@ import tech.mrzeapple.ciphercodex.data.db.AppDatabase
 import tech.mrzeapple.ciphercodex.data.db.NotebookEntity
 import tech.mrzeapple.ciphercodex.data.db.NotebookPageEntity
 import tech.mrzeapple.ciphercodex.data.db.PageTextEntity
+import tech.mrzeapple.ciphercodex.data.db.StrokeEntity
 import tech.mrzeapple.ciphercodex.sync.recognition.RecStroke
 import tech.mrzeapple.ciphercodex.sync.recognition.RecognitionPass
 import java.io.File
 
-/** Applies the ink arrays of downloaded snapshots: LWW metadata into Room,
- *  tombstones hard-deleted (row + PNG), changed pages re-rendered to PNG.
- *  Android never emits ink, so no tombstones are kept locally. */
+/** Applies the ink arrays of downloaded snapshots: LWW metadata and strokes merge
+ *  into Room (the merged truth), tombstones hard-deleted (row + PNG), changed pages
+ *  re-rendered to PNG and re-recognized from Room. Android now authors and emits
+ *  ink of its own, so local strokes ride the wire alongside the merge. */
 class InkSync(
     private val db: AppDatabase,
     private val notebooksDir: File,
@@ -27,7 +29,7 @@ class InkSync(
         val snaps = snapshotTexts.mapNotNull { runCatching { InkSnapshotJson.decode(it) }.getOrNull() }
         val notebooks = InkMerge.mergeNotebooks(snaps)
         val pages = InkMerge.mergePages(snaps)
-        val strokesByPage = InkMerge.liveStrokesByPage(snaps)
+        val strokes = InkMerge.mergeStrokes(snaps)
         val dao = db.notesDao()
 
         val orphanFiles = mutableListOf<String>()
@@ -43,6 +45,7 @@ class InkSync(
                             .forEach {
                                 if (it.imagePath.isNotEmpty()) orphanFiles.add(it.imagePath)
                                 dao.deletePageText(it.guid)
+                                dao.deleteStrokesOf(it.guid)
                             }
                         dao.deletePagesOf(guid)
                         dao.deleteNotebook(guid)
@@ -60,6 +63,7 @@ class InkSync(
                         if (local.imagePath.isNotEmpty()) orphanFiles.add(local.imagePath)
                         dao.deletePage(guid)
                         dao.deletePageText(guid)
+                        dao.deleteStrokesOf(guid)
                         removed++
                     }
                 } else if (dao.notebookByGuid(p.notebookGuid) == null) {
@@ -72,6 +76,19 @@ class InkSync(
                         updatedAt = p.updatedAt))
                 }
             }
+            for ((guid, s) in strokes) {
+                val local = dao.strokeByGuid(guid)
+                if (local == null) {
+                    if (s.deleted == 1) continue // nothing local to tombstone; don't import a corpse
+                    if (dao.pageByGuid(s.pageGuid) == null) continue // missing parent: converges next sync
+                    dao.upsertStroke(StrokeEntity(guid = guid, pageGuid = s.pageGuid, tool = s.tool,
+                        baseWidth = s.baseWidth, pointsB64 = s.pointsB64, createdAt = s.createdAt,
+                        updatedAt = s.updatedAt, deleted = 0))
+                } else if (SnapshotMerge.wins(s.updatedAt, s.deleted, local.updatedAt, local.deleted)) {
+                    dao.upsertStroke(local.copy(pageGuid = s.pageGuid, pointsB64 = s.pointsB64,
+                        baseWidth = s.baseWidth, updatedAt = s.updatedAt, deleted = s.deleted))
+                }
+            }
         }
         orphanFiles.forEach { File(it).delete() }
 
@@ -80,12 +97,8 @@ class InkSync(
         var rendered = 0
         var recognized = 0
         for (page in dao.allPages()) {
-            // A page absent from this pass's merged wire `pages` (missing snapshot, or its
-            // ink arrays failed to decode) must not be treated as stroke-less and blanked —
-            // only a page present with zero live strokes legitimately renders blank.
-            if (!pages.containsKey(page.guid)) continue
-            val strokes = strokesByPage[page.guid].orEmpty()
-            val stamp = InkMerge.contentStamp(strokes)
+            val live = dao.liveStrokesForPage(page.guid)
+            val stamp = InkMerge.contentStamp(live)
             // Independent of the render check below: text must catch up even when the PNG
             // was already current (or vice versa), so this never gates on the render continue.
             val rec = recognition
@@ -95,7 +108,7 @@ class InkSync(
                     // Contained: an ML Kit throw on this page must not abort the render loop
                     // for the remaining pages. Failure leaves this page's row untouched.
                     runCatching {
-                        val text = if (strokes.isEmpty()) "" else rec.textFor(strokes.map {
+                        val text = if (live.isEmpty()) "" else rec.textFor(live.map {
                             RecStroke(InkPoints.decode(it.pointsB64), it.createdAt)
                         })
                         // Always upsert, even when text is empty: a fresh updatedAt must win
@@ -110,7 +123,7 @@ class InkSync(
             }
             if (stamp == page.contentStamp && page.imagePath.isNotEmpty()) continue
             val dest = File(notebooksDir, "${page.guid}.png")
-            if (InkRender.renderPage(strokes.map { it.pointsB64 to it.baseWidth }, dest)) {
+            if (InkRender.renderPage(live.map { it.pointsB64 to it.baseWidth }, dest)) {
                 dao.setPageImage(page.guid, dest.absolutePath, stamp)
                 rendered++
             }

@@ -24,14 +24,17 @@ object InkMerge {
     fun mergePages(snapshots: List<InkSnapshot>): Map<String, InkPage> =
         lww(snapshots, { it.pages }, { it.guid }, { it.updatedAt }, { it.deleted })
 
-    /** LWW per stroke guid first (a tombstone beats an older live copy), then
-     *  group the surviving live strokes by page. */
-    fun liveStrokesByPage(snapshots: List<InkSnapshot>): Map<String, List<InkStroke>> =
+    /** LWW per stroke guid, tombstones INCLUDED — the caller persists winners so a
+     *  tombstone can out-vote a stale live copy arriving later. */
+    fun mergeStrokes(snapshots: List<InkSnapshot>): Map<String, InkStroke> =
         lww(snapshots, { it.strokes }, { it.guid }, { it.updatedAt }, { it.deleted })
-            .values.filter { it.deleted == 0 }
-            .groupBy { it.pageGuid }
 
     fun contentStamp(liveStrokes: List<InkStroke>): Long =
+        if (liveStrokes.isEmpty()) 0L
+        else liveStrokes.maxOf { it.updatedAt } * 31 + liveStrokes.size
+
+    @JvmName("contentStampEntities")
+    fun contentStamp(liveStrokes: List<tech.mrzeapple.ciphercodex.data.db.StrokeEntity>): Long =
         if (liveStrokes.isEmpty()) 0L
         else liveStrokes.maxOf { it.updatedAt } * 31 + liveStrokes.size
 }
