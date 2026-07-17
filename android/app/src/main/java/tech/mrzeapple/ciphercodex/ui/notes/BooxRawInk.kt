@@ -162,7 +162,9 @@ fun BooxRawInkOverlay(
                         .setStrokeColor(Color.BLACK)
                         .setLimitRect(limit, ArrayList())
                         .openRawDrawing()
-                    helper.setRawDrawingEnabled(true)
+                    // Same pause invariant as the observer/pulse: if first layout lands
+                    // while not resumed, ON_RESUME does the arming.
+                    if (!pausedRef[0]) helper.setRawDrawingEnabled(true)
                 } else if (right - left != oR - oL || bottom - top != oB - oT) {
                     // Activity declares configChanges="orientation|screenSize", so
                     // rotation resizes this view without recreating the composable —
