@@ -73,14 +73,26 @@ fun BooxRawInkOverlay(
     modifier: Modifier = Modifier,
 ) {
     val helperRef = remember { arrayOfNulls<TouchHelper>(1) }
+    val viewRef = remember { arrayOfNulls<RawInkView>(1) }
+    // Plain mutable holder, not compose state — the observer and the pulse both run on
+    // main and only need to read/write the latest value, not trigger recomposition.
+    val pausedRef = remember { BooleanArray(1) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
-        // Raw mode locks its screen region; never leave it enabled while paused.
+        // Raw mode locks its screen region; never leave it enabled while paused. Also
+        // never enable before openRawDrawing() has run (addObserver replays ON_RESUME
+        // synchronously at composition, ahead of the layout listener's first call).
         val obs = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE -> helperRef[0]?.setRawDrawingEnabled(false)
-                Lifecycle.Event.ON_RESUME -> helperRef[0]?.setRawDrawingEnabled(true)
+                Lifecycle.Event.ON_PAUSE -> {
+                    pausedRef[0] = true
+                    if (viewRef[0]?.opened == true) helperRef[0]?.setRawDrawingEnabled(false)
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    pausedRef[0] = false
+                    if (viewRef[0]?.opened == true) helperRef[0]?.setRawDrawingEnabled(true)
+                }
                 else -> {}
             }
         }
@@ -90,12 +102,15 @@ fun BooxRawInkOverlay(
 
     LaunchedEffect(Unit) {
         vm.repaintTick.drop(1).collect {
+            if (viewRef[0]?.opened != true) return@collect
             // Release raw mode so the undone/redone stroke list repaints on the EPD,
             // then re-arm. ponytail: 200ms settle covers Room emission + recompose +
             // draw; tune on hardware if the repaint races it.
             helperRef[0]?.setRawDrawingEnabled(false)
             delay(200)
-            helperRef[0]?.setRawDrawingEnabled(true)
+            // Skip the re-arm if the activity paused during the delay — the lifecycle
+            // observer's ON_RESUME becomes the sole re-enable in that case.
+            if (!pausedRef[0]) helperRef[0]?.setRawDrawingEnabled(true)
         }
     }
 
@@ -132,9 +147,11 @@ fun BooxRawInkOverlay(
             val helper = TouchHelper.create(view, callback)
             view.helper = helper
             helperRef[0] = helper
-            view.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+            viewRef[0] = view
+            view.addOnLayoutChangeListener { v, left, top, right, bottom, oL, oT, oR, oB ->
                 val rv = v as RawInkView
-                if (!rv.opened && v.width > 0 && v.height > 0) {
+                if (v.width <= 0 || v.height <= 0) return@addOnLayoutChangeListener
+                if (!rv.opened) {
                     rv.opened = true
                     val limit = Rect()
                     // ponytail: local rect per the Onyx demo; if strokes land offset on
@@ -146,6 +163,15 @@ fun BooxRawInkOverlay(
                         .setLimitRect(limit, ArrayList())
                         .openRawDrawing()
                     helper.setRawDrawingEnabled(true)
+                } else if (right - left != oR - oL || bottom - top != oB - oT) {
+                    // Activity declares configChanges="orientation|screenSize", so
+                    // rotation resizes this view without recreating the composable —
+                    // refresh brush width + limit rect instead of re-opening (committed
+                    // strokes are unaffected; only wet visuals/input region go stale).
+                    val limit = Rect()
+                    v.getLocalVisibleRect(limit)
+                    helper.setStrokeWidth(9f * v.width / InkRender.PAGE_W)
+                    helper.setLimitRect(limit, ArrayList())
                 }
             }
             view
@@ -153,6 +179,7 @@ fun BooxRawInkOverlay(
         onRelease = { v ->
             (v as RawInkView).helper?.closeRawDrawing()
             helperRef[0] = null
+            viewRef[0] = null
         },
     )
 }
