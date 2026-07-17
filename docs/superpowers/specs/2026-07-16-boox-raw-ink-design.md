@@ -64,13 +64,20 @@ format, Room schema, sync protocol, and the rM2 renderer change **zero**.
 
 ### 5. Screen consistency
 
-Raw hardware ink is drawn outside the view system. While PEN is active on Boox, the
-committed-strokes Canvas **freezes** its content (new commits land in Room but do not
-recompose it) — otherwise each commit would trigger an EPD refresh that fights the raw
-layer. On tool switch, undo/redo, page navigation, or editor close: pause raw drawing →
-unfreeze → one full repaint (a single e-ink refresh flash — same behavior as the rM2 on
-undo). The hardware fountain stroke and our renderer's stroke are not pixel-identical;
-a just-written line may "settle" slightly on that repaint. Accepted.
+Raw hardware ink is drawn outside the view system, and while raw drawing is enabled the
+EPD **defers normal view refreshes** (`closeRawDrawing()` is documented as "unlocking"
+screen refresh). So the committed-strokes Canvas stays live: per-commit recompositions
+happen invisibly under the raw layer. Whenever raw mode is released — undo/redo (the VM
+bumps a `repaintTick`; the overlay pauses raw drawing briefly), tool switch, page
+navigation, editor close — the screen catches up in one repaint (a single e-ink refresh
+flash, same behavior as the rM2 on undo). The hardware fountain stroke and our
+renderer's stroke are not pixel-identical; a just-written line may "settle" slightly on
+that repaint. Accepted.
+
+**Contingency (hardware QA):** if this firmware lets view refreshes leak through raw
+mode (visible per-stroke flicker while writing), fall back to freezing the committed
+layer — filter the current raw session's stroke guids out of the Canvas until the next
+repaint event. VM-only change.
 
 ### 6. Erase
 
