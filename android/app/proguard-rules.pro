@@ -10,3 +10,7 @@
 # Onyx Pen SDK — raw input dispatches through JNI/reflection into SDK classes
 -keep class com.onyx.** { *; }
 -dontwarn com.onyx.**
+
+# Suppress warnings for optional/indirect transitive dependencies
+-dontwarn org.joda.convert.**
+-dontwarn org.slf4j.impl.**

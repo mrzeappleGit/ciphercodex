@@ -14,8 +14,8 @@ android {
         applicationId = "tech.mrzeapple.ciphercodex"
         minSdk = 26
         targetSdk = 35
-        versionCode = 30
-        versionName = "0.8.0"
+        versionCode = 31
+        versionName = "0.9.0"
     }
 
     signingConfigs {
@@ -87,7 +87,12 @@ dependencies {
     implementation(libs.androidx.ink.brush)
     implementation(libs.androidx.ink.strokes)
     // Boox raw-ink fast path; classes only referenced behind isOnyxDevice().
-    implementation(libs.onyxsdk.pen)
+    // Exclude old support-compat which conflicts with androidx.core.
+    // Exclude mmkv which ships conflicting libc++_shared.so.
+    implementation(libs.onyxsdk.pen) {
+        exclude(group = "com.android.support", module = "support-compat")
+        exclude(group = "com.tencent", module = "mmkv")
+    }
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
 }
