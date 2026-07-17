@@ -52,11 +52,29 @@ dependencyResolutionManagement {
             // Onyx publishes over plain HTTP; risk contained by the exact version pin
             // in libs.versions.toml and the group content filter below.
             isAllowInsecureProtocol = true
-            content { includeGroupByRegex("com\\.onyx.*") }
+            content {
+                includeGroupByRegex("com\\.onyx.*")
+                // Transitives of onyxsdk-base that exist ONLY on repo.boox.com
+                // (jcenter-era or Onyx forks): hugo fork, easypermissions 0.2.1,
+                // mmkv 1.0.19.
+                includeGroup("com.jakewharton.hugo.fix")
+                includeModule("pub.devrel", "easypermissions")
+                includeModule("com.tencent", "mmkv")
+            }
         }
     }
 }
 ```
+
+> **Network note (2026-07-16):** repo.boox.com is unreachable from the dev PC
+> (China-hosted; connection refused internationally). The full `com.onyx` closure
+> (onyxsdk-pen 1.4.11 → onyxsdk-base 1.7.6 → onyxsdk-device 1.2.30 +
+> onyxsdk-commons-io 2.5 + hugo-annotations 1.2.3 + easypermissions 0.2.1 +
+> mmkv 1.0.19) is mirrored at `C:\Users\mrzea\boox-maven-mirror` and served by the
+> machine-local init script `C:\Users\mrzea\.gradle\init.d\boox-local-mirror.gradle`
+> (content-filtered to those groups, consulted before the repos above). The
+> committed settings.gradle.kts stays canonical for machines that can reach
+> repo.boox.com.
 
 - [ ] **Step 2: Add the pinned dependency**
 
@@ -494,6 +512,7 @@ No code. Owner installs the v0.9.0 APK on the Boox Go 10.3 Gen 2 and runs this c
 - [ ] Stroke alignment: hardware ink and the committed render land in the same place (if offset: switch `getLocalVisibleRect` → `getGlobalVisibleRect` in `BooxRawInk.kt` — known calibration point).
 - [ ] Pressure calibration: synced strokes on the rM2 show a width range comparable to rM2-native strokes (if flat/blown out: tune the max-pressure normalization — `FALLBACK_MAX_PRESSURE` / `EpdController.getMaxTouchPressure()` path).
 - [ ] Undo/redo while PEN active: stroke disappears/reappears within ~200ms pulse; no ghost hardware ink left behind (if the repaint races the pulse: raise the 200ms settle delay).
+- [ ] Stroke integrity: one physical stroke = one committed stroke (draw a long slow spiral, then check the page has ONE new stroke row / the rM2 renders it as one). If the SDK delivers `onRawDrawingTouchPointListReceived` in multiple batches per stroke, strokes fragment into several Room rows with per-batch t0 — fix would buffer batches between onBeginRawDrawing/onEndRawDrawing.
 - [ ] Per-stroke flicker check: writing several strokes must NOT visibly refresh/settle after each stroke. If it does (EPD not deferring view refreshes in raw mode on this firmware), apply the documented contingency: filter wet-session guids out of the committed Canvas in the VM until the next repaint event (small VM-only change — see spec §5).
 - [ ] Erase tool: toolbar ERASE still erases by touch; switching ERASE→PEN re-arms raw drawing.
 - [ ] Page nav ‹/›/+PAGE and DONE: raw layer closes cleanly (no locked screen region afterward), strokes persist, editor-close sync fires.
