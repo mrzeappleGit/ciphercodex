@@ -58,6 +58,12 @@ android {
         compose = true
         buildConfig = true
     }
+    packaging {
+        jniLibs {
+            // onyxsdk-pen and mmkv both ship libc++_shared.so; either copy works.
+            pickFirsts += "**/libc++_shared.so"
+        }
+    }
 }
 
 dependencies {
@@ -87,11 +93,10 @@ dependencies {
     implementation(libs.androidx.ink.brush)
     implementation(libs.androidx.ink.strokes)
     // Boox raw-ink fast path; classes only referenced behind isOnyxDevice().
-    // Exclude old support-compat which conflicts with androidx.core.
-    // Exclude mmkv which ships conflicting libc++_shared.so.
+    // Exclude old support-compat (build-time dedup: androidx.core ships legacy IPC shims,
+    // Onyx SDK bytecode does not reference android.support classes).
     implementation(libs.onyxsdk.pen) {
         exclude(group = "com.android.support", module = "support-compat")
-        exclude(group = "com.tencent", module = "mmkv")
     }
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
