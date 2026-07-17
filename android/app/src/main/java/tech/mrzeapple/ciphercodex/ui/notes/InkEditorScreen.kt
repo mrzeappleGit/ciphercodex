@@ -177,6 +177,11 @@ fun InkEditorScreen(
                     // this the closures below would keep capturing the FIRST page's `vm`
                     // across ‹/›/+PAGE navigation (the call site never unmounts).
                     key(pageGuid) {
+                        if (isOnyxDevice()) {
+                            // Boox: hardware raw ink (rM2-class latency + pressure);
+                            // same commitStroke pipeline, no wet-view handoff needed.
+                            BooxRawInkOverlay(vm, Modifier.fillMaxSize())
+                        } else {
                         AndroidView(
                             modifier = Modifier.fillMaxSize(),
                             factory = { ctx ->
@@ -272,6 +277,7 @@ fun InkEditorScreen(
                                 }
                             },
                         )
+                        }
                     }
                 } else {
                     Box(

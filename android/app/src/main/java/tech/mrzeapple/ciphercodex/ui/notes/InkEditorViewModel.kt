@@ -41,6 +41,10 @@ class InkEditorViewModel(private val app: CipherCodexApp, val pageGuid: String) 
     private val opMutex = Mutex()
     val canUndo = MutableStateFlow(false)
     val canRedo = MutableStateFlow(false)
+    /** Bumped after an undo/redo lands in Room. The Boox raw-ink overlay collects this
+     *  and briefly releases raw drawing so the repainted stroke set reaches the screen
+     *  (raw mode defers normal view refreshes). Non-Boox path ignores it. */
+    val repaintTick = MutableStateFlow(0)
     private fun bump() { canUndo.value = undoStack.isNotEmpty(); canRedo.value = redoStack.isNotEmpty() }
 
     fun commitStroke(points: List<InkPoint>, onCommitted: (() -> Unit)? = null) {
@@ -77,6 +81,7 @@ class InkEditorViewModel(private val app: CipherCodexApp, val pageGuid: String) 
                     is Erase -> { author.restoreStroke(op.s); redoStack.addLast(op) }
                 }
                 bump()
+                repaintTick.value++
             }
         }
     }
@@ -91,6 +96,7 @@ class InkEditorViewModel(private val app: CipherCodexApp, val pageGuid: String) 
                     is Erase -> if (author.eraseStroke(op.s.guid) != null) undoStack.addLast(op)
                 }
                 bump()
+                repaintTick.value++
             }
         }
     }
