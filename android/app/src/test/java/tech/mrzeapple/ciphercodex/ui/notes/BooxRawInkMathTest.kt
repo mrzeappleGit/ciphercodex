@@ -7,13 +7,24 @@ class BooxRawInkMathTest {
     @Test
     fun mapsViewCoordsPressureAndTime() {
         val p = BooxRawInkMath.rawPointToInk(
-            x = 702f, y = 936f, pressure = 2048f, timestampMs = 1100L,
+            x = 702f, y = 936f, pressure = 512f, timestampMs = 1100L,
             strokeStartMs = 1000L, viewW = 1404f, viewH = 1872f, maxPressure = 4096f,
         )
         assertEquals(0.5f, p.x, 1e-6f)
         assertEquals(0.5f, p.y, 1e-6f)
-        assertEquals(2047, p.pressure) // 2048/4096 * 4095 = 2047.5, truncated
+        assertEquals(2047, p.pressure) // 512*GAIN(4)/4096 * 4095 = 2047.5, truncated
         assertEquals(100L, p.t)
+    }
+
+    @Test
+    fun firmWritingReachesFullScale() {
+        // Go 10.3 firm handwriting peaks ~1024/4096 (hardware logcat): with the
+        // calibration gain that must map to (near) full wire pressure, not a hairline.
+        val p = BooxRawInkMath.rawPointToInk(
+            x = 0f, y = 0f, pressure = 1024f, timestampMs = 0L,
+            strokeStartMs = 0L, viewW = 100f, viewH = 100f, maxPressure = 4096f,
+        )
+        assertEquals(4095, p.pressure)
     }
 
     @Test

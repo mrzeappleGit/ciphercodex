@@ -14,8 +14,8 @@ android {
         applicationId = "tech.mrzeapple.ciphercodex"
         minSdk = 26
         targetSdk = 35
-        versionCode = 32
-        versionName = "0.9.1"
+        versionCode = 33
+        versionName = "0.9.2"
     }
 
     signingConfigs {
@@ -98,6 +98,10 @@ dependencies {
     implementation(libs.onyxsdk.pen) {
         exclude(group = "com.android.support", module = "support-compat")
     }
+    // Onyx firmware 4.x (Android 15) blocklists the android.onyx.* reflection surface
+    // the pen SDK lives on, and blocks the SDK's own VMRuntime bootstrap bypass;
+    // this restores the exemption at startup (MainActivity).
+    implementation(libs.hiddenapibypass)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
 }

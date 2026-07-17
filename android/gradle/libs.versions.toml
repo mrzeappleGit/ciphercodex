@@ -18,6 +18,9 @@ ink = "1.0.0-alpha05"
 # 1.4.11 (per Onyx's stale docs) initializes but delivers NO RawInputCallback events
 # on the Go 10.3 — known device/firmware mismatch; 1.5.x is the fixed line.
 onyxsdkPen = "1.5.4.1"
+# Onyx firmware 4.x (Android 15) hidden-API-blocks android.onyx.* AND the pen SDK's
+# own VMRuntime bootstrap; this restores the exemption (see MainActivity.onCreate).
+hiddenapibypass = "6.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -42,6 +45,7 @@ androidx-ink-authoring = { module = "androidx.ink:ink-authoring", version.ref = 
 androidx-ink-brush = { module = "androidx.ink:ink-brush", version.ref = "ink" }
 androidx-ink-strokes = { module = "androidx.ink:ink-strokes", version.ref = "ink" }
 onyxsdk-pen = { module = "com.onyx.android.sdk:onyxsdk-pen", version.ref = "onyxsdkPen" }
+hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenapibypass" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 junit = { module = "junit:junit", version = "4.13.2" }

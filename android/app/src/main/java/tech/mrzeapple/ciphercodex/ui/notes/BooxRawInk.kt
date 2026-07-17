@@ -34,6 +34,13 @@ object BooxRawInkMath {
      *  EpdController.getMaxTouchPressure() reads 0/absent, hardware QA tunes this. */
     const val FALLBACK_MAX_PRESSURE = 4096f
 
+    /** The Go 10.3 Gen 2 digitizer reports ~550-800/4096 for normal firm writing
+     *  (hardware QA logcat, 2026-07-16) while the shared rM2 width curve floors at
+     *  35% of scale — unscaled, all normal writing renders as 1px hairlines on both
+     *  devices. Gain maps the real writing band onto the rM2's: firm ≈ full scale.
+     *  ponytail: single feel knob, tuned on hardware; raise if lines run too thin. */
+    const val PRESSURE_GAIN = 4f
+
     /** One raw SDK touch point (view-local px, raw pressure, epoch-ms timestamp) →
      *  wire InkPoint (page-normalized 0..1, pressure 0..4095, ms since stroke start). */
     fun rawPointToInk(
@@ -50,7 +57,7 @@ object BooxRawInkMath {
         return InkPoint(
             x = (x / viewW.coerceAtLeast(1f)).coerceIn(0f, 1f),
             y = (y / viewH.coerceAtLeast(1f)).coerceIn(0f, 1f),
-            pressure = ((pressure / maxP) * 4095f).toInt().coerceIn(0, 4095),
+            pressure = ((pressure * PRESSURE_GAIN / maxP) * 4095f).toInt().coerceIn(0, 4095),
             t = (timestampMs - strokeStartMs).coerceAtLeast(0L),
         )
     }
@@ -162,6 +169,10 @@ fun BooxRawInkOverlay(
                         .setStrokeColor(Color.BLACK)
                         .setLimitRect(limit, ArrayList())
                         .openRawDrawing()
+                    // Fountain-style wet ink renders constant-width without this: the
+                    // EPD's pressure-sensitive brush pipeline is a separate switch
+                    // (mirrors the Onyx demo's brush toggle).
+                    helper.setBrushRawDrawingEnabled(true)
                     // Same pause invariant as the observer/pulse: if first layout lands
                     // while not resumed, ON_RESUME does the arming.
                     if (!pausedRef[0]) helper.setRawDrawingEnabled(true)

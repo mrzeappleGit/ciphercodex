@@ -11,6 +11,9 @@
 -keep class com.onyx.** { *; }
 -dontwarn com.onyx.**
 
+# HiddenApiBypass resolves its own members via MethodHandles — names must survive
+-keep class org.lsposed.hiddenapibypass.** { *; }
+
 # Suppress warnings for optional/indirect transitive dependencies
 -dontwarn org.joda.convert.**
 -dontwarn org.slf4j.impl.**

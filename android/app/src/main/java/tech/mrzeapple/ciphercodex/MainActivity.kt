@@ -26,10 +26,12 @@ import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import tech.mrzeapple.ciphercodex.data.ImportResult
 import tech.mrzeapple.ciphercodex.ui.MainScaffold
 import tech.mrzeapple.ciphercodex.ui.detail.BookDetailScreen
 import tech.mrzeapple.ciphercodex.ui.nav.Routes
+import tech.mrzeapple.ciphercodex.ui.notes.isOnyxDevice
 import tech.mrzeapple.ciphercodex.ui.opds.OpdsScreen
 import tech.mrzeapple.ciphercodex.ui.reader.ReaderScreen
 import tech.mrzeapple.ciphercodex.ui.theme.CipherCodexTheme
@@ -47,6 +49,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Onyx firmware 4.x (Android 15) hidden-API-blocks the android.onyx.*
+        // reflection surface the pen SDK depends on, and blocks the SDK's own
+        // VMRuntime bootstrap — every SDK reflection call then silently returns
+        // 0/null and raw pen input dies ("Empty region detected when mapping").
+        // Exempt this process before any com.onyx class loads. Must precede the
+        // SDK's ReflectUtil <clinit>, which caches its lookups exactly once.
+        if (isOnyxDevice() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            runCatching { HiddenApiBypass.addHiddenApiExemptions("") }
+        }
         // The app chrome is forced-dark regardless of system light/dark mode,
         // so system-bar icons must stay light; Sepia flips them in the reader.
         enableEdgeToEdge(
