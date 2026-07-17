@@ -15,6 +15,7 @@ documentfile = "1.0.1"
 work = "2.9.1"
 mlkitDigitalInk = "19.0.0"
 ink = "1.0.0-alpha05"
+onyxsdkPen = "1.4.11"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -38,6 +39,7 @@ mlkit-digital-ink = { group = "com.google.mlkit", name = "digital-ink-recognitio
 androidx-ink-authoring = { module = "androidx.ink:ink-authoring", version.ref = "ink" }
 androidx-ink-brush = { module = "androidx.ink:ink-brush", version.ref = "ink" }
 androidx-ink-strokes = { module = "androidx.ink:ink-strokes", version.ref = "ink" }
+onyxsdk-pen = { module = "com.onyx.android.sdk:onyxsdk-pen", version.ref = "onyxsdkPen" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 junit = { module = "junit:junit", version = "4.13.2" }

@@ -6,3 +6,7 @@
 -keep,includedescriptorclasses class tech.mrzeapple.ciphercodex.**$$serializer { *; }
 -keepclassmembers class tech.mrzeapple.ciphercodex.** { *** Companion; }
 -keepclasseswithmembers class tech.mrzeapple.ciphercodex.** { kotlinx.serialization.KSerializer serializer(...); }
+
+# Onyx Pen SDK — raw input dispatches through JNI/reflection into SDK classes
+-keep class com.onyx.** { *; }
+-dontwarn com.onyx.**

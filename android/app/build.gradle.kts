@@ -86,6 +86,8 @@ dependencies {
     // "atomic group" convention: consumers add each artifact they reference by name).
     implementation(libs.androidx.ink.brush)
     implementation(libs.androidx.ink.strokes)
+    // Boox raw-ink fast path; classes only referenced behind isOnyxDevice().
+    implementation(libs.onyxsdk.pen)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
 }
