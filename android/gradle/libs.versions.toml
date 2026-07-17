@@ -15,7 +15,9 @@ documentfile = "1.0.1"
 work = "2.9.1"
 mlkitDigitalInk = "19.0.0"
 ink = "1.0.0-alpha05"
-onyxsdkPen = "1.4.11"
+# 1.4.11 (per Onyx's stale docs) initializes but delivers NO RawInputCallback events
+# on the Go 10.3 — known device/firmware mismatch; 1.5.x is the fixed line.
+onyxsdkPen = "1.5.4.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
